@@ -23,10 +23,12 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-ClicKit is in early development. Right now the repository contains the
-project blueprint — context, roadmap and progress log — and the application
-skeleton is being built (milestone **M0**). There are no releases yet;
-this README will grow screenshots and install instructions as milestones land.
+ClicKit is in active development. The repository skeleton (milestone **M0**)
+is complete: the project structure, dependencies and entry point
+(`python -m app` opens the main window) are in place. Work has moved to
+milestone **M1** — the click engine core (input backends, global hotkeys,
+executor). There are no public releases yet; screenshots and detailed
+install instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -55,8 +57,8 @@ want to automate a few clicks.
 
 | Milestone | Goal | Status |
 |---|---|---|
-| **M0** | Repository skeleton: structure, dependencies, app entry point | 🚧 In progress |
-| **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ⬜ Planned |
+| **M0** | Repository skeleton: structure, dependencies, app entry point | ✅ Done |
+| **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | 🚧 In progress |
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ⬜ Planned |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ⬜ Planned |
 | **M4** | Blockly visual editor with live execution | ⬜ Planned |
@@ -66,11 +68,12 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-> The application code is not in the repository yet — the instructions below
-> become valid once milestone M0 is complete.
+> The application currently opens an empty main window — useful functionality
+> will appear as milestones M1–M2 are completed. The instructions below let
+> you run it from source.
 
 ```bash
-git clone https://github.com/<owner>/ClicKit.git
+git clone https://github.com/AkaDaka1/ClicKit.git
 cd ClicKit
 pip install -r requirements.txt
 python -m app
@@ -119,10 +122,12 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-ClicKit находится на ранней стадии разработки. Сейчас в репозитории —
-«чертёж» проекта: контекст, дорожная карта и журнал прогресса, — а также
-создаётся скелет приложения (веха **M0**). Релизов пока нет; по мере
-выполнения вех в этом README появятся скриншоты и инструкции по установке.
+ClicKit находится в активной разработке. Скелет репозитория (веха **M0**)
+готов: структура проекта, зависимости и точка входа (`python -m app`
+открывает главное окно) на месте. Работа перешла на веху **M1** — ядро
+движка кликов (бэкенды ввода, глобальные хоткеи, исполнитель). Публичных
+релизов пока нет; скриншоты и подробные инструкции по установке будут
+добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -151,8 +156,8 @@ ClicKit находится на ранней стадии разработки. 
 
 | Веха | Цель | Статус |
 |---|---|---|
-| **M0** | Скелет репозитория: структура, зависимости, точка входа | 🚧 В работе |
-| **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ⬜ Запланировано |
+| **M0** | Скелет репозитория: структура, зависимости, точка входа | ✅ Готово |
+| **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | 🚧 В работе |
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ⬜ Запланировано |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ⬜ Запланировано |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
@@ -162,11 +167,12 @@ ClicKit находится на ранней стадии разработки. 
 
 ## 🚀 Быстрый старт
 
-> Кода приложения в репозитории ещё нет — инструкция ниже заработает
-> после завершения вехи M0.
+> Сейчас приложение открывает пустое главное окно — полезная функциональность
+> появится по мере выполнения вех M1–M2. Инструкции ниже позволяют запустить
+> проект из исходников.
 
 ```bash
-git clone https://github.com/<owner>/ClicKit.git
+git clone https://github.com/AkaDaka1/ClicKit.git
 cd ClicKit
 pip install -r requirements.txt
 python -m app
