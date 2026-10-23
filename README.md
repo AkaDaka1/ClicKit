@@ -96,8 +96,8 @@ you alone are responsible for how you use this tool.
 
 ## 📄 License
 
-To be decided (MIT planned). Third-party components keep their own licenses:
-PySide6 — LGPL v3, Blockly — Apache-2.0.
+Released under the [MIT License](LICENSE) © 2026 Danil Momot. Third-party
+components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ---
 
@@ -192,5 +192,6 @@ ClicKit предназначен для некоммерческого и офл
 
 ## 📄 Лицензия
 
-Пока не выбрана (планируется MIT). Сторонние компоненты сохраняют свои
-лицензии: PySide6 — LGPL v3, Blockly — Apache-2.0.
+Проект распространяется по лицензии [MIT](LICENSE) © 2026 Danil Momot.
+Сторонние компоненты сохраняют свои лицензии: PySide6 — LGPL v3,
+Blockly — Apache-2.0.
