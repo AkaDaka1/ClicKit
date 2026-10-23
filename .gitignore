@@ -1,0 +1,63 @@
+# ============================================================
+# AutoClicker — .gitignore
+# ПРАВИЛО: добавил инструмент/процесс, порождающий артефакты, —
+# сразу дополняй этот файл (см. AI_CONTEXT.md §4).
+# ============================================================
+
+# --- Python: байткод и пакеты ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+
+# --- Виртуальные окружения ---
+.venv/
+venv/
+env/
+
+# --- Тесты, линтеры, покрытия ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# --- Сборка / PyInstaller ---
+build/
+dist/
+*.manifest
+# Примечание: *.spec НЕ игнорируем — он нужен для воспроизводимой сборки
+
+# --- Логи и черновые данные ---
+*.log
+logs/
+# Каталог для локальных экспериментов (не коммитим)
+scratch/
+
+# --- Локальные конфиги и секреты ---
+.env
+.env.*
+settings.local.json
+*.local.json
+
+# --- Локальные пользовательские сценарии (фикстуры в tests/ коммитим) ---
+*.acl.local.json
+
+# --- IDE и редакторы ---
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+
+# --- Артефакты ОС ---
+Thumbs.db
+ehthumbs.db
+desktop.ini
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
