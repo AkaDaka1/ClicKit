@@ -24,11 +24,11 @@ together to script clicks, moves and delays — no coding required.
 ## 🚧 Project status
 
 ClicKit is in active development. The repository skeleton (milestone **M0**)
-is complete: the project structure, dependencies and entry point
-(`python -m app` opens the main window) are in place. Work has moved to
-milestone **M1** — the click engine core (input backends, global hotkeys,
-executor). There are no public releases yet; screenshots and detailed
-install instructions will appear as milestones land.
+and the click engine core (milestone **M1**) are complete: input backends,
+the executor with a thread-safe stop and global hotkeys work from the console,
+all covered by unit tests. Work has moved to milestone **M2** — the main
+window and the Simple mode. There are no public releases yet; screenshots and
+detailed install instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -58,7 +58,7 @@ want to automate a few clicks.
 | Milestone | Goal | Status |
 |---|---|---|
 | **M0** | Repository skeleton: structure, dependencies, app entry point | ✅ Done |
-| **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | 🚧 In progress |
+| **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ⬜ Planned |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ⬜ Planned |
 | **M4** | Blockly visual editor with live execution | ⬜ Planned |
@@ -68,9 +68,10 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-> The application currently opens an empty main window — useful functionality
-> will appear as milestones M1–M2 are completed. The instructions below let
-> you run it from source.
+> The GUI currently opens an empty main window — useful functionality will
+> appear as milestone M2 is completed. The click engine already works from the
+> console (see the demo below). The instructions below let you run it from
+> source.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -78,6 +79,15 @@ cd ClicKit
 pip install -r requirements.txt
 python -m app
 ```
+
+**Console demo of the click engine (M1):**
+
+```bash
+python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
+```
+
+`F5` starts clicking, `F6` stops instantly from any application, `Esc` exits.
+Moving the cursor to a screen corner also triggers the pyautogui fail-safe stop.
 
 **Requirements:** Windows 10/11, Python 3.11+.
 
@@ -123,11 +133,11 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 ## 🚧 Статус проекта
 
 ClicKit находится в активной разработке. Скелет репозитория (веха **M0**)
-готов: структура проекта, зависимости и точка входа (`python -m app`
-открывает главное окно) на месте. Работа перешла на веху **M1** — ядро
-движка кликов (бэкенды ввода, глобальные хоткеи, исполнитель). Публичных
-релизов пока нет; скриншоты и подробные инструкции по установке будут
-добавляться по мере выполнения вех.
+и ядро движка кликов (веха **M1**) готовы: бэкенды ввода, исполнитель с
+потокобезопасным стопом и глобальные хоткеи работают из консоли и покрыты
+юнит-тестами. Работа перешла на веху **M2** — главное окно и «Простой режим».
+Публичных релизов пока нет; скриншоты и подробные инструкции по установке
+будут добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -157,7 +167,7 @@ ClicKit находится в активной разработке. Скеле�
 | Веха | Цель | Статус |
 |---|---|---|
 | **M0** | Скелет репозитория: структура, зависимости, точка входа | ✅ Готово |
-| **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | 🚧 В работе |
+| **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ⬜ Запланировано |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ⬜ Запланировано |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
@@ -167,9 +177,9 @@ ClicKit находится в активной разработке. Скеле�
 
 ## 🚀 Быстрый старт
 
-> Сейчас приложение открывает пустое главное окно — полезная функциональность
-> появится по мере выполнения вех M1–M2. Инструкции ниже позволяют запустить
-> проект из исходников.
+> Сейчас GUI открывает пустое главное окно — полезная функциональность
+> появится по мере выполнения вехи M2. Движок кликов уже работает из консоли
+> (см. демо ниже). Инструкции ниже позволяют запустить проект из исходников.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -177,6 +187,15 @@ cd ClicKit
 pip install -r requirements.txt
 python -m app
 ```
+
+**Консольное демо движка кликов (M1):**
+
+```bash
+python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
+```
+
+`F5` — старт кликов, `F6` — мгновенный стоп из любого приложения, `Esc` — выход.
+Курсор в углу экрана также срабатывает как аварийный стоп pyautogui (fail-safe).
 
 **Требования:** Windows 10/11, Python 3.11+.
 
