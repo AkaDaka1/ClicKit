@@ -163,4 +163,4 @@ ClicKit/
 
 ---
 
-*Последнее обновление: 2026-10-24 (M1 реализован в ветке `feat/m1-core-engine`: `InputBackend`/`PyAutoguiBackend`, `Executor`, `HotkeyManager`, тесты с mock-бэкендом, демо `scripts/demo_click.py`; в §3.1 добавлена заметка об игнорировании injected-событий в `pynput.GlobalHotKeys`).*
+*Последнее обновление: 2026-10-24 (M1 принят и влит в `master`: `InputBackend`/`PyAutoguiBackend`, `Executor`, `HotkeyManager`, тесты с mock-бэкендом, демо `scripts/demo_click.py`; в §3.1 добавлена заметка об игнорировании injected-событий в `pynput.GlobalHotKeys`).*
