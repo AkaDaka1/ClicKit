@@ -75,8 +75,7 @@ ClicKit/
 ├── core/                  # движок — без импортов GUI
 │   ├── input/
 │   │   ├── backend.py     # ABC InputBackend: click/move/press/scroll/drag
-│   │   ├── pyautogui_backend.py
-│   │   └── pynput_backend.py
+│   │   └── pyautogui_backend.py   # единственный бэкенд отправки (ADR №7)
 │   ├── executor.py        # выполнение IR-сценария в воркере, stop-флаг
 │   ├── hotkeys.py         # глобальные хоткеи (pynput listener)
 │   ├── ir/
@@ -93,6 +92,8 @@ ClicKit/
 ├── resources/
 │   ├── blockly/           # vendored Blockly + наши кастомные блоки (JS)
 │   └── icons/, styles/
+├── scripts/               # консольные скрипты (M1: демо кликов)
+├── plans/                 # рабочие планы вех (gitignored)
 └── tests/
 ```
 
@@ -117,6 +118,14 @@ ClicKit/
    PySide6/pynput — LGPL v3, Blockly — Apache-2.0, pyautogui — BSD-3-Clause.
    Правообладатель: Danil Momot. Файл `LICENSE` — в корне репозитория; при сборке
    PyInstaller рядом с `.exe` нужно класть NOTICE о LGPL-компонентах Qt.
+7. **Единый бэкенд отправки — pyautogui** (2026-10-24, решение с пользователем):
+   на Windows и pyautogui, и pynput упираются в один и тот же Win32 API `SendInput`,
+   поэтому второй «отправляющий» бэкенд дублирует первый. Абстракция `InputBackend`
+   сохраняется ради тестируемости (mock-бэкенд в тестах) и возможности будущего
+   raw-input бэкенда для полноэкранных игр (решение — после подтверждения конфликтов,
+   см. «Известные проблемы» в `PROGRESS.md`). pynput используется только для
+   глобальных слушателей в `core/hotkeys.py`. `pynput_backend.py` исключён из
+   структуры (§3.2).
 
 ---
 
@@ -151,4 +160,4 @@ ClicKit/
 
 ---
 
-*Последнее обновление: 2026-10-23 (M0 завершён: скелет проекта, точка входа `python -m app`, ruff; директория `plans/` для рабочих планов).*
+*Последнее обновление: 2026-10-24 (зафиксировано правило планов вех — `plans/`, секция в `AGENTS.md`; ADR №7 — единый бэкенд отправки pyautogui, `pynput_backend.py` исключён из §3.2; `plans/` и `scripts/` добавлены в §3.2; подробный план M1 — `plans/M1-core-engine.md`).*
