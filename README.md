@@ -23,14 +23,14 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-ClicKit is in active development. The repository skeleton (**M0**), the click
-engine core (**M1**) and the first user-facing milestone (**M2**) are done:
-a dark-themed main window with two modes, a ready-to-use Simple mode
+ClicKit is in active development. Milestones **M0**, **M1** and **M2** are
+complete and merged into `master`: ClicKit is already usable as a classic
+auto-clicker. The dark-themed main window has two modes: a working Simple mode
 (coordinate picker on `F8`, interval in milliseconds, repeat count or infinite
 mode, start/stop by button and global hotkeys), a system tray icon and settings
-persisted to `%APPDATA%\ClicKit\settings.json`. M2 is in manual review; there
-are no public releases yet. Screenshots and detailed install instructions will
-appear as milestones land.
+persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) and
+the block editor (**M4**) are next. There are no public releases yet;
+screenshots and detailed install instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -61,7 +61,7 @@ want to automate a few clicks.
 |---|---|---|
 | **M0** | Repository skeleton: structure, dependencies, app entry point | ✅ Done |
 | **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
-| **M2** | Main window + Simple mode (MVP auto-clicker) | 🟡 Implemented, in review |
+| **M2** | Main window + Simple mode (MVP auto-clicker) | ✅ Done |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ⬜ Planned |
 | **M4** | Blockly visual editor with live execution | ⬜ Planned |
 | **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
@@ -145,14 +145,14 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-ClicKit находится в активной разработке. Скелет репозитория (веха **M0**),
-ядро движка кликов (**M1**) и первая пользовательская веха (**M2**) готовы:
-тёмное главное окно с двумя режимами, рабочий «Простой режим» (пикер координат
-по `F8`, интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп
-кнопкой и глобальными хоткеями), иконка в трее и настройки в
-`%APPDATA%\ClicKit\settings.json`. M2 проходит ручную приёмку. Публичных
-релизов пока нет; скриншоты и подробные инструкции по установке будут
-добавляться по мере выполнения вех.
+ClicKit находится в активной разработке. Вехи **M0**, **M1** и **M2** завершены
+и влиты в `master`: продукт уже пригоден как классический автокликер. Тёмное
+главное окно с двумя режимами, рабочий «Простой режим» (пикер координат по `F8`,
+интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп кнопкой и
+глобальными хоткеями), иконка в трее и настройки в
+`%APPDATA%\ClicKit\settings.json`. Дальше — модель сценариев (**M3**) и
+визуальный редактор блоков (**M4**). Публичных релизов пока нет; скриншоты и
+подробные инструкции по установке будут добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -183,7 +183,7 @@ ClicKit находится в активной разработке. Скеле�
 |---|---|---|
 | **M0** | Скелет репозитория: структура, зависимости, точка входа | ✅ Готово |
 | **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
-| **M2** | Главное окно + Простой режим (MVP-автокликер) | 🟡 Реализовано, на приёмке |
+| **M2** | Главное окно + Простой режим (MVP-автокликер) | ✅ Готово |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ⬜ Запланировано |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
 | **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |

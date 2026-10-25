@@ -23,32 +23,34 @@
 | 2026-10-24 | **M1 реализован** в ветке `feat/m1-core-engine` (7 коммитов): `core/input/backend.py` (ABC `InputBackend`, `Button`, фабрика `create_backend`), `core/input/pyautogui_backend.py` (`PyAutoguiBackend`, FAILSAFE=True, PAUSE=0), `core/executor.py` (`Executor` в `threading.Thread` + `threading.Event`, прерываемый интервал, `on_step`), `core/hotkeys.py` (`HotkeyManager` на `pynput.GlobalHotKeys`), `tests/test_executor.py` (5 тестов с `MockBackend`), `scripts/demo_click.py`; `ruff check`/`format` — чисто, `pytest` — 5 passed | ✅ Готово |
 | 2026-10-24 | **Ручная приёмка M1 пройдена:** демо `--count 100 --interval 0.1` — 100/100 кликов; F5 (старт), F6 (стоп из любого окна), Esc (выход), fail-safe (курсор в угол — стоп) работают; ветка `feat/m1-core-engine` влита в `master` | ✅ Готово |
 | 2026-10-25 | Согласован план M2 (`plans/M2-gui-simple-mode.md`): интервал в мс, фиксированные хоткеи F5/F6/F8, тёмная тема, два диалога закрытия с «Запомнить выбор», настройки в `%APPDATA%`; идея «клики без захвата курсора» отложена в спайк после M2 (ADR №12) | ✅ Готово |
-| 2026-10-25 | **M2 реализован** в ветке `feat/m2-gui-simple-mode`: `core/settings.py` (JSON в `%APPDATA%`, атомарная запись), `position()` и `FailsafeTriggered` в `InputBackend`, `StopReason`/`on_finish` в `Executor`, `gui/executor_adapter.py`, `gui/hotkey_bridge.py`, `gui/picker.py`, `gui/simple_mode/{config,view}.py`, `gui/main_window.py` (две вкладки, трей, диалоги закрытия), `gui/tray.py`, `gui/icons.py`, `app/paths.py`, тёмная тема `resources/styles/dark.qss`, иконка `resources/icons/app.svg`; при первом запуске точка клика — центр экрана, точка `(0, 0)` блокируется (аварийный угол pyautogui); `ruff check`/`format` — чисто, `pytest` — 39 passed | ✅ Ожидает ручной приёмки |
+| 2026-10-25 | **M2 реализован** в ветке `feat/m2-gui-simple-mode` (11 коммитов): `core/settings.py` (JSON в `%APPDATA%`, атомарная запись), `position()` и `FailsafeTriggered` в `InputBackend`, `StopReason`/`on_finish` в `Executor`, `gui/executor_adapter.py`, `gui/hotkey_bridge.py`, `gui/picker.py`, `gui/simple_mode/{config,view}.py`, `gui/main_window.py` (две вкладки, трей, диалоги закрытия), `gui/tray.py`, `gui/icons.py`, `app/paths.py`, тёмная тема `resources/styles/dark.qss`, иконка `resources/icons/app.svg`; при первом запуске точка клика — центр экрана, точка `(0, 0)` блокируется (аварийный угол pyautogui); `ruff check`/`format` — чисто, `pytest` — 39 passed | ✅ Готово |
+| 2026-10-25 | **Ручная приёмка M2 пройдена** (по чек-листу плана): главное окно в тёмной теме, пикер координат по F8, старт/стоп кнопкой и F5/F6, повторы и «Бесконечно», fail-safe, трей, оба диалога закрытия с «Запомнить выбор», восстановление настроек; ветка `feat/m2-gui-simple-mode` влита в `master` и запушена в `origin` | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
-- **Этап:** **M2 реализован** (ветка `feat/m2-gui-simple-mode`) — ожидает ручной приёмки и слияния в `master`.
+- **Этап:** **M2 завершён** — принят пользователем и влит в `master`; продукт работает как классический автокликер.
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
 - **M1:** завершён и влит в `master` — движок кликов, глобальные хоткеи, консольное демо.
-- **M2:** главное окно с двумя режимами, «Простой режим» (точка + пикер F8, кнопка мыши,
-  интервал в мс, повторы/∞, старт-стоп кнопкой и F5/F6), тёмная тема, трей,
-  настройки в `%APPDATA%\ClicKit\settings.json`, диалоги закрытия с «Запомнить выбор».
+- **M2:** завершён и влит в `master` — главное окно с двумя режимами, «Простой режим»
+  (точка + пикер F8, кнопка мыши, интервал в мс, повторы/∞, старт-стоп кнопкой и F5/F6),
+  тёмная тема, трей, настройки в `%APPDATA%\ClicKit\settings.json`, диалоги закрытия
+  с «Запомнить выбор».
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1).
-- **Ближайшая веха:** приёмка **M2**, затем **M3 — модель сценариев (IR)**.
+- **Ближайшая веха:** спайк «клики без захвата курсора» (по желанию), затем **M3 — модель сценариев (IR)**.
 
 ## Следующие шаги (по порядку)
 
-1. **Ручная приёмка M2** (чек-лист в `plans/M2-gui-simple-mode.md`):
-   запуск `python -m app`, пикер F8, клики по кнопке и F5, стоп F6 из любого окна,
-   повторы N/∞, fail-safe, трей, оба диалога закрытия, восстановление настроек.
-2. Слияние `feat/m2-gui-simple-mode` в `master` + запись в журнал.
-3. **Спайк:** фоновые клики `PostMessage` в выбранное окно (курсор свободен) —
-   прототип и матрица совместимости приложений; решение о включении в продукт.
-4. Далее — по `ROADMAP.md` (M3: IR-сценарии, M4: Blockly, M5: упаковка).
+1. **Спайк (опционально, до M3):** фоновые клики `PostMessage` в выбранное окно —
+   прототип и матрица совместимости приложений (блокнот, браузер, игры);
+   по результатам — решение, включать ли «фоновый режим» в продукт.
+2. **M3 — модель сценариев (IR):** схема узлов (`click`/`move`/`delay`/`key`/`loop`/
+   `if`/`sequence`), валидация и версионирование JSON, `interpreter.py`,
+   сохранение/загрузка `.acl.json`; критерий — сценарий исполняется из JSON.
+3. Далее — по `ROADMAP.md` (M4: Blockly, M5: упаковка).
 
 ### Материалы для GitHub-репозитория (About)
 
