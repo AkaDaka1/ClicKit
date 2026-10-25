@@ -1,4 +1,4 @@
-"""Исполнение плоского списка команд в отдельном потоке (M1)."""
+"""Исполнение плоского списка команд в отдельном потоке (M1–M2)."""
 
 import logging
 import threading
@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from core.input.backend import Button, InputBackend
+from core.input.backend import Button, FailsafeTriggered, InputBackend
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,15 @@ class CommandType(Enum):
     CLICK = "click"
     PAUSE = "pause"
     MOVE = "move"
+
+
+class StopReason(Enum):
+    """Почему исполнитель закончил работу."""
+
+    COMPLETED = "completed"  # пройдены все повторы
+    STOPPED = "stopped"  # вызван stop() (кнопка или хоткей)
+    FAILSAFE = "failsafe"  # сработала аварийная защита бэкенда
+    ERROR = "error"  # любое другое исключение
 
 
 @dataclass(frozen=True)
@@ -41,6 +50,7 @@ class Executor:
         interval: float = 0.0,
         repeats: int | None = None,
         on_step: Callable[[int], None] | None = None,
+        on_finish: Callable[[StopReason, str], None] | None = None,
     ) -> None:
         """Создать исполнитель.
 
@@ -51,6 +61,9 @@ class Executor:
             repeats: число проходов по списку; `None` — до остановки.
             on_step: callback после каждой команды (общий счётчик с 1);
                 вызывается в потоке исполнителя — только лёгкая работа.
+            on_finish: callback по завершении работы: причина и подробности
+                (пустая строка или текст ошибки); вызывается один раз
+                в потоке исполнителя.
         """
         if interval < 0:
             raise ValueError("interval не может быть отрицательным")
@@ -62,6 +75,7 @@ class Executor:
         self._interval = interval
         self._repeats = repeats
         self._on_step = on_step
+        self._on_finish = on_finish
 
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -97,35 +111,64 @@ class Executor:
         """Запросить остановку: исполнитель завершится на ближайшей проверке."""
         self._stop.set()
 
+    def join(self, timeout: float | None = None) -> bool:
+        """Дождаться завершения потока. `True` — поток завершился."""
+        thread = self._thread
+        if thread is None:
+            return True
+        thread.join(timeout=timeout)
+        return not thread.is_alive()
+
     def _run(self) -> None:
         """Тело потока: проходы по списку команд до стопа или конца повторов."""
+        reason = StopReason.COMPLETED
+        detail = ""
         try:
-            if not self._commands or self._repeats == 0:
-                return
-            passes = 0
-            while not self._stop.is_set():
-                if self._repeats is not None and passes >= self._repeats:
-                    break
-                if not self._run_pass():
-                    break
-                passes += 1
-        except Exception:  # noqa: BLE001 — поток не должен падать молча
+            if self._commands and self._repeats != 0:
+                passes = 0
+                while not self._stop.is_set():
+                    if self._repeats is not None and passes >= self._repeats:
+                        break
+                    if not self._run_pass():
+                        break
+                    passes += 1
+                if self._stop.is_set():
+                    reason = StopReason.STOPPED
+        except FailsafeTriggered as exc:
+            reason = StopReason.FAILSAFE
+            detail = str(exc)
+            logger.info("Сработала аварийная защита (курсор в углу экрана)")
+        except Exception as exc:  # noqa: BLE001 — поток не должен падать молча
+            reason = StopReason.ERROR
+            detail = str(exc) or type(exc).__name__
             logger.exception("Ошибка исполнения сценария")
         finally:
             self._stop.set()
+            self._notify_finish(reason, detail)
 
     def _run_pass(self) -> bool:
         """Выполнить один проход по списку. `False` — прерван остановкой."""
         for command in self._commands:
             if self._stop.is_set():
                 return False
+            # Интервал выдерживается перед каждой командой, кроме самой первой:
+            # после последней команды пауза не нужна (стоп срабатывает сразу).
+            if self._steps > 0 and self._stop.wait(self._interval):
+                return False
             self._execute(command)
             self._steps += 1
             if self._on_step is not None:
                 self._on_step(self._steps)
-            if self._stop.wait(self._interval):
-                return False
         return True
+
+    def _notify_finish(self, reason: StopReason, detail: str) -> None:
+        """Вызвать `on_finish`, не позволяя ошибке UI убить поток."""
+        if self._on_finish is None:
+            return
+        try:
+            self._on_finish(reason, detail)
+        except Exception:  # noqa: BLE001 — обратный вызов не должен ломать поток
+            logger.exception("Ошибка обработчика завершения исполнителя")
 
     def _execute(self, command: Command) -> None:
         """Выполнить одну команду через бэкенд."""
