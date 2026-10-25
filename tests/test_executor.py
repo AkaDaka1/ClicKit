@@ -3,8 +3,8 @@
 import time
 from collections.abc import Callable
 
-from core.executor import Command, CommandType, Executor
-from core.input.backend import Button, InputBackend
+from core.executor import Command, CommandType, Executor, StopReason
+from core.input.backend import Button, FailsafeTriggered, InputBackend
 
 
 class MockBackend(InputBackend):
@@ -17,6 +17,10 @@ class MockBackend(InputBackend):
     def _record(self, name: str, *args: object) -> None:
         self.calls.append((name, args))
         self.timestamps.append(time.monotonic())
+
+    def position(self) -> tuple[int, int]:
+        """Позиция курсора — фиксированная (пикер в тестах не нужен)."""
+        return (7, 9)
 
     def click(self, x: int, y: int, button: Button = Button.LEFT) -> None:
         self._record("click", x, y, button)
@@ -129,3 +133,108 @@ def test_empty_commands_finish_immediately() -> None:
     executor.start()
 
     assert wait_until(lambda: not executor.is_running, timeout=0.5)
+
+
+class FailsafeBackend(MockBackend):
+    """Бэкенд, у которого клик попадает в аварийную защиту."""
+
+    def click(self, x: int, y: int, button: Button = Button.LEFT) -> None:
+        raise FailsafeTriggered("курсор в углу экрана")
+
+
+class BrokenBackend(MockBackend):
+    """Бэкенд, который падает с обычной ошибкой."""
+
+    def click(self, x: int, y: int, button: Button = Button.LEFT) -> None:
+        raise RuntimeError("бэкенд недоступен")
+
+
+def make_finish_recorder() -> tuple[
+    list[tuple[StopReason, str]], Callable[[StopReason, str], None]
+]:
+    """Собрать список для проверки вызовов `on_finish`."""
+    results: list[tuple[StopReason, str]] = []
+
+    def on_finish(reason: StopReason, detail: str) -> None:
+        results.append((reason, detail))
+
+    return results, on_finish
+
+
+def test_finish_completed() -> None:
+    """Все повторы выполнены — причина COMPLETED, подробности пустые."""
+    results, on_finish = make_finish_recorder()
+    executor = Executor(
+        MockBackend(),
+        [Command(CommandType.CLICK, x=3, y=4)],
+        repeats=2,
+        on_finish=on_finish,
+    )
+    executor.start()
+
+    assert wait_until(lambda: results, timeout=1.0)
+    assert results == [(StopReason.COMPLETED, "")]
+
+
+def test_finish_stopped() -> None:
+    """Остановка по флагу — причина STOPPED."""
+    results, on_finish = make_finish_recorder()
+    backend = MockBackend()
+    executor = Executor(
+        backend,
+        [
+            Command(CommandType.CLICK, x=1, y=1),
+            Command(CommandType.PAUSE, seconds=1.0),
+        ],
+        on_finish=on_finish,
+    )
+    executor.start()
+    assert wait_until(lambda: len(backend.calls) == 1)
+    executor.stop()
+
+    assert wait_until(lambda: results, timeout=1.0)
+    assert results[0][0] is StopReason.STOPPED
+
+
+def test_finish_failsafe() -> None:
+    """Аварийная защита бэкенда — причина FAILSAFE и текст исключения."""
+    results, on_finish = make_finish_recorder()
+    executor = Executor(
+        FailsafeBackend(),
+        [Command(CommandType.CLICK, x=0, y=0)],
+        on_finish=on_finish,
+    )
+    executor.start()
+
+    assert wait_until(lambda: results, timeout=1.0)
+    assert results == [(StopReason.FAILSAFE, "курсор в углу экрана")]
+
+
+def test_finish_error() -> None:
+    """Обычное исключение бэкенда — причина ERROR с текстом."""
+    results, on_finish = make_finish_recorder()
+    executor = Executor(
+        BrokenBackend(),
+        [Command(CommandType.CLICK, x=0, y=0)],
+        on_finish=on_finish,
+    )
+    executor.start()
+
+    assert wait_until(lambda: results, timeout=1.0)
+    assert results == [(StopReason.ERROR, "бэкенд недоступен")]
+
+
+def test_finish_called_once() -> None:
+    """`on_finish` вызывается ровно один раз на прогон."""
+    results, on_finish = make_finish_recorder()
+    executor = Executor(
+        MockBackend(),
+        [Command(CommandType.CLICK, x=0, y=0)],
+        repeats=1,
+        on_finish=on_finish,
+    )
+    executor.start()
+
+    assert wait_until(lambda: results, timeout=1.0)
+    time.sleep(0.05)
+    assert len(results) == 1
