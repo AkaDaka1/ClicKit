@@ -12,8 +12,20 @@ class Button(Enum):
     MIDDLE = "middle"
 
 
+class FailsafeTriggered(Exception):
+    """Сработала аварийная защита бэкенда (курсор в углу экрана).
+
+    Бэкенд pyautogui бросает собственное исключение `FailSafeException`;
+    наружу отдаётся это, чтобы `core/` не зависел от pyautogui.
+    """
+
+
 class InputBackend(ABC):
     """Абстрактный интерфейс эмуляции ввода (клики, движения, клавиши)."""
+
+    @abstractmethod
+    def position(self) -> tuple[int, int]:
+        """Текущая позиция курсора в абсолютных координатах экрана."""
 
     @abstractmethod
     def click(self, x: int, y: int, button: Button = Button.LEFT) -> None:
