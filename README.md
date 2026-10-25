@@ -23,12 +23,14 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-ClicKit is in active development. The repository skeleton (milestone **M0**)
-and the click engine core (milestone **M1**) are complete: input backends,
-the executor with a thread-safe stop and global hotkeys work from the console,
-all covered by unit tests. Work has moved to milestone **M2** — the main
-window and the Simple mode. There are no public releases yet; screenshots and
-detailed install instructions will appear as milestones land.
+ClicKit is in active development. The repository skeleton (**M0**), the click
+engine core (**M1**) and the first user-facing milestone (**M2**) are done:
+a dark-themed main window with two modes, a ready-to-use Simple mode
+(coordinate picker on `F8`, interval in milliseconds, repeat count or infinite
+mode, start/stop by button and global hotkeys), a system tray icon and settings
+persisted to `%APPDATA%\ClicKit\settings.json`. M2 is in manual review; there
+are no public releases yet. Screenshots and detailed install instructions will
+appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -50,7 +52,7 @@ want to automate a few clicks.
 - 🧩 **Block editor** with a friendly palette — scenarios are assembled visually, no text code;
 - 💾 **Scenarios as safe data files** (`.acl.json`) — validated, versioned internal format (IR); no arbitrary code is ever executed;
 - ▶️ **Live execution highlighting** — the editor shows which block is running right now;
-- 🌗 **Dark / light themes**, system tray icon, configurable hotkeys;
+- 🌗 **Dark theme** with a system tray icon; the light theme and configurable hotkeys are planned;
 - 📦 **Single `.exe`** — runs on a clean Windows without Python installed.
 
 ## 🗺️ Roadmap
@@ -59,7 +61,7 @@ want to automate a few clicks.
 |---|---|---|
 | **M0** | Repository skeleton: structure, dependencies, app entry point | ✅ Done |
 | **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
-| **M2** | Main window + Simple mode (MVP auto-clicker) | ⬜ Planned |
+| **M2** | Main window + Simple mode (MVP auto-clicker) | 🟡 Implemented, in review |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ⬜ Planned |
 | **M4** | Blockly visual editor with live execution | ⬜ Planned |
 | **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
@@ -68,10 +70,8 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-> The GUI currently opens an empty main window — useful functionality will
-> appear as milestone M2 is completed. The click engine already works from the
-> console (see the demo below). The instructions below let you run it from
-> source.
+> ClicKit runs from source for now: `python -m app` opens the main window with
+> the working Simple mode. The block editor tab is a placeholder until M4.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -80,14 +80,27 @@ pip install -r requirements.txt
 python -m app
 ```
 
-**Console demo of the click engine (M1):**
+**Simple mode in four steps:**
+
+1. Set the click point: type X/Y, or hover the cursor over the target and press
+   `F8` (the "Current position" button captures it instantly).
+2. Pick the mouse button, the interval in milliseconds and the number of
+   repeats — or tick "Infinite".
+3. Press **Start** or `F5`. Stop at any time with `F6` — it works from any
+   application, even when ClicKit is hidden in the tray.
+4. Closing the window asks whether to minimize to tray or exit; tick
+   "Remember my choice" to skip the question for that case next time.
+
+Settings live in `%APPDATA%\ClicKit\settings.json`. Moving the cursor to a
+screen corner also triggers the pyautogui fail-safe stop.
+
+**Click engine demo (M1, console):**
 
 ```bash
 python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
 ```
 
 `F5` starts clicking, `F6` stops instantly from any application, `Esc` exits.
-Moving the cursor to a screen corner also triggers the pyautogui fail-safe stop.
 
 **Requirements:** Windows 10/11, Python 3.11+.
 
@@ -132,12 +145,14 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-ClicKit находится в активной разработке. Скелет репозитория (веха **M0**)
-и ядро движка кликов (веха **M1**) готовы: бэкенды ввода, исполнитель с
-потокобезопасным стопом и глобальные хоткеи работают из консоли и покрыты
-юнит-тестами. Работа перешла на веху **M2** — главное окно и «Простой режим».
-Публичных релизов пока нет; скриншоты и подробные инструкции по установке
-будут добавляться по мере выполнения вех.
+ClicKit находится в активной разработке. Скелет репозитория (веха **M0**),
+ядро движка кликов (**M1**) и первая пользовательская веха (**M2**) готовы:
+тёмное главное окно с двумя режимами, рабочий «Простой режим» (пикер координат
+по `F8`, интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп
+кнопкой и глобальными хоткеями), иконка в трее и настройки в
+`%APPDATA%\ClicKit\settings.json`. M2 проходит ручную приёмку. Публичных
+релизов пока нет; скриншоты и подробные инструкции по установке будут
+добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -159,7 +174,7 @@ ClicKit находится в активной разработке. Скеле�
 - 🧩 **Редактор блоков** с понятной палитрой на русском — сценарии собираются визуально, без текстового кода;
 - 💾 **Сценарии — это безопасные файлы данных** (`.acl.json`): валидируемый версионируемый формат (IR), произвольный код никогда не исполняется;
 - ▶️ **Подсветка выполнения** — редактор показывает, какой блок исполняется прямо сейчас;
-- 🌗 **Тёмная / светлая темы**, иконка в системном трее, настраиваемые хоткеи;
+- 🌗 **Тёмная тема** и иконка в системном трее; светлая тема и настраиваемые хоткеи — в планах;
 - 📦 **Один `.exe`-файл** — работает на чистой Windows без установленного Python.
 
 ## 🗺️ Дорожная карта
@@ -168,7 +183,7 @@ ClicKit находится в активной разработке. Скеле�
 |---|---|---|
 | **M0** | Скелет репозитория: структура, зависимости, точка входа | ✅ Готово |
 | **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
-| **M2** | Главное окно + Простой режим (MVP-автокликер) | ⬜ Запланировано |
+| **M2** | Главное окно + Простой режим (MVP-автокликер) | 🟡 Реализовано, на приёмке |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ⬜ Запланировано |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
 | **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |
@@ -177,9 +192,8 @@ ClicKit находится в активной разработке. Скеле�
 
 ## 🚀 Быстрый старт
 
-> Сейчас GUI открывает пустое главное окно — полезная функциональность
-> появится по мере выполнения вехи M2. Движок кликов уже работает из консоли
-> (см. демо ниже). Инструкции ниже позволяют запустить проект из исходников.
+> Пока ClicKit запускается из исходников: `python -m app` открывает главное окно
+> с рабочим «Простым режимом». Вкладка редактора — заглушка до вехи M4.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -188,6 +202,20 @@ pip install -r requirements.txt
 python -m app
 ```
 
+**Простой режим — четыре шага:**
+
+1. Задайте точку клика: введите X/Y или наведите мышь на цель и нажмите `F8`
+   (кнопка «Текущая позиция» берёт координаты мгновенно).
+2. Выберите кнопку мыши, интервал в миллисекундах и число повторов — или
+   отметьте «Бесконечно».
+3. Нажмите **Старт** или `F5`. Остановить можно в любой момент по `F6` — это
+   работает из любого приложения, даже если ClicKit свёрнут в трей.
+4. При закрытии окна ClicKit спросит, свернуть его в трей или выйти; галочка
+   «Запомнить мой выбор» избавит от вопроса для этого случая.
+
+Настройки хранятся в `%APPDATA%\ClicKit\settings.json`. Курсор в углу экрана
+также срабатывает как аварийный стоп pyautogui (fail-safe).
+
 **Консольное демо движка кликов (M1):**
 
 ```bash
@@ -195,7 +223,6 @@ python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
 ```
 
 `F5` — старт кликов, `F6` — мгновенный стоп из любого приложения, `Esc` — выход.
-Курсор в углу экрана также срабатывает как аварийный стоп pyautogui (fail-safe).
 
 **Требования:** Windows 10/11, Python 3.11+.
 
