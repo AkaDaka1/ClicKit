@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- ClicKit: скруглённый квадрат-«конструктор» и стрелка курсора -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#5865f2"/>
+  <path d="M19 14 L19 47 L28 38 L33 51 L39 48 L34 35 L46 33 Z" fill="#ffffff"/>
+</svg>
