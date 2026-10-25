@@ -46,7 +46,6 @@ def run() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("ClicKit")
-    app.setApplicationDisplayName("ClicKit")
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ClicKit")
     app.setWindowIcon(app_icon())
