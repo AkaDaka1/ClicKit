@@ -172,9 +172,16 @@ class SimpleModeView(QWidget):
         Raises:
             ValueError: если значения формы недопустимы.
         """
+        x = self._x_spin.value()
+        y = self._y_spin.value()
+        if x == 0 and y == 0:
+            raise ValueError(
+                "Точка (0, 0) — аварийный угол pyautogui, клики там сразу "
+                "остановятся. Выберите другую точку или захватите её по F8."
+            )
         return SimpleRunConfig(
-            x=self._x_spin.value(),
-            y=self._y_spin.value(),
+            x=x,
+            y=y,
             button=Button(str(self._button_combo.currentData())),
             interval_ms=self._interval_spin.value(),
             repeats=None

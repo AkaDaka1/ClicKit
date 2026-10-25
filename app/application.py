@@ -6,7 +6,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from app.paths import resource_path
-from core.settings import SettingsStore
+from core.settings import Settings, SettingsStore
 from gui.icons import app_icon
 from gui.main_window import MainWindow
 
@@ -23,6 +23,18 @@ def load_stylesheet() -> str:
     except OSError:
         logger.warning("Не удалось загрузить тему оформления", exc_info=True)
         return ""
+
+
+def initial_settings(store: SettingsStore, center: tuple[int, int] | None) -> Settings:
+    """Настройки при запуске: при первом запуске точка — центр экрана.
+
+    Координаты `(0, 0)` — аварийный угол pyautogui, там клики сразу
+    останавливаются, поэтому в качестве стартовой точки берётся центр.
+    """
+    settings = store.load()
+    if not store.path.exists() and center is not None:
+        settings.x, settings.y = center
+    return settings
 
 
 def run() -> int:
@@ -43,6 +55,12 @@ def run() -> int:
     app.setStyleSheet(load_stylesheet())
 
     store = SettingsStore()
-    window = MainWindow(settings=store.load(), store=store)
+    screen = app.primaryScreen()
+    center: tuple[int, int] | None = None
+    if screen is not None:
+        point = screen.availableGeometry().center()
+        center = (point.x(), point.y())
+
+    window = MainWindow(settings=initial_settings(store, center), store=store)
     window.show()
     return app.exec()

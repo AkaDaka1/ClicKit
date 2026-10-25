@@ -4,7 +4,14 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QPushButton, QSpinBox, QTabWidget, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QTabWidget,
+    QWidget,
+)
 
 from core.input.backend import Button
 from core.settings import Settings, SettingsStore
@@ -104,6 +111,24 @@ def test_capture_point_fills_coordinates(qt_app: object, tmp_path: Path) -> None
 
     expected = MockBackend().position()
     assert (spins[0].value(), spins[1].value()) == expected
+
+    window.hide()
+    window.deleteLater()
+
+
+def test_start_refuses_failsafe_corner(qt_app: object, tmp_path: Path) -> None:
+    """Точка (0, 0) — аварийный угол pyautogui: запуск блокируется с подсказкой."""
+    backend = MockBackend()
+    window = make_window(tmp_path, backend, x=0, y=0)
+    start_button = find_start_button(window)
+
+    start_button.click()
+
+    assert backend.calls == []
+    assert start_button.text() == START_TEXT
+    message = window.findChild(QLabel, "message")
+    assert message is not None
+    assert "аварийный угол" in message.text()
 
     window.hide()
     window.deleteLater()
