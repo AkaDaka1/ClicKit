@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "name": "Клик → пауза → цикл 10×(движение + клик)",
+  "nodes": [
+    {
+      "type": "click",
+      "id": "start-click",
+      "x": 400,
+      "y": 300
+    },
+    {
+      "type": "delay",
+      "id": "pause",
+      "seconds": 0.5
+    },
+    {
+      "type": "loop",
+      "id": "main-loop",
+      "times": 10,
+      "children": [
+        {
+          "type": "move",
+          "id": "move-right",
+          "x": 600,
+          "y": 300,
+          "duration": 0.2
+        },
+        {
+          "type": "click",
+          "id": "click-right",
+          "x": 600,
+          "y": 300
+        }
+      ]
+    }
+  ]
+}
