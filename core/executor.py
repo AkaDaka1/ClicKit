@@ -1,14 +1,14 @@
 """Исполнение плоского списка команд в отдельном потоке (M1–M2)."""
 
-import logging
 import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
-from core.input.backend import Button, FailsafeTriggered, InputBackend
+from core.input.backend import Button, InputBackend
+from core.worker import StopReason, ThreadedWorker
 
-logger = logging.getLogger(__name__)
+__all__ = ["Command", "CommandType", "Executor", "StopReason"]
 
 
 class CommandType(Enum):
@@ -17,15 +17,6 @@ class CommandType(Enum):
     CLICK = "click"
     PAUSE = "pause"
     MOVE = "move"
-
-
-class StopReason(Enum):
-    """Почему исполнитель закончил работу."""
-
-    COMPLETED = "completed"  # пройдены все повторы
-    STOPPED = "stopped"  # вызван stop() (кнопка или хоткей)
-    FAILSAFE = "failsafe"  # сработала аварийная защита бэкенда
-    ERROR = "error"  # любое другое исключение
 
 
 @dataclass(frozen=True)
@@ -40,8 +31,10 @@ class Command:
     seconds: float = 0.0  # для pause
 
 
-class Executor:
+class Executor(ThreadedWorker):
     """Исполняет список команд в daemon-потоке, потокобезопасный стоп."""
+
+    thread_name = "clickit-executor"
 
     def __init__(
         self,
@@ -70,107 +63,44 @@ class Executor:
         if repeats is not None and repeats < 0:
             raise ValueError("repeats не может быть отрицательным")
 
+        super().__init__(on_finish=on_finish)
         self._backend = backend
         self._commands = tuple(commands)
         self._interval = interval
         self._repeats = repeats
         self._on_step = on_step
-        self._on_finish = on_finish
-
-        self._stop = threading.Event()
-        self._lock = threading.Lock()
-        self._thread: threading.Thread | None = None
         self._steps = 0
 
-    @property
-    def is_running(self) -> bool:
-        """Идёт ли исполнение прямо сейчас."""
-        thread = self._thread
-        return thread is not None and thread.is_alive() and not self._stop.is_set()
-
-    def start(self) -> None:
-        """Запустить исполнение; no-op, если исполнитель уже работает."""
-        with self._lock:
-            if self._thread is not None and self._thread.is_alive():
-                if not self._stop.is_set():
-                    return
-                # Предыдущий прогон остановлен, но поток ещё завершается.
-                self._thread.join(timeout=0.5)
-                if self._thread.is_alive():
-                    return
-            self._stop.clear()
-            self._steps = 0
-            self._thread = threading.Thread(
-                target=self._run,
-                name="clickit-executor",
-                daemon=True,
-            )
-            self._thread.start()
-
-    def stop(self) -> None:
-        """Запросить остановку: исполнитель завершится на ближайшей проверке."""
-        self._stop.set()
-
-    def join(self, timeout: float | None = None) -> bool:
-        """Дождаться завершения потока. `True` — поток завершился."""
-        thread = self._thread
-        if thread is None:
+    def _run_body(self, stop: threading.Event) -> bool:
+        """Проходы по списку команд до стопа или конца повторов."""
+        self._steps = 0
+        if not self._commands or self._repeats == 0:
             return True
-        thread.join(timeout=timeout)
-        return not thread.is_alive()
+        passes = 0
+        while not stop.is_set():
+            if self._repeats is not None and passes >= self._repeats:
+                break
+            if not self._run_pass(stop):
+                return False
+            passes += 1
+        return not stop.is_set()
 
-    def _run(self) -> None:
-        """Тело потока: проходы по списку команд до стопа или конца повторов."""
-        reason = StopReason.COMPLETED
-        detail = ""
-        try:
-            if self._commands and self._repeats != 0:
-                passes = 0
-                while not self._stop.is_set():
-                    if self._repeats is not None and passes >= self._repeats:
-                        break
-                    if not self._run_pass():
-                        break
-                    passes += 1
-                if self._stop.is_set():
-                    reason = StopReason.STOPPED
-        except FailsafeTriggered as exc:
-            reason = StopReason.FAILSAFE
-            detail = str(exc)
-            logger.info("Сработала аварийная защита (курсор в углу экрана)")
-        except Exception as exc:  # noqa: BLE001 — поток не должен падать молча
-            reason = StopReason.ERROR
-            detail = str(exc) or type(exc).__name__
-            logger.exception("Ошибка исполнения сценария")
-        finally:
-            self._stop.set()
-            self._notify_finish(reason, detail)
-
-    def _run_pass(self) -> bool:
+    def _run_pass(self, stop: threading.Event) -> bool:
         """Выполнить один проход по списку. `False` — прерван остановкой."""
         for command in self._commands:
-            if self._stop.is_set():
+            if stop.is_set():
                 return False
             # Интервал выдерживается перед каждой командой, кроме самой первой:
             # после последней команды пауза не нужна (стоп срабатывает сразу).
-            if self._steps > 0 and self._stop.wait(self._interval):
+            if self._steps > 0 and stop.wait(self._interval):
                 return False
-            self._execute(command)
+            self._execute(command, stop)
             self._steps += 1
             if self._on_step is not None:
                 self._on_step(self._steps)
         return True
 
-    def _notify_finish(self, reason: StopReason, detail: str) -> None:
-        """Вызвать `on_finish`, не позволяя ошибке UI убить поток."""
-        if self._on_finish is None:
-            return
-        try:
-            self._on_finish(reason, detail)
-        except Exception:  # noqa: BLE001 — обратный вызов не должен ломать поток
-            logger.exception("Ошибка обработчика завершения исполнителя")
-
-    def _execute(self, command: Command) -> None:
+    def _execute(self, command: Command, stop: threading.Event) -> None:
         """Выполнить одну команду через бэкенд."""
         if command.kind is CommandType.CLICK:
             if command.x is None or command.y is None:
@@ -181,6 +111,6 @@ class Executor:
                 raise ValueError("Команда move требует координаты x и y")
             self._backend.move_to(command.x, command.y, command.duration)
         elif command.kind is CommandType.PAUSE:
-            self._stop.wait(command.seconds)
+            stop.wait(command.seconds)
         else:  # pragma: no cover — защита от новых видов команд
             raise ValueError(f"Неизвестный вид команды: {command.kind!r}")
