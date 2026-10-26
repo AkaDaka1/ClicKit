@@ -23,14 +23,16 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-ClicKit is in active development. Milestones **M0**, **M1** and **M2** are
-complete and merged into `master`: ClicKit is already usable as a classic
+ClicKit is in active development. Milestones **M0**, **M1**, **M2** and **M3**
+are complete and merged into `master`: ClicKit is already usable as a classic
 auto-clicker. The dark-themed main window has two modes: a working Simple mode
 (coordinate picker on `F8`, interval in milliseconds, repeat count or infinite
 mode, start/stop by button and global hotkeys), a system tray icon and settings
-persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) and
-the block editor (**M4**) are next. There are no public releases yet;
-screenshots and detailed install instructions will appear as milestones land.
+persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) is
+done — scenarios are versioned, validated `.acl.json` data files (IR) that the
+engine can run from the console without the GUI. The block editor (**M4**) is
+next. There are no public releases yet; screenshots and detailed install
+instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -62,7 +64,7 @@ want to automate a few clicks.
 | **M0** | Repository skeleton: structure, dependencies, app entry point | ✅ Done |
 | **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ✅ Done |
-| **M3** | Scenario model (IR): schema, interpreter, save / load | ⬜ Planned |
+| **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
 | **M4** | Blockly visual editor with live execution | ⬜ Planned |
 | **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
 
@@ -101,6 +103,18 @@ python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
 ```
 
 `F5` starts clicking, `F6` stops instantly from any application, `Esc` exits.
+
+**Scenario runner (M3, console):**
+
+```bash
+python scripts/run_scenario.py resources/examples/click_pause_loop.acl.json
+python scripts/run_scenario.py my-scenario.acl.json --dry-run
+```
+
+`F6` stops, `Esc` exits. `--dry-run` validates the scenario and prints the
+action count without touching the mouse. Scenario files use the versioned,
+validated ClicKit IR format (`.acl.json`); node types: `click`, `double_click`,
+`move`, `drag`, `delay`, `key`, `scroll`, `loop`, `sequence`.
 
 **Requirements:** Windows 10/11, Python 3.11+.
 
@@ -145,14 +159,16 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-ClicKit находится в активной разработке. Вехи **M0**, **M1** и **M2** завершены
-и влиты в `master`: продукт уже пригоден как классический автокликер. Тёмное
-главное окно с двумя режимами, рабочий «Простой режим» (пикер координат по `F8`,
-интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп кнопкой и
-глобальными хоткеями), иконка в трее и настройки в
-`%APPDATA%\ClicKit\settings.json`. Дальше — модель сценариев (**M3**) и
-визуальный редактор блоков (**M4**). Публичных релизов пока нет; скриншоты и
-подробные инструкции по установке будут добавляться по мере выполнения вех.
+ClicKit находится в активной разработке. Вехи **M0**, **M1**, **M2** и **M3**
+завершены и влиты в `master`: продукт уже пригоден как классический автокликер.
+Тёмное главное окно с двумя режимами, рабочий «Простой режим» (пикер координат
+по `F8`, интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп
+кнопкой и глобальными хоткеями), иконка в трее и настройки в
+`%APPDATA%\ClicKit\settings.json`. Модель сценариев (**M3**) готова: сценарий —
+это версионированный валидируемый файл данных `.acl.json` (IR), который движок
+исполняет из консоли без GUI. Дальше — визуальный редактор блоков (**M4**).
+Публичных релизов пока нет; скриншоты и подробные инструкции по установке будут
+добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -184,7 +200,7 @@ ClicKit находится в активной разработке. Вехи **
 | **M0** | Скелет репозитория: структура, зависимости, точка входа | ✅ Готово |
 | **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ✅ Готово |
-| **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ⬜ Запланировано |
+| **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
 | **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |
 
@@ -223,6 +239,18 @@ python scripts/demo_click.py --x 1000 --y 500 --count 100 --interval 0.1
 ```
 
 `F5` — старт кликов, `F6` — мгновенный стоп из любого приложения, `Esc` — выход.
+
+**Консольный запуск сценария (M3):**
+
+```bash
+python scripts/run_scenario.py resources/examples/click_pause_loop.acl.json
+python scripts/run_scenario.py my-scenario.acl.json --dry-run
+```
+
+`F6` — стоп, `Esc` — выход. `--dry-run` проверяет сценарий и печатает число
+действий, не трогая мышь. Файлы сценариев — версионированный и валидируемый
+формат IR (`.acl.json`); типы узлов: `click`, `double_click`, `move`, `drag`,
+`delay`, `key`, `scroll`, `loop`, `sequence`.
 
 **Требования:** Windows 10/11, Python 3.11+.
 
