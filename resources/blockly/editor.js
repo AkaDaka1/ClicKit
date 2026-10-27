@@ -405,6 +405,7 @@
       bridge.status_changed.connect(setStatus);
       bridge.document_saved.connect(onSaved);
       bridge.running_changed.connect(onRunningChanged);
+      window.__ckChannelReady = true;
       bridge.ready();
     });
   }
