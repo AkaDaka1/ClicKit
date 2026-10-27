@@ -1,0 +1,4 @@
+Blockly 13.4.0
+Источник: https://registry.npmjs.org/blockly/-/blockly-13.4.0.tgz
+Вендорено скриптом scripts/vendor_blockly.py; файлы не редактировать.
+Лицензия: Apache-2.0 (см. LICENSE).
