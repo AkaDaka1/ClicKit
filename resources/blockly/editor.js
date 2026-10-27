@@ -212,7 +212,10 @@
   }
 
   function onWorkspaceChange(event) {
-    if (!event || event.isUiEvent || event.type === Blockly.Events.VIEWPORT_CHANGE) {
+    if (!event || event.isUiEvent) {
+      return;
+    }
+    if (event.type === Blockly.Events.VIEWPORT_CHANGE) {
       return;
     }
     clearWarnings();
@@ -489,8 +492,13 @@
         comments: false,
         collapse: true
       });
-      Blockly.serialization.workspaces.load(STARTER, workspace);
-      workspace.cleanUp();
+      Blockly.Events.disable();
+      try {
+        Blockly.serialization.workspaces.load(STARTER, workspace);
+        workspace.cleanUp();
+      } finally {
+        Blockly.Events.enable();
+      }
       workspace.addChangeListener(onWorkspaceChange);
       bindToolbar();
       initChannel();

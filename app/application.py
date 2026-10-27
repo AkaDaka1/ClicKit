@@ -3,6 +3,7 @@
 import logging
 import sys
 
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 from app.paths import resource_path
@@ -62,4 +63,10 @@ def run() -> int:
 
     window = MainWindow(settings=initial_settings(store, center), store=store)
     window.show()
-    return app.exec()
+    code = app.exec()
+    # QtWebEngine на Windows падает, если webview переживает QApplication:
+    # уничтожаем окно и отложенные объекты до выхода из процесса.
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    return code

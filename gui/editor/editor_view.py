@@ -2,13 +2,16 @@
 
 Javascript-логика живёт в `resources/blockly/` (index.html + editor.js);
 обмен с Python — только через QWebChannel и мост `ScenarioBridge`.
+Страница создаётся при первом показе вкладки: приложение стартует быстрее
+и не держит Chromium в памяти, пока редактор не нужен.
 """
 
 import json
 import logging
 from collections.abc import Callable
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import QTimer, QUrl, Signal
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -66,6 +69,7 @@ class EditorView(QWidget):
                 исключения кликов и сценария).
         """
         super().__init__(parent)
+        self._web: QWebEngineView | None = None
         self._adapter = ScenarioAdapter(backend, parent=self)
         self._bridge = ScenarioBridge(
             self._adapter,
@@ -74,11 +78,34 @@ class EditorView(QWidget):
             parent=self,
         )
 
-        self._web = QWebEngineView(self)
-        page = _EditorPage(self._web)
-        self._web.setPage(page)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        channel = QWebChannel(self._web)
+        self._bridge.status_changed.connect(self.status_message)
+        self._bridge.running_changed.connect(self.running_changed)
+
+    @property
+    def web(self) -> QWebEngineView:
+        """Встроенный виджет веб-страницы (создаётся при первом обращении)."""
+        self.ensure_loaded()
+        assert self._web is not None
+        return self._web
+
+    @property
+    def is_running(self) -> bool:
+        """Выполняется ли сценарий прямо сейчас."""
+        return self._adapter.is_running
+
+    def ensure_loaded(self) -> None:
+        """Создать webview и загрузить страницу редактора (один раз)."""
+        if self._web is not None:
+            return
+
+        web = QWebEngineView(self)
+        page = _EditorPage(web)
+        web.setPage(page)
+
+        channel = QWebChannel(web)
         channel.registerObject("bridge", self._bridge)
         page.setWebChannel(channel)
 
@@ -91,24 +118,18 @@ class EditorView(QWidget):
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False
         )
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._web)
+        layout = self.layout()
+        assert layout is not None
+        layout.addWidget(web)
+        self._web = web
+        web.load(QUrl.fromLocalFile(str(resource_path("blockly", "index.html"))))
+        logger.info("Страница редактора Blockly загружается")
 
-        self._bridge.status_changed.connect(self.status_message)
-        self._bridge.running_changed.connect(self.running_changed)
-
-        self._web.load(QUrl.fromLocalFile(str(resource_path("blockly", "index.html"))))
-
-    @property
-    def web(self) -> QWebEngineView:
-        """Встроенный виджет веб-страницы (нужен тестам)."""
-        return self._web
-
-    @property
-    def is_running(self) -> bool:
-        """Выполняется ли сценарий прямо сейчас."""
-        return self._adapter.is_running
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 — имя из Qt
+        """Загрузить страницу при первом показе вкладки."""
+        super().showEvent(event)
+        # Дать раскладке выставить размер, чтобы Blockly стартовал не с нуля.
+        QTimer.singleShot(0, self.ensure_loaded)
 
     def request_run(self) -> None:
         """Запустить сценарий по запросу (кнопка F5, мост).
@@ -117,7 +138,8 @@ class EditorView(QWidget):
         """
         if self._adapter.is_running:
             return
-        self._web.page().runJavaScript(
+        self.ensure_loaded()
+        self.web.page().runJavaScript(
             "window.__ckReady && editorApi.exportForRun ? "
             "editorApi.exportForRun() : null",
             self._on_export_for_run,
@@ -130,7 +152,9 @@ class EditorView(QWidget):
     def shutdown(self) -> None:
         """Остановить сценарий и снять нагрузку страницы."""
         self._adapter.stop(wait=True)
-        self._web.stop()
+        if self._web is not None:
+            self._web.stop()
+            self._web.deleteLater()
 
     def _on_export_for_run(self, payload: object) -> None:
         """Обработать JSON `{name, workspace}` из JS и передать в мост."""

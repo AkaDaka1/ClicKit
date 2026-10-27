@@ -59,6 +59,8 @@ def close_view(view: EditorView) -> None:
 def test_page_loads_and_has_starter_blocks(qt_app: object) -> None:
     """Страница загружается, Blockly готов и стартовый сценарий на месте."""
     view = EditorView(MockBackend())
+    view.resize(1000, 700)
+    view.show()
     try:
         assert wait_js(view, "window.__ckReady === true")
         assert wait_js(view, "window.__ckChannelReady === true")
@@ -67,6 +69,7 @@ def test_page_loads_and_has_starter_blocks(qt_app: object) -> None:
         assert stats["blocks"] >= 4
         assert stats["name"] == "Пример"
         assert stats["running"] is False
+        assert stats["dirty"] is False
         assert eval_js(view, "document.title.indexOf('Пример') >= 0") is True
     finally:
         close_view(view)
@@ -75,6 +78,8 @@ def test_page_loads_and_has_starter_blocks(qt_app: object) -> None:
 def test_export_for_run_returns_workspace(qt_app: object) -> None:
     """F5-экспорт отдаёт имя и валидный Blockly-JSON."""
     view = EditorView(MockBackend())
+    view.resize(1000, 700)
+    view.show()
     try:
         assert wait_js(view, "window.__ckReady === true")
         payload = eval_js(view, "editorApi.exportForRun()")
@@ -91,6 +96,8 @@ def test_export_for_run_returns_workspace(qt_app: object) -> None:
 def test_highlight_marks_block(qt_app: object) -> None:
     """Подсветка добавляет CSS-класс выполняемому блоку."""
     view = EditorView(MockBackend())
+    view.resize(1000, 700)
+    view.show()
     try:
         assert wait_js(view, "window.__ckReady === true")
         marked = eval_js(
@@ -118,6 +125,8 @@ def test_request_run_executes_starter_scenario(qt_app: object) -> None:
     """F5-путь: Python просит workspace у JS, сценарий выполняется и завершается."""
     backend = MockBackend()
     view = EditorView(backend)
+    view.resize(1000, 700)
+    view.show()
     try:
         assert wait_js(view, "window.__ckReady === true")
         assert wait_js(view, "window.__ckChannelReady === true")

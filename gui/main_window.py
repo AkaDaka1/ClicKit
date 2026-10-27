@@ -313,7 +313,7 @@ class MainWindow(QMainWindow):
             return
         self._tray_hint_shown = True
         text = (
-            "F6 — остановить клики."
+            "F6 — остановить выполнение."
             if running
             else "Клик по иконке в трее возвращает окно."
         )
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
 
-        running = self._adapter.is_running
+        running = self._adapter.is_running or self._editor_view.is_running
         action = (
             self._settings.close_action_running
             if running
@@ -356,10 +356,12 @@ class MainWindow(QMainWindow):
         box.setWindowTitle("ClicKit")
         box.setIcon(QMessageBox.Icon.Question)
         if running:
-            box.setText("Клики выполняются.")
-            box.setInformativeText("Свернуть ClicKit в трей, чтобы не прерывать клики?")
+            box.setText("Выполняется сценарий или клики.")
+            box.setInformativeText(
+                "Свернуть ClicKit в трей, чтобы не прерывать выполнение?"
+            )
         else:
-            box.setText("Активных кликов нет.")
+            box.setText("Активных задач нет.")
             box.setInformativeText("Свернуть ClicKit в трей?")
 
         tray_button = box.addButton(

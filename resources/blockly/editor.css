@@ -36,7 +36,8 @@ body {
 
 #toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  row-gap: 6px;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -230,4 +231,22 @@ button.danger:hover:not(:disabled) {
 
 .blocklyTreeLabel {
   font-family: "Segoe UI", "Inter", sans-serif;
+}
+
+@media (max-width: 1000px) {
+  .brand span {
+    display: none;
+  }
+
+  .name-wrap {
+    margin-left: 8px;
+  }
+
+  .name-wrap input {
+    width: 140px;
+  }
+
+  button {
+    padding: 6px 8px;
+  }
 }
