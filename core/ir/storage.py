@@ -2,7 +2,9 @@
 
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from core.ir.nodes import Scenario
 from core.ir.schema import scenario_from_json
@@ -40,6 +42,34 @@ def load_scenario(path: str | Path) -> Scenario:
     return scenario_from_json(text)
 
 
+def write_json(path: str | Path, payload: Mapping[str, Any]) -> Path:
+    """Атомарно записать JSON-объект (временный файл + `os.replace`).
+
+    Args:
+        path: путь к файлу; родительские каталоги создаются.
+        payload: JSON-совместимый словарь (например, `.acl.json`).
+
+    Returns:
+        Путь, по которому записан файл.
+
+    Raises:
+        ScenarioFileError: каталог или файл не удалось записать.
+    """
+    file = Path(path)
+    try:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        tmp_path = file.with_name(file.name + ".tmp")
+        tmp_path.write_text(text, encoding="utf-8")
+        os.replace(tmp_path, file)
+    except (OSError, TypeError, ValueError) as exc:
+        reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else str(exc)
+        raise ScenarioFileError(
+            f"Не удалось сохранить сценарий {file}: {reason}"
+        ) from exc
+    return file
+
+
 def save_scenario(scenario: Scenario, path: str | Path) -> Path:
     """Сохранить сценарий атомарно (временный файл + `os.replace`).
 
@@ -53,19 +83,4 @@ def save_scenario(scenario: Scenario, path: str | Path) -> Path:
     Raises:
         ScenarioFileError: каталог или файл не удалось записать.
     """
-    file = Path(path)
-    payload = scenario.to_mapping()
-    try:
-        file.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = file.with_name(file.name + ".tmp")
-        tmp_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(tmp_path, file)
-    except OSError as exc:
-        reason = exc.strerror or str(exc)
-        raise ScenarioFileError(
-            f"Не удалось сохранить сценарий {file}: {reason}"
-        ) from exc
-    return file
+    return write_json(path, scenario.to_mapping())
