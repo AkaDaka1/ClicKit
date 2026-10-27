@@ -29,7 +29,7 @@ from gui.tray import TrayIcon
 logger = logging.getLogger(__name__)
 
 #: Постоянная подсказка в статус-баре.
-HOTKEY_HINT = "F5 — старт · F6 — стоп · F8 — точка"
+HOTKEY_HINT = "F5 — старт активного режима · F6 — стоп · F8 — точка"
 
 #: Действия при закрытии окна (значения совпадают с `core.settings`).
 CLOSE_ASK = "ask"
@@ -63,6 +63,8 @@ class MainWindow(QMainWindow):
         self._shutting_down = False
         self._tray_hint_shown = False
         self._tray_available = TrayIcon.is_available()
+        self._clicks_running = False
+        self._scenario_running = False
 
         self._adapter = ExecutorAdapter(backend, parent=self)
         self._picker = CoordinatePicker(self._adapter.backend, parent=self)
@@ -105,7 +107,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(header)
 
         self._simple_view = SimpleModeView()
-        self._editor_view = EditorView()
+        self._editor_view = EditorView(
+            self._adapter.backend,
+            is_busy_checker=lambda: self._adapter.is_running,
+        )
         self._tabs = QTabWidget()
         self._tabs.addTab(self._simple_view, "Простой режим")
         self._tabs.addTab(self._editor_view, "Редактор сценариев")
@@ -126,8 +131,8 @@ class MainWindow(QMainWindow):
         self._simple_view.pick_requested.connect(self._capture_point)
         self._simple_view.position_requested.connect(self._capture_point)
 
-        self._hotkeys.start_requested.connect(self._start_clicks)
-        self._hotkeys.stop_requested.connect(self._stop_clicks)
+        self._hotkeys.start_requested.connect(self._start_active_mode)
+        self._hotkeys.stop_requested.connect(self._stop_all)
         self._hotkeys.pick_requested.connect(self._capture_point)
 
         self._picker.captured.connect(self._on_point_captured)
@@ -137,9 +142,12 @@ class MainWindow(QMainWindow):
         self._adapter.step.connect(self._on_step)
         self._adapter.finished.connect(self._on_finished)
 
+        self._editor_view.status_message.connect(self._on_editor_status)
+        self._editor_view.running_changed.connect(self._on_scenario_running)
+
         self._tray.show_requested.connect(self._restore_window)
-        self._tray.start_requested.connect(self._start_clicks)
-        self._tray.stop_requested.connect(self._stop_clicks)
+        self._tray.start_requested.connect(self._start_active_mode)
+        self._tray.stop_requested.connect(self._stop_all)
         self._tray.quit_requested.connect(self._quit)
 
     # --- запуск и остановка ----------------------------------------------------
@@ -147,6 +155,11 @@ class MainWindow(QMainWindow):
     def _start_clicks(self) -> None:
         """Старт кликов: по кнопке, F5 или из меню трея."""
         if self._adapter.is_running:
+            return
+        if self._editor_view.is_running:
+            message = "Сначала остановите сценарий (F6)"
+            self._simple_view.set_message(message)
+            self.statusBar().showMessage(message)
             return
         try:
             config = self._simple_view.run_config()
@@ -171,12 +184,60 @@ class MainWindow(QMainWindow):
         self._simple_view.set_message("Останавливаюсь…")
         self.statusBar().showMessage("Останавливаюсь…")
 
+    def _start_active_mode(self) -> None:
+        """Старт активного режима: на вкладке редактора — сценарий, иначе клики."""
+        if self._tabs.currentWidget() is self._editor_view:
+            self._start_scenario()
+        else:
+            self._start_clicks()
+
+    def _start_scenario(self) -> None:
+        """Старт сценария из редактора (F5 на вкладке редактора)."""
+        if self._editor_view.is_running:
+            return
+        if self._adapter.is_running:
+            message = "Сначала остановите клики (F6)"
+            self._simple_view.set_message(message)
+            self.statusBar().showMessage(message)
+            return
+        self._editor_view.request_run()
+
+    def _stop_all(self) -> None:
+        """Остановить и клики, и сценарий (F6 или меню трея)."""
+        stopped = False
+        if self._adapter.is_running:
+            self._adapter.stop()
+            self._simple_view.set_message("Останавливаюсь…")
+            stopped = True
+        if self._editor_view.is_running:
+            self._editor_view.request_stop()
+            stopped = True
+        if stopped:
+            self.statusBar().showMessage("Останавливаюсь…")
+
+    def _on_editor_status(self, text: str, is_error: bool) -> None:
+        """Статус редактора в статус-бар главного окна."""
+        self.statusBar().showMessage(text)
+
+    def _on_scenario_running(self, running: bool) -> None:
+        """Сценарий начал/завершил работу: трей и защита от двойного запуска."""
+        self._scenario_running = running
+        self._sync_tray()
+        if running and self.isHidden() and self._tray_available:
+            self._tray.notify("Сценарий запущен", "Остановить: F6 или меню трея.")
+
+    def _sync_tray(self) -> None:
+        """Трей отражает, выполняется ли хоть какой-то режим."""
+        if self._tray_available:
+            self._tray.set_running(self._clicks_running or self._scenario_running)
+
     def _on_started(self) -> None:
         """Исполнитель принял параметры и начал работу."""
         self._simple_view.set_running(True)
         self._simple_view.set_message("Кликаю…")
         self._simple_view.set_counter(0)
-        self._tray.set_running(True)
+        self._clicks_running = True
+        self._sync_tray()
         self.statusBar().showMessage("Клики выполняются — остановить: F6")
         if self.isHidden() and self._tray_available:
             self._tray.notify("Клики запущены", "Остановить: F6 или меню трея.")
@@ -196,7 +257,8 @@ class MainWindow(QMainWindow):
             detail = detail or reason_value
 
         self._simple_view.set_running(False)
-        self._tray.set_running(False)
+        self._clicks_running = False
+        self._sync_tray()
         message = self._finish_message(reason, detail)
         self._simple_view.set_message(message, error=reason is StopReason.ERROR)
         self.statusBar().showMessage(message)
@@ -333,6 +395,7 @@ class MainWindow(QMainWindow):
             return
         self._shutting_down = True
         self._adapter.stop(wait=True)
+        self._editor_view.shutdown()
         self._hotkeys.stop()
         self._simple_view.apply_to(self._settings)
         self._store.save(self._settings)
