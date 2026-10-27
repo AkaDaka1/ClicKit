@@ -30,8 +30,11 @@ auto-clicker. The dark-themed main window has two modes: a working Simple mode
 mode, start/stop by button and global hotkeys), a system tray icon and settings
 persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) is
 done — scenarios are versioned, validated `.acl.json` data files (IR) that the
-engine can run from the console without the GUI. The block editor (**M4**) is
-next. There are no public releases yet; screenshots and detailed install
+engine can run from the console without the GUI. The visual block editor
+(**M4**) is implemented and awaiting manual acceptance: build scenarios by
+dragging blocks, run them with live block highlighting, and save/load them as
+`.acl.json`. Conditions (`if`/`while`) and the input recorder are planned for
+after M4. There are no public releases yet; screenshots and detailed install
 instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
@@ -47,15 +50,15 @@ want to automate a few clicks.
 | 🖱️ **Simple mode** | A classic auto-clicker: pick a spot on screen, set interval, mouse button and repeat count — done. |
 | 🧩 **Scenario mode** | A visual editor based on Blockly: build complex sequences from drag-and-drop blocks — clicks, moves, delays, loops, conditions — like snapping LEGO bricks. |
 
-## ✨ Planned features
+## ✨ Key features
 
-- 🎯 **Coordinate picker** — hover the mouse and press `F8` to capture the point;
-- ⛑️ **Global emergency stop** (`F6`) — works from any application, even if a script is stuck in a loop;
-- 🧩 **Block editor** with a friendly palette — scenarios are assembled visually, no text code;
-- 💾 **Scenarios as safe data files** (`.acl.json`) — validated, versioned internal format (IR); no arbitrary code is ever executed;
-- ▶️ **Live execution highlighting** — the editor shows which block is running right now;
+- ✅ 🎯 **Coordinate picker** — hover the mouse and press `F8` to capture the point;
+- ✅ ⛑️ **Global emergency stop** (`F6`) — works from any application, even if a script is stuck in a loop;
+- ✅ 🧩 **Block editor** with a friendly Russian palette — scenarios are assembled visually, no text code (conditions are planned for a later release);
+- ✅ 💾 **Scenarios as safe data files** (`.acl.json`) — validated, versioned internal format (IR); no arbitrary code is ever executed;
+- ✅ ▶️ **Live execution highlighting** — the editor shows which block is running right now;
 - 🌗 **Dark theme** with a system tray icon; the light theme and configurable hotkeys are planned;
-- 📦 **Single `.exe`** — runs on a clean Windows without Python installed.
+- 🕒 📦 **Single `.exe`** — runs on a clean Windows without Python installed (M5).
 
 ## 🗺️ Roadmap
 
@@ -65,7 +68,7 @@ want to automate a few clicks.
 | **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ✅ Done |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
-| **M4** | Blockly visual editor with live execution | ⬜ Planned |
+| **M4** | Blockly visual editor with live execution | 🧪 Implemented, acceptance pending |
 | **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
 
 Details: [`ROADMAP.md`](ROADMAP.md).
@@ -73,7 +76,7 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 ## 🚀 Getting started
 
 > ClicKit runs from source for now: `python -m app` opens the main window with
-> the working Simple mode. The block editor tab is a placeholder until M4.
+> the working Simple mode and the block editor.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -95,6 +98,22 @@ python -m app
 
 Settings live in `%APPDATA%\ClicKit\settings.json`. Moving the cursor to a
 screen corner also triggers the pyautogui fail-safe stop.
+
+**Scenario editor (M4):**
+
+1. Open the **Scenario editor** tab. The starter scenario shows the idea:
+   click → pause → repeat 3×(move + click).
+2. Drag blocks from the palette (Mouse, Keyboard, Delays, Loops) and type
+   coordinates and durations directly in the blocks.
+3. Press **Run** or `F5`: on the editor tab `F5` runs the scenario, on Simple
+   mode it starts clicks. `F6` stops either one from any application.
+4. The running block is highlighted. Invalid blocks (for example, an empty
+   loop) get a warning and the scenario is not executed. `Ctrl+S` / `Ctrl+O`
+   save and open `.acl.json`; undo/redo live in the toolbar.
+
+Saved files stay regular IR scenarios (usable by `scripts/run_scenario.py`)
+and additionally keep the canvas state in `editor.workspace`. Blockly is
+vendored locally, so the editor works without internet access.
 
 **Click engine demo (M1, console):**
 
@@ -166,9 +185,12 @@ ClicKit находится в активной разработке. Вехи **
 кнопкой и глобальными хоткеями), иконка в трее и настройки в
 `%APPDATA%\ClicKit\settings.json`. Модель сценариев (**M3**) готова: сценарий —
 это версионированный валидируемый файл данных `.acl.json` (IR), который движок
-исполняет из консоли без GUI. Дальше — визуальный редактор блоков (**M4**).
-Публичных релизов пока нет; скриншоты и подробные инструкции по установке будут
-добавляться по мере выполнения вех.
+исполняет из консоли без GUI. Визуальный редактор блоков (**M4**) реализован
+и ожидает ручной приёмки: сценарии собираются перетаскиванием блоков,
+выполняются с подсветкой текущего блока и сохраняются в `.acl.json`. Условия
+(`if`/`while`) и запись действий — после M4. Публичных релизов пока нет;
+скриншоты и подробные инструкции по установке будут добавляться по мере
+выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -183,15 +205,15 @@ ClicKit находится в активной разработке. Вехи **
 | 🖱️ **Простой режим** | Классический автокликер: выбрал точку на экране, задал интервал, кнопку мыши и число повторов — готово. |
 | 🧩 **Режим сценариев** | Визуальный редактор на базе Blockly: сложные последовательности собираются перетаскиванием блоков — клики, движения, задержки, циклы, условия — как детали LEGO. |
 
-## ✨ Планируемые возможности
+## ✨ Ключевые возможности
 
-- 🎯 **Пикер координат** — наведи мышь и нажми `F8`, точка захвачена;
-- ⛑️ **Глобальный аварийный стоп** (`F6`) — срабатывает из любого приложения, даже если сценарий «завис» в цикле;
-- 🧩 **Редактор блоков** с понятной палитрой на русском — сценарии собираются визуально, без текстового кода;
-- 💾 **Сценарии — это безопасные файлы данных** (`.acl.json`): валидируемый версионируемый формат (IR), произвольный код никогда не исполняется;
-- ▶️ **Подсветка выполнения** — редактор показывает, какой блок исполняется прямо сейчас;
+- ✅ 🎯 **Пикер координат** — наведи мышь и нажми `F8`, точка захвачена;
+- ✅ ⛑️ **Глобальный аварийный стоп** (`F6`) — срабатывает из любого приложения, даже если сценарий «завис» в цикле;
+- ✅ 🧩 **Редактор блоков** с понятной палитрой на русском — сценарии собираются визуально, без текстового кода (условия — в следующих версиях);
+- ✅ 💾 **Сценарии — это безопасные файлы данных** (`.acl.json`): валидируемый версионируемый формат (IR), произвольный код никогда не исполняется;
+- ✅ ▶️ **Подсветка выполнения** — редактор показывает, какой блок исполняется прямо сейчас;
 - 🌗 **Тёмная тема** и иконка в системном трее; светлая тема и настраиваемые хоткеи — в планах;
-- 📦 **Один `.exe`-файл** — работает на чистой Windows без установленного Python.
+- 🕒 📦 **Один `.exe`-файл** — работает на чистой Windows без установленного Python (M5).
 
 ## 🗺️ Дорожная карта
 
@@ -201,7 +223,7 @@ ClicKit находится в активной разработке. Вехи **
 | **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ✅ Готово |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
-| **M4** | Визуальный редактор Blockly с подсветкой выполнения | ⬜ Запланировано |
+| **M4** | Визуальный редактор Blockly с подсветкой выполнения | 🧪 Реализован, ожидает приёмки |
 | **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |
 
 Подробнее: [`ROADMAP.md`](ROADMAP.md).
@@ -209,7 +231,7 @@ ClicKit находится в активной разработке. Вехи **
 ## 🚀 Быстрый старт
 
 > Пока ClicKit запускается из исходников: `python -m app` открывает главное окно
-> с рабочим «Простым режимом». Вкладка редактора — заглушка до вехи M4.
+> с рабочим «Простым режимом» и редактором сценариев.
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -231,6 +253,24 @@ python -m app
 
 Настройки хранятся в `%APPDATA%\ClicKit\settings.json`. Курсор в углу экрана
 также срабатывает как аварийный стоп pyautogui (fail-safe).
+
+**Редактор сценариев (M4):**
+
+1. Откройте вкладку **«Редактор сценариев»**. Стартовый пример показывает
+   идею: клик → пауза → цикл 3×(движение + клик).
+2. Перетаскивайте блоки из палитры (Мышь, Клавиатура, Задержки, Циклы) и
+   вводите координаты и задержки прямо в блоках.
+3. Нажмите **Запустить** или `F5`: на вкладке редактора `F5` запускает
+   сценарий, в «Простом режиме» — клики. `F6` останавливает и то, и другое
+   из любого приложения.
+4. Выполняемый блок подсвечивается. Ошибочные блоки (например, пустое тело
+   цикла) получают предупреждение, а сценарий не запускается. `Ctrl+S` /
+   `Ctrl+O` сохраняют и открывают `.acl.json`; отмена и повтор — в тулбаре.
+
+Сохранённые файлы остаются обычными IR-сценариями (их понимает
+`scripts/run_scenario.py`) и дополнительно хранят состояние холста в
+`editor.workspace`. Blockly вендорен локально — редактор работает без
+интернета.
 
 **Консольное демо движка кликов (M1):**
 
