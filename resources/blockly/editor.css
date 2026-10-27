@@ -1,0 +1,233 @@
+/* Стили страницы редактора ClicKit — согласованы с resources/styles/dark.qss. */
+
+:root {
+  --bg: #1e1f22;
+  --panel: #232428;
+  --panel-2: #2b2d31;
+  --border: #3a3d43;
+  --text: #e6e6e6;
+  --muted: #9aa0a6;
+  --accent: #5865f2;
+  --accent-hover: #4752c4;
+  --danger: #d1495b;
+  --danger-hover: #b73f4f;
+  --warning: #ff6b81;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Inter", sans-serif;
+  font-size: 13px;
+}
+
+#toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.brand span {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.name-wrap input {
+  width: 200px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.name-wrap input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#dirty {
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+  visibility: hidden;
+}
+
+#dirty.visible {
+  visibility: visible;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
+button {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #34363c;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #3d4047;
+}
+
+button:disabled {
+  background: #26272b;
+  color: #6b7078;
+  cursor: default;
+}
+
+button.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+button.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+}
+
+#canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+#blocklyDiv {
+  position: absolute;
+  inset: 0;
+}
+
+#statusbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 12px;
+  overflow: hidden;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#status.error {
+  color: var(--warning);
+}
+
+#step {
+  color: var(--muted);
+}
+
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+#modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: min(420px, 92vw);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+
+.modal-card p {
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Подсветка выполняемого блока (в дополнение к workspace.highlightBlock). */
+.ck-running .blocklyPath {
+  stroke: #ffffff;
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 6px rgba(88, 101, 242, 0.95));
+}
+
+/* Элементы Blockly под тёмную тему. */
+.blocklyToolboxDiv {
+  border-right: 1px solid var(--border);
+}
+
+.blocklyFlyout {
+  border-right: 1px solid var(--border);
+}
+
+.blocklyTreeLabel {
+  font-family: "Segoe UI", "Inter", sans-serif;
+}

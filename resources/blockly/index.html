@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClicKit — редактор сценариев</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="brand">ClicKit<span>редактор сценариев</span></div>
+    <label class="name-wrap" title="Имя сценария">
+      <span>Имя</span>
+      <input id="name" type="text" maxlength="200" value="Пример" autocomplete="off">
+    </label>
+    <span id="dirty" title="Есть несохранённые изменения">●</span>
+    <div class="spacer"></div>
+    <button id="btn-run" class="primary" title="Запустить сценарий (F5)">▶ Запустить</button>
+    <button id="btn-stop" class="danger" title="Остановить сценарий (F6)" disabled>■ Стоп</button>
+    <span class="divider"></span>
+    <button id="btn-save" title="Сохранить (Ctrl+S)">Сохранить</button>
+    <button id="btn-open" title="Открыть (Ctrl+O)">Открыть</button>
+    <button id="btn-new" title="Новый сценарий">Новый</button>
+    <span class="divider"></span>
+    <button id="btn-undo" title="Отменить (Ctrl+Z)">↶</button>
+    <button id="btn-redo" title="Повторить (Ctrl+Y)">↷</button>
+  </header>
+
+  <main id="canvas">
+    <div id="blocklyDiv"></div>
+  </main>
+
+  <footer id="statusbar">
+    <span id="status">Загрузка…</span>
+    <span id="step"></span>
+  </footer>
+
+  <div id="modal" class="hidden">
+    <div class="modal-card">
+      <p id="modal-text"></p>
+      <div class="modal-actions">
+        <button id="modal-cancel">Отмена</button>
+        <button id="modal-ok" class="primary">Продолжить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script src="blockly_compressed.js"></script>
+  <script src="blocks_compressed.js"></script>
+  <script src="msg/ru.js"></script>
+  <script src="theme.js"></script>
+  <script src="blocks.js"></script>
+  <script src="editor.js"></script>
+</body>
+</html>
