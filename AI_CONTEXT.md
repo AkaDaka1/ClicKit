@@ -289,4 +289,4 @@ ClicKit/
 
 ---
 
-*Последнее обновление: 2026-10-27 (M4 реализован в ветке `feat/m4-blockly-editor`: Blockly 13.4.0 vendored без CDN, редактор в `QWebEngineView` с русской палитрой и подсветкой, транслятор Blockly-JSON ↔ IR, гибридный `.acl.json` с `editor.workspace`, QWebChannel-мост, контекстные F5/F6; §3.1 — Blockly/WebEngine и офлайн-страница, §3.2 — `bridge/` и `gui/editor/`, §3.3 — ADR №18–24, §4 — правило вендоринга, §5 — глоссарий.)*
+*Последнее обновление: 2026-10-27 (M4 принят и влит в `master`: Blockly 13.4.0 vendored без CDN, редактор в `QWebEngineView` с русской палитрой и подсветкой, транслятор Blockly-JSON ↔ IR, гибридный `.acl.json` с `editor.workspace`, QWebChannel-мост, контекстные F5/F6; §3.1 — Blockly/WebEngine и офлайн-страница, §3.2 — `bridge/` и `gui/editor/`, §3.3 — ADR №18–24, §4 — правило вендоринга, §5 — глоссарий.)*

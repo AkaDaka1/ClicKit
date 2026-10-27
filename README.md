@@ -31,11 +31,10 @@ mode, start/stop by button and global hotkeys), a system tray icon and settings
 persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) is
 done — scenarios are versioned, validated `.acl.json` data files (IR) that the
 engine can run from the console without the GUI. The visual block editor
-(**M4**) is implemented and awaiting manual acceptance: build scenarios by
-dragging blocks, run them with live block highlighting, and save/load them as
-`.acl.json`. Conditions (`if`/`while`) and the input recorder are planned for
-after M4. There are no public releases yet; screenshots and detailed install
-instructions will appear as milestones land.
+(**M4**) is done: build scenarios by dragging blocks, run them with live block
+highlighting, and save/load them as `.acl.json`. Conditions (`if`/`while`) and
+the input recorder are planned for after M4. There are no public releases yet;
+screenshots and detailed install instructions will appear as milestones land.
 
 ## 💡 Why ClicKit?
 
@@ -68,7 +67,7 @@ want to automate a few clicks.
 | **M1** | Click engine (core): input backends, global hotkeys, executor — no GUI | ✅ Done |
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ✅ Done |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
-| **M4** | Blockly visual editor with live execution | 🧪 Implemented, acceptance pending |
+| **M4** | Blockly visual editor with live execution | ✅ Done |
 | **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
 
 Details: [`ROADMAP.md`](ROADMAP.md).
@@ -185,12 +184,11 @@ ClicKit находится в активной разработке. Вехи **
 кнопкой и глобальными хоткеями), иконка в трее и настройки в
 `%APPDATA%\ClicKit\settings.json`. Модель сценариев (**M3**) готова: сценарий —
 это версионированный валидируемый файл данных `.acl.json` (IR), который движок
-исполняет из консоли без GUI. Визуальный редактор блоков (**M4**) реализован
-и ожидает ручной приёмки: сценарии собираются перетаскиванием блоков,
-выполняются с подсветкой текущего блока и сохраняются в `.acl.json`. Условия
-(`if`/`while`) и запись действий — после M4. Публичных релизов пока нет;
-скриншоты и подробные инструкции по установке будут добавляться по мере
-выполнения вех.
+исполняет из консоли без GUI. Визуальный редактор блоков (**M4**) готов:
+сценарии собираются перетаскиванием блоков, выполняются с подсветкой текущего
+блока и сохраняются в `.acl.json`. Условия (`if`/`while`) и запись действий —
+после M4. Публичных релизов пока нет; скриншоты и подробные инструкции
+по установке будут добавляться по мере выполнения вех.
 
 ## 💡 Почему ClicKit?
 
@@ -223,7 +221,7 @@ ClicKit находится в активной разработке. Вехи **
 | **M1** | Движок кликов (core): бэкенды ввода, глобальные хоткеи, исполнитель — без GUI | ✅ Готово |
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ✅ Готово |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
-| **M4** | Визуальный редактор Blockly с подсветкой выполнения | 🧪 Реализован, ожидает приёмки |
+| **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
 | **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |
 
 Подробнее: [`ROADMAP.md`](ROADMAP.md).
