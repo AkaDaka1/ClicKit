@@ -24,6 +24,7 @@ from gui.hotkey_bridge import HotkeyBridge
 from gui.icons import app_icon
 from gui.picker import CoordinatePicker
 from gui.simple_mode.view import SimpleModeView
+from gui.theme import ThemeManager
 from gui.tray import TrayIcon
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         store: SettingsStore | None = None,
         backend: InputBackend | None = None,
         enable_hotkeys: bool = True,
+        theme: ThemeManager | None = None,
     ) -> None:
         """Создать окно.
 
@@ -54,11 +56,17 @@ class MainWindow(QMainWindow):
             store: хранилище настроек (по умолчанию — `%APPDATA%\\ClicKit`).
             backend: бэкенд ввода; `None` — pyautogui (в тестах — mock).
             enable_hotkeys: регистрировать ли глобальные хоткеи (в тестах — нет).
+            theme: менеджер темы приложения; `None` — создать свой (без QSS).
         """
         super().__init__()
         self._store = store if store is not None else SettingsStore()
         loaded = settings if settings is not None else self._store.load()
         self._settings = loaded.normalized()
+        self._theme = (
+            theme
+            if theme is not None
+            else ThemeManager(self._settings.theme, parent=self)
+        )
         self._clicks = 0
         self._shutting_down = False
         self._tray_hint_shown = False
@@ -110,6 +118,7 @@ class MainWindow(QMainWindow):
         self._editor_view = EditorView(
             self._adapter.backend,
             is_busy_checker=lambda: self._adapter.is_running,
+            theme=self._theme.effective,
         )
         self._tabs = QTabWidget()
         self._tabs.addTab(self._simple_view, "Простой режим")
@@ -144,6 +153,7 @@ class MainWindow(QMainWindow):
 
         self._editor_view.status_message.connect(self._on_editor_status)
         self._editor_view.running_changed.connect(self._on_scenario_running)
+        self._theme.changed.connect(self._editor_view.set_theme)
 
         self._tray.show_requested.connect(self._restore_window)
         self._tray.start_requested.connect(self._start_active_mode)

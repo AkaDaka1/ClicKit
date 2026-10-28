@@ -121,6 +121,28 @@
     statusText.classList.toggle('error', Boolean(isError));
   }
 
+  function initialTheme() {
+    const match = /theme=(light|dark)/.exec(window.location.hash || '');
+    return match ? match[1] : 'dark';
+  }
+
+  function themeObject(name) {
+    return name === 'light' ? clickitLight : clickitDark;
+  }
+
+  function applyTheme(name) {
+    const theme = name === 'light' ? 'light' : 'dark';
+    document.body.dataset.theme = theme;
+    if (!workspace) {
+      return;
+    }
+    try {
+      workspace.setTheme(themeObject(theme));
+    } catch (error) {
+      // смена темы не должна ломать редактор
+    }
+  }
+
   function getName() {
     const value = nameInput.value.trim();
     return value || 'Сценарий';
@@ -470,10 +492,12 @@
   }
 
   function init() {
+    const theme = initialTheme();
+    document.body.dataset.theme = theme;
     try {
       workspace = Blockly.inject('blocklyDiv', {
         toolbox: TOOLBOX,
-        theme: clickitDark,
+        theme: themeObject(theme),
         renderer: 'zelos',
         media: 'media/',
         grid: {spacing: 24, length: 2, colour: '#3a3d43', snap: true},
@@ -525,7 +549,8 @@
           });
         },
         highlightBlock: highlightBlock,
-        clearHighlight: clearHighlight
+        clearHighlight: clearHighlight,
+        setTheme: applyTheme
       };
       window.__ckReady = true;
       setStatus('Загрузка редактора…', false);

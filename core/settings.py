@@ -11,13 +11,17 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 #: Версия формата файла настроек (при несовместимых изменениях — увеличить).
-SETTINGS_VERSION = 1
+#: v2 (M5): добавлен режим темы; отсутствующее поле читается как «системная».
+SETTINGS_VERSION = 2
 
 #: Допустимые кнопки мыши (значения `core.input.backend.Button`).
 ALLOWED_BUTTONS: tuple[str, ...] = ("left", "right", "middle")
 
 #: Допустимые действия при закрытии окна.
 ALLOWED_CLOSE_ACTIONS: tuple[str, ...] = ("ask", "tray", "quit")
+
+#: Допустимые режимы темы: системная, тёмная, светлая.
+ALLOWED_THEMES: tuple[str, ...] = ("system", "dark", "light")
 
 #: Границы координат: запас под несколько мониторов и отрицательные координаты.
 MIN_COORDINATE = -32_768
@@ -73,6 +77,7 @@ class Settings:
     hotkey_start: str = "<f5>"
     hotkey_stop: str = "<f6>"
     hotkey_pick: str = "<f8>"
+    theme: str = "system"
     close_action_running: str = "ask"
     close_action_idle: str = "ask"
 
@@ -96,6 +101,7 @@ class Settings:
             hotkey_start=_pick_hotkey(self.hotkey_start, Settings.hotkey_start),
             hotkey_stop=_pick_hotkey(self.hotkey_stop, Settings.hotkey_stop),
             hotkey_pick=_pick_hotkey(self.hotkey_pick, Settings.hotkey_pick),
+            theme=_pick_str(self.theme, ALLOWED_THEMES, "system"),
             close_action_running=_pick_str(
                 self.close_action_running,
                 ALLOWED_CLOSE_ACTIONS,

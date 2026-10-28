@@ -107,12 +107,36 @@ def test_invalid_values_normalized() -> None:
         button="side",
         hotkey_start="   ",
         close_action_idle="explode",
+        theme="neon",
     ).normalized()
 
     assert settings.interval_ms == MIN_INTERVAL_MS
     assert settings.button == "left"
     assert settings.hotkey_start == Settings.hotkey_start
     assert settings.close_action_idle == "ask"
+    assert settings.theme == "system"
+
+
+def test_old_settings_without_theme_get_system(tmp_path: Path) -> None:
+    """Файл версии 1 (без поля theme) читается с темой «системная»."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        json.dumps({"version": 1, "x": 10, "y": 20}), encoding="utf-8"
+    )
+
+    loaded = store.load()
+
+    assert (loaded.x, loaded.y) == (10, 20)
+    assert loaded.theme == "system"
+
+
+def test_theme_roundtrip(tmp_path: Path) -> None:
+    """Выбранная тема сохраняется и читается."""
+    store = make_store(tmp_path)
+    store.save(Settings(theme="light"))
+
+    assert store.load().theme == "light"
 
 
 def test_save_leaves_no_temp_file(tmp_path: Path) -> None:

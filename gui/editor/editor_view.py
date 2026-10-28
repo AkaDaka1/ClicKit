@@ -59,6 +59,7 @@ class EditorView(QWidget):
         self,
         backend: InputBackend,
         is_busy_checker: Callable[[], bool] | None = None,
+        theme: str = "dark",
         parent: QWidget | None = None,
     ) -> None:
         """Создать редактор.
@@ -67,9 +68,11 @@ class EditorView(QWidget):
             backend: общий бэкенд ввода (тот же, что у простого режима).
             is_busy_checker: выполняется ли другой режим (для взаимного
                 исключения кликов и сценария).
+            theme: действующая тема (`dark`/`light`); применяется к Blockly.
         """
         super().__init__(parent)
         self._web: QWebEngineView | None = None
+        self._theme = theme if theme in ("dark", "light") else "dark"
         self._adapter = ScenarioAdapter(backend, parent=self)
         self._bridge = ScenarioBridge(
             self._adapter,
@@ -95,6 +98,22 @@ class EditorView(QWidget):
     def is_running(self) -> bool:
         """Выполняется ли сценарий прямо сейчас."""
         return self._adapter.is_running
+
+    @property
+    def theme(self) -> str:
+        """Действующая тема Blockly (`dark`/`light`)."""
+        return self._theme
+
+    def set_theme(self, theme: str) -> None:
+        """Сменить тему Blockly без перезагрузки страницы."""
+        name = theme if theme in ("dark", "light") else "dark"
+        if name == self._theme:
+            return
+        self._theme = name
+        if self._web is not None:
+            self._web.page().runJavaScript(
+                f"window.editorApi && editorApi.setTheme({json.dumps(name)})"
+            )
 
     def ensure_loaded(self) -> None:
         """Создать webview и загрузить страницу редактора (один раз)."""
@@ -122,8 +141,12 @@ class EditorView(QWidget):
         assert layout is not None
         layout.addWidget(web)
         self._web = web
-        web.load(QUrl.fromLocalFile(str(resource_path("blockly", "index.html"))))
-        logger.info("Страница редактора Blockly загружается")
+        url = QUrl.fromLocalFile(str(resource_path("blockly", "index.html")))
+        # Тема в хэше: страница выбирает тему до инъекции Blockly —
+        # при светлой теме нет вспышки тёмного холста.
+        url.setFragment(f"theme={self._theme}")
+        web.load(url)
+        logger.info("Страница редактора Blockly загружается (тема %s)", self._theme)
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 — имя из Qt
         """Загрузить страницу при первом показе вкладки."""
