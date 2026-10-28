@@ -43,7 +43,7 @@
 | Эмуляция ввода | `pyautogui` + `pynput` | За абстракцией `InputBackend` (см. архитектуру) |
 | Глобальные хоткеи | `pynput` | Слушатель в отдельном потоке; сочетания настраиваются |
 | Логирование | `logging` (stdlib) | Файл в `%APPDATA%` с ротацией, UTF-8-консоль |
-| Сборка | PyInstaller | Один `.exe` (onefile, windowed), NOTICE рядом |
+| Сборка | PyInstaller | onedir-архив (быстрый старт) и onefile `.exe`; NOTICE рядом |
 
 ---
 
@@ -276,11 +276,15 @@ ClicKit/
     настройка не трогает чужие обработчики (pytest). `sys.excepthook` и
     `threading.excepthook` пишут CRITICAL; диалог о сбое показывается один раз
     за запуск и содержит путь к журналу.
-28. **Сборка — PyInstaller onefile + NOTICE рядом** (2026-10-28, M5):
-    `packaging/ClicKit.spec` включает `resources/` целиком (Blockly, темы,
-    иконки, примеры), `.ico` генерируется `scripts/make_icon.py`, версия
-    свойств `.exe` — из `packaging/version_info.txt`. `scripts/build_exe.py`
-    кладёт `NOTICE.txt` рядом с `.exe`; вендоренный Blockly не редактируется.
+28. **Сборка — PyInstaller onedir + onefile** (2026-10-28, M5; формат релиза
+    уточнён 2026-10-29): `packaging/ClicKit.spec` включает `resources/` целиком
+    (Blockly, темы, иконки, примеры); режим выбирается `CLICKIT_ONEFILE=1`.
+    Релиз 1.0.0 содержит оба артефакта: `ClicKit-win64.zip` (onedir — старт
+    ~2 с, рекомендуется) и `ClicKit.exe` (onefile — один файл, но распаковка
+    ~220 МБ QtWebEngine при каждом запуске даёт до минуты). `.ico` генерируется
+    `scripts/make_icon.py`, версия свойств — из `packaging/version_info.txt`;
+    `scripts/build_exe.py --both` собирает zip и `.exe`, кладя `NOTICE.txt`
+    рядом. Вендоренный Blockly не редактируется.
 29. **Язык в M5 — только русский** (2026-10-28, M5): полноценная локализация
     RU+EN (Qt `tr`, строки JS и ядра) — отдельная задача после 1.0.0;
     смешивать её с полировкой и упаковкой нецелесообразно.
@@ -336,4 +340,4 @@ ClicKit/
 
 ---
 
-*Последнее обновление: 2026-10-28 (M5 реализован: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `core/hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*
+*Последнее обновление: 2026-10-28 (M5 реализован: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `core/hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*

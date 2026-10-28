@@ -92,8 +92,10 @@
 `gui/theme.py`, GUI и Blockly переключаются вместе; хоткеи редактируются
 в диалоге настроек с проверкой конфликтов; язык в M5 — только русский;
 журнал пишется в `%APPDATA%\ClicKit\logs\app.log` (UTF-8, 1 МБ × 3);
-сборка — PyInstaller onefile с NOTICE рядом, локальный `ClicKit.exe`
-(~220 МБ) запускается; осталось проверить на чистой Windows.
+сборка — PyInstaller с двумя артефактами: `ClicKit-win64.zip` (onedir,
+старт ~2 с, рекомендуется) и `ClicKit.exe` (onefile, один файл, старт до
+минуты из-за распаковки QtWebEngine), NOTICE рядом; осталось проверить
+на чистой Windows.
 
 ---
 

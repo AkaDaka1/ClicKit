@@ -33,6 +33,7 @@
 | 2026-10-27 | **Ручная приёмка M4 пройдена** (по чек-листу `plans/M4-blockly-editor.md`): сборка сценария drag-and-drop, запуск кнопкой и `F5`/`F6` с подсветкой, сохранение/открытие `.acl.json`, подсветка ошибок, контекстные хоткеи; ветка `feat/m4-blockly-editor` влита в `master` и запушена в `origin` | ✅ Готово |
 | 2026-10-28 | Согласован план M5 (`plans/M5-polish-packaging.md`): тема «системная/тёмная/светлая», язык только русский, редактируемые хоткеи, журналы, PyInstaller onefile, версия 1.0.0 | ✅ Готово |
 | 2026-10-28 | **M5 реализован** в ветке `feat/m5-polish-packaging` (5 коммитов): `gui/theme.py` + `light.qss` + светлая тема Blockly, диалог настроек с `HotkeyEdit` и перезагрузкой слушателя, `app/logging_setup.py` (журнал, UTF-8, excepthook), `packaging/` (spec, ICO, NOTICE, version_info), `scripts/{make_icon,build_exe}.py`, нормализация хоткеев при загрузке настроек; 256 автотестов, `ruff` чист; локальная сборка `dist/ClicKit.exe` (220 МБ) запущена — окно создаётся, журнал пишется | ✅ Готово, ждёт приёмки |
+| 2026-10-29 | Уточнён формат релиза по результатам замеров: onefile стартует ~58 с (распаковка QtWebEngine), onedir — ~2 с. Решено публиковать оба: `dist/ClicKit-win64.zip` (227.8 МБ, рекомендуется) и `dist/ClicKit.exe` (220.3 МБ); `build_exe.py` получил `--zip`/`--onefile`/`--both`, spec — режим `CLICKIT_ONEFILE`; zip проверен, версия свойств `.exe` — 1.0.0 | ✅ Готово |
 
 ---
 
@@ -61,20 +62,20 @@
   и Blockly с реакцией на тему Windows, диалог настроек с записью хоткеев
   (проверка конфликтов, применение без перезапуска), журнал в
   `%APPDATA%\ClicKit\logs\app.log` с ротацией и UTF-8, excepthook с понятным
-  диалогом, PyInstaller onefile (`packaging/ClicKit.spec`, `app.ico`, NOTICE,
-  свойства версии 1.0.0); 256 автотестов.
+  диалогом, PyInstaller (`packaging/ClicKit.spec`, `app.ico`, NOTICE,
+  свойства версии 1.0.0): onedir-архив и onefile `.exe`; 256 автотестов.
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
 - **Ближайшая веха:** ручная приёмка M5 и публикация релиза **1.0.0**
-  (`.exe` + NOTICE).
+  (zip onedir + `ClicKit.exe` + NOTICE).
 
 ## Следующие шаги (по порядку)
 
 1. **Приёмка M5** по чек-листу `plans/M5-polish-packaging.md`: темы и Blockly,
-   запись хоткеев, журнал, `.exe` на чистой Windows.
+   запись хоткеев, журнал, обе сборки на чистой Windows.
 2. **Релиз 1.0.0:** влить `feat/m5-polish-packaging` в `master`, запушить,
-   приложить `ClicKit.exe` и `NOTICE.txt` к GitHub Release.
+   приложить `ClicKit-win64.zip`, `ClicKit.exe` и `NOTICE.txt` к GitHub Release.
 3. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
    и матрица совместимости приложений.
 4. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
@@ -120,9 +121,11 @@
       (JS, `msg/`, `media/`) включён в `datas`, NOTICE об Apache-2.0/LGPL
       копируется рядом. Локальная сборка запускается и пишет журнал;
       **осталось проверить `.exe` на чистой Windows** (без Python).
-- [ ] **Размер и старт onefile:** ~220 МБ из-за QtWebEngine и распаковка
-      при каждом запуске (на тестовой машине ~20 с). Если станет проблемой —
-      рассмотреть onedir или исключение неиспользуемых Qt-модулей.
+- [ ] **Размер и старт onefile:** ~220 МБ, первый и повторные запуски
+      на тестовой машине занимают ~58 с (распаковка QtWebEngine во временный
+      каталог + антивирус). Поэтому основной релиз — onedir-архив (`~2 с`),
+      onefile остаётся альтернативой для «одного файла». Если понадобится —
+      рассмотреть исключение неиспользуемых Qt-модулей.
 - [ ] **Web-тесты и QtWebEngine:** offscreen-тесты требуют
       `QTWEBENGINE_DISABLE_SANDBOX=1` и `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`;
       при недоступном Chromium смоук отключается `CLICKIT_SKIP_WEB=1`.

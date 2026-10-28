@@ -56,7 +56,7 @@ want to automate a few clicks.
 - ✅ ▶️ **Live execution highlighting** — the editor shows which block is running right now;
 - ✅ 🌗 **System, dark and light themes** — GUI and Blockly switch together, following Windows in system mode;
 - ✅ 🪵 **Logs and clear errors** — rotated UTF-8 log in `%APPDATA%\ClicKit\logs`, friendly crash dialog;
-- ✅ 📦 **Single `.exe`** — runs on a clean Windows without Python installed.
+- ✅ 📦 **Two release builds** — a fast portable folder (`ClicKit-win64.zip`) and a single-file `.exe` for when one file matters; neither needs Python installed.
 
 ## 🗺️ Roadmap
 
@@ -73,8 +73,15 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-**Release build:** download `ClicKit.exe` (Windows 10/11, no Python needed) and
-keep `NOTICE.txt` next to it. Settings and logs live in `%APPDATA%\ClicKit`.
+**Release builds** (Windows 10/11, no Python needed):
+
+- `ClicKit-win64.zip` — **recommended**: unpack the folder and run
+  `ClicKit\ClicKit.exe`; starts in a couple of seconds.
+- `ClicKit.exe` — a single portable file. QtWebEngine (~220 MB) unpacks itself
+  on every launch, so the window may take up to a minute to appear.
+
+Keep `NOTICE.txt` next to the executable. Settings and logs live in
+`%APPDATA%\ClicKit`.
 
 **Run from source:**
 
@@ -85,16 +92,17 @@ pip install -r requirements.txt
 python -m app
 ```
 
-**Build the single-file `.exe`:**
+**Build the release artifacts:**
 
 ```bash
 pip install -r requirements-build.txt
-python scripts/build_exe.py
+python scripts/build_exe.py --both   # zip + single .exe
 ```
 
-The build lands in `dist/ClicKit.exe` with `dist/NOTICE.txt` (third-party
-licenses) beside it; `resources/` — including the vendored Blockly — is packed
-into the executable.
+Results: `dist/ClicKit-win64.zip` (folder build, fast start),
+`dist/ClicKit.exe` (single file), and `NOTICE.txt` beside/in the build.
+`--zip` builds only the folder archive, `--onefile` only the single file.
+The `resources/` tree — including the vendored Blockly — is packed into both.
 
 **Simple mode in four steps:**
 
@@ -226,7 +234,7 @@ PyInstaller, — Python на целевой машине не нужен. Усл
 - ✅ ▶️ **Подсветка выполнения** — редактор показывает, какой блок исполняется прямо сейчас;
 - ✅ 🌗 **Системная, тёмная и светлая темы** — GUI и Blockly переключаются вместе, в системном режиме следуют за Windows;
 - ✅ 🪵 **Журналы и понятные ошибки** — UTF-8-журнал с ротацией в `%APPDATA%\ClicKit\logs`, дружелюбный диалог при сбое;
-- ✅ 📦 **Один `.exe`-файл** — работает на чистой Windows без установленного Python.
+- ✅ 📦 **Две сборки** — быстрая переносимая папка (`ClicKit-win64.zip`) и один `.exe` для случаев, когда важен единственный файл; Python не нужен ни там, ни там.
 
 ## 🗺️ Дорожная карта
 
@@ -243,8 +251,15 @@ PyInstaller, — Python на целевой машине не нужен. Усл
 
 ## 🚀 Быстрый старт
 
-**Готовая сборка:** скачайте `ClicKit.exe` (Windows 10/11, Python не нужен)
-и положите рядом `NOTICE.txt`. Настройки и журналы — в `%APPDATA%\ClicKit`.
+**Готовые сборки** (Windows 10/11, Python не нужен):
+
+- `ClicKit-win64.zip` — **рекомендуется**: распакуйте папку и запустите
+  `ClicKit\ClicKit.exe`; старт за пару секунд.
+- `ClicKit.exe` — один переносимый файл. QtWebEngine (~220 МБ) распаковывается
+  при каждом запуске, поэтому окно может появиться до минуты.
+
+`NOTICE.txt` держите рядом с исполняемым файлом. Настройки и журналы — в
+`%APPDATA%\ClicKit`.
 
 **Запуск из исходников:**
 
@@ -255,16 +270,17 @@ pip install -r requirements.txt
 python -m app
 ```
 
-**Сборка одного `.exe`:**
+**Сборка артефактов релиза:**
 
 ```bash
 pip install -r requirements-build.txt
-python scripts/build_exe.py
+python scripts/build_exe.py --both   # zip + один .exe
 ```
 
-Результат — `dist/ClicKit.exe` и `dist/NOTICE.txt` (лицензии сторонних
-компонентов) рядом; `resources/` вместе с вендоренным Blockly упаковывается
-внутрь исполняемого файла.
+Результат: `dist/ClicKit-win64.zip` (папка, быстрый старт),
+`dist/ClicKit.exe` (один файл) и `NOTICE.txt` рядом/внутри. `--zip` собирает
+только архив папки, `--onefile` — только один файл. Каталог `resources/`
+вместе с вендоренным Blockly упаковывается в обе сборки.
 
 **Простой режим — четыре шага:**
 

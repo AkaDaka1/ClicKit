@@ -45,7 +45,7 @@ def test_icon_has_required_sizes() -> None:
 
 
 def test_spec_includes_resources_and_metadata() -> None:
-    """Spec кладёт resources/, иконку и версию, собирает windowed onefile."""
+    """Spec кладёт resources/, иконку и версию; умеет onedir и onefile."""
     text = SPEC.read_text(encoding="utf-8")
 
     assert 'datas=[(str(ROOT / "resources"), "resources")]' in text
@@ -53,6 +53,8 @@ def test_spec_includes_resources_and_metadata() -> None:
     assert "version_info.txt" in text
     assert "console=False" in text
     assert "PySide6.QtWebEngineCore" in text
+    assert "CLICKIT_ONEFILE" in text
+    assert "COLLECT(" in text
     compile(text, str(SPEC), "exec")
 
 
@@ -78,10 +80,12 @@ def test_notice_covers_third_party_licenses() -> None:
 
 
 def test_build_script_and_requirements_exist() -> None:
-    """Скрипт сборки копирует NOTICE, зависимости сборки зафиксированы."""
+    """Скрипт сборки умеет onedir/onefile/zip/both и копирует NOTICE."""
     script = BUILD_SCRIPT.read_text(encoding="utf-8")
 
     assert "PyInstaller" in script
     assert "NOTICE.txt" in script
     assert "ClicKit.spec" in script
+    for mode in ("--onefile", "--zip", "--both"):
+        assert mode in script
     assert "pyinstaller" in REQUIREMENTS_BUILD.read_text(encoding="utf-8").lower()
