@@ -9,6 +9,7 @@ QWidget {
 }
 
 QMainWindow,
+QDialog,
 QMessageBox {
     background-color: #1e1f22;
 }
