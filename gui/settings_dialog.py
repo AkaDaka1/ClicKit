@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from core.hotkey_spec import FIELD_LABELS, validate_hotkeys
 from core.settings import Settings
-from gui.hotkey_spec import FIELD_LABELS, validate_hotkeys
 from gui.widgets.hotkey_edit import HotkeyEdit
 
 #: Подписи режимов темы: значение настройки → текст.

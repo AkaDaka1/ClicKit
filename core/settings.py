@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
 
+from core.hotkey_spec import normalize_spec, spec_problem
+
 logger = logging.getLogger(__name__)
 
 #: Версия формата файла настроек (при несовместимых изменениях — увеличить).
@@ -52,11 +54,18 @@ def _pick_str(value: str, allowed: tuple[str, ...], default: str) -> str:
 
 
 def _pick_hotkey(value: str, default: str) -> str:
-    """Вернуть хоткей, если это непустая строка, иначе `default`."""
+    """Привести хоткей к формату pynput; небезопасный — заменить дефолтом.
+
+    Битый или вручную изменённый файл настроек не должен ронять запуск:
+    нераспознанное, пустое или опасное сочетание (например, одиночная буква)
+    заменяется значением по умолчанию.
+    """
     if not isinstance(value, str):
         return default
-    stripped = value.strip()
-    return stripped or default
+    normalized = normalize_spec(value)
+    if not normalized or spec_problem(normalized) is not None:
+        return default
+    return normalized
 
 
 @dataclass

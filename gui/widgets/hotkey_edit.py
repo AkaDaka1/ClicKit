@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from gui.hotkey_spec import sequence_to_spec, spec_problem, spec_to_text
+from core.hotkey_spec import sequence_to_spec, spec_problem, spec_to_text
 
 #: Клавиши-модификаторы: сами по себе не завершают ввод.
 _MODIFIER_KEYS = {

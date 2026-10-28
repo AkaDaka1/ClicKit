@@ -2,14 +2,14 @@
 
 import pytest
 
-from core.settings import Settings
-from gui.hotkey_spec import (
+from core.hotkey_spec import (
     normalize_spec,
     sequence_to_spec,
     spec_problem,
     spec_to_text,
     validate_hotkeys,
 )
+from core.settings import Settings
 
 
 @pytest.mark.parametrize(

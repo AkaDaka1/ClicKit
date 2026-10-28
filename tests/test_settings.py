@@ -139,6 +139,38 @@ def test_theme_roundtrip(tmp_path: Path) -> None:
     assert store.load().theme == "light"
 
 
+def test_hotkeys_are_normalized_on_load(tmp_path: Path) -> None:
+    """Хоткей приводится к формату pynput, в том числе из записи Qt."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        json.dumps(
+            {
+                "hotkey_start": "Ctrl+Alt+S",
+                "hotkey_stop": "<F6>",
+                "hotkey_pick": "<ctrl>+<shift>+<p>",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = store.load()
+
+    assert loaded.hotkey_start == "<ctrl>+<alt>+s"
+    assert loaded.hotkey_stop == "<f6>"
+    assert loaded.hotkey_pick == "<ctrl>+<shift>+p"
+
+
+@pytest.mark.parametrize("broken", ["", "   ", "a", "<esc>", "<ctrl>", "не хоткей"])
+def test_broken_hotkey_falls_back_to_default(tmp_path: Path, broken: str) -> None:
+    """Битое или опасное сочетание не роняет запуск — берётся дефолт."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(json.dumps({"hotkey_start": broken}), encoding="utf-8")
+
+    assert store.load().hotkey_start == Settings.hotkey_start
+
+
 def test_save_leaves_no_temp_file(tmp_path: Path) -> None:
     """Атомарная запись не оставляет временных файлов."""
     store = make_store(tmp_path)

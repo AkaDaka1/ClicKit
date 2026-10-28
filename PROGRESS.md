@@ -32,7 +32,7 @@
 | 2026-10-27 | **M4 реализован** в ветке `feat/m4-blockly-editor` (10 коммитов): `scripts/vendor_blockly.py` + `resources/blockly/`, `bridge/{blockly_ir,scenario_file,web_channel}.py`, `gui/editor/{scenario_adapter,editor_view}.py`, страница Blockly (10 блоков, тёмная тема, тулбар, подсветка), контекстные F5/F6 и взаимное исключение; 180 автотестов, `ruff` чист | ✅ Готово |
 | 2026-10-27 | **Ручная приёмка M4 пройдена** (по чек-листу `plans/M4-blockly-editor.md`): сборка сценария drag-and-drop, запуск кнопкой и `F5`/`F6` с подсветкой, сохранение/открытие `.acl.json`, подсветка ошибок, контекстные хоткеи; ветка `feat/m4-blockly-editor` влита в `master` и запушена в `origin` | ✅ Готово |
 | 2026-10-28 | Согласован план M5 (`plans/M5-polish-packaging.md`): тема «системная/тёмная/светлая», язык только русский, редактируемые хоткеи, журналы, PyInstaller onefile, версия 1.0.0 | ✅ Готово |
-| 2026-10-28 | **M5 реализован** в ветке `feat/m5-polish-packaging` (5 коммитов): `gui/theme.py` + `light.qss` + светлая тема Blockly, диалог настроек с `HotkeyEdit` и перезагрузкой слушателя, `app/logging_setup.py` (журнал, UTF-8, excepthook), `packaging/` (spec, ICO, NOTICE, version_info), `scripts/{make_icon,build_exe}.py`; 249 автотестов, `ruff` чист; локальная сборка `dist/ClicKit.exe` (220 МБ) запущена — окно создаётся, журнал пишется | ✅ Готово, ждёт приёмки |
+| 2026-10-28 | **M5 реализован** в ветке `feat/m5-polish-packaging` (5 коммитов): `gui/theme.py` + `light.qss` + светлая тема Blockly, диалог настроек с `HotkeyEdit` и перезагрузкой слушателя, `app/logging_setup.py` (журнал, UTF-8, excepthook), `packaging/` (spec, ICO, NOTICE, version_info), `scripts/{make_icon,build_exe}.py`, нормализация хоткеев при загрузке настроек; 256 автотестов, `ruff` чист; локальная сборка `dist/ClicKit.exe` (220 МБ) запущена — окно создаётся, журнал пишется | ✅ Готово, ждёт приёмки |
 
 ---
 
@@ -62,7 +62,7 @@
   (проверка конфликтов, применение без перезапуска), журнал в
   `%APPDATA%\ClicKit\logs\app.log` с ротацией и UTF-8, excepthook с понятным
   диалогом, PyInstaller onefile (`packaging/ClicKit.spec`, `app.ico`, NOTICE,
-  свойства версии 1.0.0); 249 автотестов.
+  свойства версии 1.0.0); 256 автотестов.
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.

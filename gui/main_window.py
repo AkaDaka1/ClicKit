@@ -21,12 +21,12 @@ from PySide6.QtWidgets import (
 from app.logging_setup import log_dir, log_path
 from app.version import APP_NAME, APP_VERSION
 from core.executor import StopReason
+from core.hotkey_spec import spec_to_text
 from core.input.backend import InputBackend
 from core.settings import Settings, SettingsStore
 from gui.editor.editor_view import EditorView
 from gui.executor_adapter import ExecutorAdapter
 from gui.hotkey_bridge import HotkeyBridge
-from gui.hotkey_spec import spec_to_text
 from gui.icons import app_icon
 from gui.picker import CoordinatePicker
 from gui.settings_dialog import SettingsDialog
