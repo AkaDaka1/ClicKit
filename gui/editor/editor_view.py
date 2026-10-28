@@ -9,6 +9,7 @@ Javascript-логика живёт в `resources/blockly/` (index.html + editor.
 import json
 import logging
 from collections.abc import Callable
+from urllib.parse import urlencode
 
 from PySide6.QtCore import QTimer, QUrl, Signal
 from PySide6.QtGui import QShowEvent
@@ -73,6 +74,8 @@ class EditorView(QWidget):
         super().__init__(parent)
         self._web: QWebEngineView | None = None
         self._theme = theme if theme in ("dark", "light") else "dark"
+        self._hotkey_start = "F5"
+        self._hotkey_stop = "F6"
         self._adapter = ScenarioAdapter(backend, parent=self)
         self._bridge = ScenarioBridge(
             self._adapter,
@@ -142,9 +145,18 @@ class EditorView(QWidget):
         layout.addWidget(web)
         self._web = web
         url = QUrl.fromLocalFile(str(resource_path("blockly", "index.html")))
-        # Тема в хэше: страница выбирает тему до инъекции Blockly —
-        # при светлой теме нет вспышки тёмного холста.
-        url.setFragment(f"theme={self._theme}")
+        # Тема и хоткеи в хэше: страница выбирает тему до инъекции Blockly —
+        # при светлой теме нет вспышки тёмного холста, а подсказки кнопок
+        # сразу показывают пользовательские сочетания.
+        url.setFragment(
+            urlencode(
+                {
+                    "theme": self._theme,
+                    "start": self._hotkey_start,
+                    "stop": self._hotkey_stop,
+                }
+            )
+        )
         web.load(url)
         logger.info("Страница редактора Blockly загружается (тема %s)", self._theme)
 
@@ -171,6 +183,17 @@ class EditorView(QWidget):
     def request_stop(self) -> None:
         """Остановить сценарий (F6, кнопка «Стоп» в трее)."""
         self._bridge.stop()
+
+    def set_hotkeys(self, start: str, stop: str) -> None:
+        """Обновить подсказки кнопок «Запустить»/«Стоп» в тулбаре страницы."""
+        self._hotkey_start = start
+        self._hotkey_stop = stop
+        if self._web is None:
+            return
+        payload = json.dumps({"start": start, "stop": stop}, ensure_ascii=False)
+        self._web.page().runJavaScript(
+            f"window.editorApi && editorApi.setHotkeys({payload})"
+        )
 
     def shutdown(self) -> None:
         """Остановить сценарий и снять нагрузку страницы."""

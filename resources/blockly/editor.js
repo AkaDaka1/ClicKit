@@ -122,8 +122,12 @@
   }
 
   function initialTheme() {
-    const match = /theme=(light|dark)/.exec(window.location.hash || '');
-    return match ? match[1] : 'dark';
+    const theme = initialHashParams().get('theme');
+    return theme === 'light' ? 'light' : 'dark';
+  }
+
+  function initialHashParams() {
+    return new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
   }
 
   function themeObject(name) {
@@ -141,6 +145,13 @@
     } catch (error) {
       // смена темы не должна ломать редактор
     }
+  }
+
+  function applyHotkeys(config) {
+    const start = (config && config.start) || 'F5';
+    const stop = (config && config.stop) || 'F6';
+    runButton.title = 'Запустить сценарий (' + start + ')';
+    stopButton.title = 'Остановить сценарий (' + stop + ')';
   }
 
   function getName() {
@@ -550,8 +561,11 @@
         },
         highlightBlock: highlightBlock,
         clearHighlight: clearHighlight,
-        setTheme: applyTheme
+        setTheme: applyTheme,
+        setHotkeys: applyHotkeys
       };
+      const params = initialHashParams();
+      applyHotkeys({start: params.get('start'), stop: params.get('stop')});
       window.__ckReady = true;
       setStatus('Загрузка редактора…', false);
     } catch (error) {

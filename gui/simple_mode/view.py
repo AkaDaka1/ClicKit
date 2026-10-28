@@ -57,6 +57,12 @@ class SimpleModeView(QWidget):
         """Создать форму с настройками по умолчанию."""
         super().__init__(parent)
         self._running = False
+        self._start_key = "F5"
+        self._stop_key = "F6"
+        self._pick_key = "F8"
+        self._start_text = f"Старт ({self._start_key})"
+        self._stop_text = f"Стоп ({self._stop_key})"
+        self._pick_text = f"Захватить точку ({self._pick_key})"
         self._build_ui()
         self._connect()
 
@@ -88,7 +94,7 @@ class SimpleModeView(QWidget):
         footer.addWidget(self._counter_label)
         layout.addLayout(footer)
 
-        self._start_button = QPushButton(START_TEXT)
+        self._start_button = QPushButton(self._start_text)
         self._start_button.setObjectName("primary")
         self._start_button.setMinimumHeight(46)
         self._start_button.setDefault(True)
@@ -105,11 +111,8 @@ class SimpleModeView(QWidget):
         form.addRow("X:", self._x_spin)
         form.addRow("Y:", self._y_spin)
 
-        self._pick_button = QPushButton("Захватить точку (F8)")
-        self._pick_button.setToolTip(
-            "Наведите мышь на нужную точку экрана и нажмите F8 — "
-            "координаты попадут в поля"
-        )
+        self._pick_button = QPushButton(self._pick_text)
+        self._update_pick_tooltip()
         self._current_button = QPushButton("Текущая позиция")
         self._current_button.setToolTip("Взять позицию курсора прямо сейчас")
 
@@ -200,6 +203,20 @@ class SimpleModeView(QWidget):
         self._infinite_check.setChecked(settings.infinite)
         self._repeats_spin.setEnabled(not settings.infinite)
 
+    def set_hotkeys(self, start: str, stop: str, pick: str) -> None:
+        """Обновить подписи кнопок после смены хоткеев."""
+        self._start_key = start
+        self._stop_key = stop
+        self._pick_key = pick
+        self._start_text = f"Старт ({start})"
+        self._stop_text = f"Стоп ({stop})"
+        self._pick_text = f"Захватить точку ({pick})"
+        self._pick_button.setText(self._pick_text)
+        self._update_pick_tooltip()
+        self._start_button.setText(
+            self._stop_text if self._running else self._start_text
+        )
+
     def apply_to(self, settings: Settings) -> None:
         """Записать значения формы в объект настроек (для сохранения)."""
         settings.x = self._x_spin.value()
@@ -217,7 +234,7 @@ class SimpleModeView(QWidget):
     def set_running(self, running: bool) -> None:
         """Переключить форму между состояниями «работает» и «готов»."""
         self._running = running
-        self._start_button.setText(STOP_TEXT if running else START_TEXT)
+        self._start_button.setText(self._stop_text if running else self._start_text)
         self._set_button_role("danger" if running else "primary")
 
         for widget in (
@@ -265,6 +282,13 @@ class SimpleModeView(QWidget):
         style = self._start_button.style()
         style.unpolish(self._start_button)
         style.polish(self._start_button)
+
+    def _update_pick_tooltip(self) -> None:
+        """Подсказка кнопки захвата с актуальным хоткеем."""
+        self._pick_button.setToolTip(
+            f"Наведите мышь на нужную точку экрана и нажмите {self._pick_key} — "
+            "координаты попадут в поля"
+        )
 
 
 def _make_coordinate_spin() -> QSpinBox:

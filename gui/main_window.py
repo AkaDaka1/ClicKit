@@ -2,10 +2,11 @@
 
 import logging
 
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -21,16 +22,24 @@ from core.settings import Settings, SettingsStore
 from gui.editor.editor_view import EditorView
 from gui.executor_adapter import ExecutorAdapter
 from gui.hotkey_bridge import HotkeyBridge
+from gui.hotkey_spec import spec_to_text
 from gui.icons import app_icon
 from gui.picker import CoordinatePicker
+from gui.settings_dialog import SettingsDialog
 from gui.simple_mode.view import SimpleModeView
 from gui.theme import ThemeManager
 from gui.tray import TrayIcon
 
 logger = logging.getLogger(__name__)
 
-#: Постоянная подсказка в статус-баре.
-HOTKEY_HINT = "F5 — старт активного режима · F6 — стоп · F8 — точка"
+
+def hotkey_hint(settings: Settings) -> str:
+    """Постоянная подсказка в статус-баре с текущими хоткеями."""
+    start = spec_to_text(settings.hotkey_start)
+    stop = spec_to_text(settings.hotkey_stop)
+    pick = spec_to_text(settings.hotkey_pick)
+    return f"{start} — старт активного режима · {stop} — стоп · {pick} — точка"
+
 
 #: Действия при закрытии окна (значения совпадают с `core.settings`).
 CLOSE_ASK = "ask"
@@ -81,6 +90,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect()
         self._simple_view.apply_settings(self._settings)
+        self._sync_hotkey_labels()
         if enable_hotkeys:
             self._hotkeys.start()
         if self._tray_available:
@@ -126,12 +136,24 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._tabs, 1)
         self.setCentralWidget(central)
 
-        hint = QLabel(HOTKEY_HINT)
+        hint = QLabel(hotkey_hint(self._settings))
         hint.setObjectName("muted")
+        self._hint_label = hint
         self.statusBar().addPermanentWidget(hint)
         self.statusBar().showMessage("Готов к работе")
 
+        self._build_menu()
+
         self._tray = TrayIcon(app_icon(), self)
+
+    def _build_menu(self) -> None:
+        """Меню приложения: настройки и служебные действия."""
+        settings_menu = self.menuBar().addMenu("Настройки")
+        params = QAction("Параметры…", self)
+        params.setShortcut(QKeySequence("Ctrl+,"))
+        params.setStatusTip("Тема оформления и глобальные хоткеи")
+        params.triggered.connect(self._open_settings)
+        settings_menu.addAction(params)
 
     def _connect(self) -> None:
         """Связать форму, хоткеи, пикер, исполнитель и трей."""
@@ -159,6 +181,39 @@ class MainWindow(QMainWindow):
         self._tray.start_requested.connect(self._start_active_mode)
         self._tray.stop_requested.connect(self._stop_all)
         self._tray.quit_requested.connect(self._quit)
+
+    # --- настройки -------------------------------------------------------------
+
+    def _open_settings(self) -> None:
+        """Открыть диалог настроек и применить изменения сразу."""
+        dialog = SettingsDialog(self._settings, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._apply_settings(dialog)
+
+    def _apply_settings(self, dialog: SettingsDialog) -> None:
+        """Применить тему и хоткеи из диалога без перезапуска приложения."""
+        hotkeys = dialog.hotkeys()
+        self._settings.theme = dialog.theme_mode()
+        self._settings.hotkey_start = hotkeys["start"]
+        self._settings.hotkey_stop = hotkeys["stop"]
+        self._settings.hotkey_pick = hotkeys["pick"]
+        self._settings = self._settings.normalized()
+
+        self._simple_view.apply_to(self._settings)
+        self._theme.set_mode(self._settings.theme)
+        self._hotkeys.reload(self._settings)
+        self._sync_hotkey_labels()
+        self._store.save(self._settings)
+        self.statusBar().showMessage("Настройки сохранены")
+
+    def _sync_hotkey_labels(self) -> None:
+        """Показать актуальные хоткеи в подсказке, на кнопках и в редакторе."""
+        start = spec_to_text(self._settings.hotkey_start)
+        stop = spec_to_text(self._settings.hotkey_stop)
+        pick = spec_to_text(self._settings.hotkey_pick)
+        self._simple_view.set_hotkeys(start, stop, pick)
+        self._editor_view.set_hotkeys(start, stop)
+        self._hint_label.setText(hotkey_hint(self._settings))
 
     # --- запуск и остановка ----------------------------------------------------
 

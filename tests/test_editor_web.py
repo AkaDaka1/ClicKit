@@ -121,6 +121,32 @@ def test_highlight_marks_block(qt_app: object) -> None:
         close_view(view)
 
 
+def test_theme_and_hotkeys_are_applied(qt_app: object) -> None:
+    """Тема и подсказки хоткеев применяются до и после загрузки страницы."""
+    view = EditorView(MockBackend(), theme="light")
+    view.set_hotkeys("Ctrl+Alt+S", "Ctrl+Alt+X")
+    view.resize(1000, 700)
+    view.show()
+    try:
+        assert wait_js(view, "window.__ckReady === true")
+        assert eval_js(view, "document.body.dataset.theme") == "light"
+        run_title = eval_js(view, "document.getElementById('btn-run').title")
+        stop_title = eval_js(view, "document.getElementById('btn-stop').title")
+        assert isinstance(run_title, str) and "Ctrl+Alt+S" in run_title
+        assert isinstance(stop_title, str) and "Ctrl+Alt+X" in stop_title
+
+        view.set_theme("dark")
+        assert wait_js(view, "document.body.dataset.theme === 'dark'")
+
+        view.set_hotkeys("F7", "F9")
+        assert wait_js(
+            view,
+            "document.getElementById('btn-run').title.indexOf('F7') >= 0",
+        )
+    finally:
+        close_view(view)
+
+
 def test_request_run_executes_starter_scenario(qt_app: object) -> None:
     """F5-путь: Python просит workspace у JS, сценарий выполняется и завершается."""
     backend = MockBackend()

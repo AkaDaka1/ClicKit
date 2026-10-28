@@ -81,6 +81,11 @@ QKeySequenceEdit:focus {
     border-color: #5865f2;
 }
 
+QLineEdit[invalid="true"],
+QKeySequenceEdit[invalid="true"] {
+    border-color: #d1495b;
+}
+
 QSpinBox:disabled,
 QComboBox:disabled,
 QLineEdit:disabled,
