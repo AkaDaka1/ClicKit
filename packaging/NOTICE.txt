@@ -1,0 +1,37 @@
+ClicKit 1.0.0 — NOTICE
+======================
+
+ClicKit — автокликер для Windows с визуальным программированием сценариев.
+Copyright © 2026 Danil Momot.
+Исходный код: https://github.com/AkaDaka1/ClicKit
+
+Сам ClicKit распространяется по лицензии MIT (см. LICENSE в репозитории).
+
+В состав сборки входят сторонние компоненты. Их лицензии действуют
+независимо от лицензии ClicKit:
+
+1. Qt 6 / PySide6 — LGPL v3
+   Copyright © The Qt Company Ltd.
+   Сайт: https://www.qt.io/
+   Лицензия: https://www.gnu.org/licenses/lgpl-3.0.html
+   Исходный код Qt: https://download.qt.io/
+   Qt используется как динамически подключаемая библиотека; замена
+   библиотек Qt на совместимые версии возможна без изменения ClicKit.
+
+2. Blockly 13.4.0 — Apache License 2.0
+   Copyright © Google LLC.
+   Сайт: https://developers.google.com/blockly
+   Полный текст лицензии: resources/blockly/LICENSE
+
+3. PyAutoGUI — BSD 3-Clause
+   Copyright © Al Sweigart.
+   Сайт: https://github.com/asweigart/pyautogui
+
+4. pynput — LGPL v3
+   Copyright © Moses Palmér.
+   Сайт: https://github.com/moses-palmer/pynput
+
+Прочие зависимости Python распространяются по своим лицензиям;
+их тексты доступны в пакетах на https://pypi.org/.
+
+ClicKit не связан с правообладателями перечисленных компонентов.
