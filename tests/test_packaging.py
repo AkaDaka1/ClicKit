@@ -88,4 +88,5 @@ def test_build_script_and_requirements_exist() -> None:
     assert "ClicKit.spec" in script
     for mode in ("--onefile", "--zip", "--both"):
         assert mode in script
+    assert "SHA256SUMS.txt" in script
     assert "pyinstaller" in REQUIREMENTS_BUILD.read_text(encoding="utf-8").lower()

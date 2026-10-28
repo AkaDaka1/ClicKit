@@ -6,11 +6,13 @@
     python scripts/build_exe.py --zip    # onedir + zip-архив для релиза
     python scripts/build_exe.py --both   # zip + один .exe (релиз 1.0.0)
 
+После сборки рядом появляются `NOTICE.txt` и `SHA256SUMS.txt`.
 Требуется PyInstaller: `pip install -r requirements-build.txt`.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -21,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "packaging" / "ClicKit.spec"
 NOTICE = ROOT / "packaging" / "NOTICE.txt"
 DIST = ROOT / "dist"
+CHECKSUMS_FILENAME = "SHA256SUMS.txt"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,7 +82,31 @@ def main(argv: list[str] | None = None) -> int:
             str(DIST / "ClicKit-win64"), "zip", DIST, "ClicKit"
         )
         print(f"Архив для релиза: {archive}")
+
+    checksums = write_checksums()
+    if checksums is not None:
+        print(f"Контрольные суммы: {checksums}")
     return 0
+
+
+def write_checksums() -> Path | None:
+    """Записать SHA-256 готовых артефактов релиза в `dist/SHA256SUMS.txt`."""
+    artifacts = [DIST / "ClicKit-win64.zip", DIST / "ClicKit.exe"]
+    lines: list[str] = []
+    for artifact in artifacts:
+        if not artifact.is_file():
+            continue
+        digest = hashlib.sha256()
+        with artifact.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        lines.append(f"{digest.hexdigest()}  {artifact.name}")
+
+    if not lines:
+        return None
+    target = DIST / CHECKSUMS_FILENAME
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
 
 
 def _directory_size(path: Path) -> int:

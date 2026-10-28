@@ -78,6 +78,7 @@ ClicKit/
 ├── AI_CONTEXT.md          # этот файл
 ├── PROGRESS.md            # лог прогресса
 ├── ROADMAP.md             # дорожная карта
+├── CHANGELOG.md           # история релизов (Keep a Changelog)
 ├── AGENTS.md              # короткие стартовые инструкции для ИИ-агента
 ├── .gitignore             # игнорируемые артефакты — держать актуальным!
 ├── LICENSE                # MIT © 2026 Danil Momot
@@ -284,7 +285,7 @@ ClicKit/
     ~220 МБ QtWebEngine при каждом запуске даёт до минуты). `.ico` генерируется
     `scripts/make_icon.py`, версия свойств — из `packaging/version_info.txt`;
     `scripts/build_exe.py --both` собирает zip и `.exe`, кладя `NOTICE.txt`
-    рядом. Вендоренный Blockly не редактируется.
+    рядом, и пишет `SHA256SUMS.txt`. Вендоренный Blockly не редактируется.
 29. **Язык в M5 — только русский** (2026-10-28, M5): полноценная локализация
     RU+EN (Qt `tr`, строки JS и ядра) — отдельная задача после 1.0.0;
     смешивать её с полировкой и упаковкой нецелесообразно.
@@ -340,4 +341,4 @@ ClicKit/
 
 ---
 
-*Последнее обновление: 2026-10-28 (M5 реализован: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `core/hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*
+*Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `core/hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*

@@ -11,7 +11,7 @@ together to script clicks, moves and delays — no coding required.
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![PySide6](https://img.shields.io/badge/GUI-PySide6_%2B_Qt-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Blockly](https://img.shields.io/badge/scripting-Blockly-4285F4?logo=googleblockly&logoColor=white)](https://developers.google.com/blockly)
-[![Status](https://img.shields.io/badge/status-1.0.0_release_candidate-5865F2)](#)
+[![Status](https://img.shields.io/badge/status-1.0.0-5865F2)](#)
 
 **English** · [Русский](#ru)
 
@@ -73,15 +73,17 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-**Release builds** (Windows 10/11, no Python needed):
+**Release builds** (Windows 10/11, no Python needed) —
+[download from GitHub Releases](https://github.com/AkaDaka1/ClicKit/releases):
 
 - `ClicKit-win64.zip` — **recommended**: unpack the folder and run
   `ClicKit\ClicKit.exe`; starts in a couple of seconds.
 - `ClicKit.exe` — a single portable file. QtWebEngine (~220 MB) unpacks itself
   on every launch, so the window may take up to a minute to appear.
 
-Keep `NOTICE.txt` next to the executable. Settings and logs live in
-`%APPDATA%\ClicKit`.
+Keep `NOTICE.txt` next to the executable; `SHA256SUMS.txt` lets you verify the
+downloads. Settings and logs live in `%APPDATA%\ClicKit`. The builds are
+unsigned, so Windows SmartScreen may ask for confirmation on first launch.
 
 **Run from source:**
 
@@ -100,9 +102,10 @@ python scripts/build_exe.py --both   # zip + single .exe
 ```
 
 Results: `dist/ClicKit-win64.zip` (folder build, fast start),
-`dist/ClicKit.exe` (single file), and `NOTICE.txt` beside/in the build.
-`--zip` builds only the folder archive, `--onefile` only the single file.
-The `resources/` tree — including the vendored Blockly — is packed into both.
+`dist/ClicKit.exe` (single file), `dist/SHA256SUMS.txt` and `NOTICE.txt`
+beside/in the build. `--zip` builds only the folder archive, `--onefile` only
+the single file. The `resources/` tree — including the vendored Blockly — is
+packed into both.
 
 **Simple mode in four steps:**
 
@@ -168,6 +171,7 @@ behind a pluggable `InputBackend` abstraction · PyInstaller for packaging.
 
 - Architecture and coding rules: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Work log: [`PROGRESS.md`](PROGRESS.md)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## ⚠️ Disclaimer
 
@@ -251,15 +255,17 @@ PyInstaller, — Python на целевой машине не нужен. Усл
 
 ## 🚀 Быстрый старт
 
-**Готовые сборки** (Windows 10/11, Python не нужен):
+**Готовые сборки** (Windows 10/11, Python не нужен) —
+[скачать с GitHub Releases](https://github.com/AkaDaka1/ClicKit/releases):
 
 - `ClicKit-win64.zip` — **рекомендуется**: распакуйте папку и запустите
   `ClicKit\ClicKit.exe`; старт за пару секунд.
 - `ClicKit.exe` — один переносимый файл. QtWebEngine (~220 МБ) распаковывается
   при каждом запуске, поэтому окно может появиться до минуты.
 
-`NOTICE.txt` держите рядом с исполняемым файлом. Настройки и журналы — в
-`%APPDATA%\ClicKit`.
+`NOTICE.txt` держите рядом с исполняемым файлом; `SHA256SUMS.txt` позволяет
+проверить загрузку. Настройки и журналы — в `%APPDATA%\ClicKit`. Сборки не
+подписаны, поэтому SmartScreen при первом запуске может попросить подтверждение.
 
 **Запуск из исходников:**
 
@@ -278,9 +284,10 @@ python scripts/build_exe.py --both   # zip + один .exe
 ```
 
 Результат: `dist/ClicKit-win64.zip` (папка, быстрый старт),
-`dist/ClicKit.exe` (один файл) и `NOTICE.txt` рядом/внутри. `--zip` собирает
-только архив папки, `--onefile` — только один файл. Каталог `resources/`
-вместе с вендоренным Blockly упаковывается в обе сборки.
+`dist/ClicKit.exe` (один файл), `dist/SHA256SUMS.txt` и `NOTICE.txt`
+рядом/внутри. `--zip` собирает только архив папки, `--onefile` — только один
+файл. Каталог `resources/` вместе с вендоренным Blockly упаковывается в обе
+сборки.
 
 **Простой режим — четыре шага:**
 
@@ -348,6 +355,7 @@ Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
 
 - Архитектура и правила кодинга: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Журнал работ: [`PROGRESS.md`](PROGRESS.md)
+- История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## ⚠️ Дисклеймер
 
