@@ -107,12 +107,68 @@ def test_invalid_values_normalized() -> None:
         button="side",
         hotkey_start="   ",
         close_action_idle="explode",
+        theme="neon",
     ).normalized()
 
     assert settings.interval_ms == MIN_INTERVAL_MS
     assert settings.button == "left"
     assert settings.hotkey_start == Settings.hotkey_start
     assert settings.close_action_idle == "ask"
+    assert settings.theme == "system"
+
+
+def test_old_settings_without_theme_get_system(tmp_path: Path) -> None:
+    """Файл версии 1 (без поля theme) читается с темой «системная»."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        json.dumps({"version": 1, "x": 10, "y": 20}), encoding="utf-8"
+    )
+
+    loaded = store.load()
+
+    assert (loaded.x, loaded.y) == (10, 20)
+    assert loaded.theme == "system"
+
+
+def test_theme_roundtrip(tmp_path: Path) -> None:
+    """Выбранная тема сохраняется и читается."""
+    store = make_store(tmp_path)
+    store.save(Settings(theme="light"))
+
+    assert store.load().theme == "light"
+
+
+def test_hotkeys_are_normalized_on_load(tmp_path: Path) -> None:
+    """Хоткей приводится к формату pynput, в том числе из записи Qt."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(
+        json.dumps(
+            {
+                "hotkey_start": "Ctrl+Alt+S",
+                "hotkey_stop": "<F6>",
+                "hotkey_pick": "<ctrl>+<shift>+<p>",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = store.load()
+
+    assert loaded.hotkey_start == "<ctrl>+<alt>+s"
+    assert loaded.hotkey_stop == "<f6>"
+    assert loaded.hotkey_pick == "<ctrl>+<shift>+p"
+
+
+@pytest.mark.parametrize("broken", ["", "   ", "a", "<esc>", "<ctrl>", "не хоткей"])
+def test_broken_hotkey_falls_back_to_default(tmp_path: Path, broken: str) -> None:
+    """Битое или опасное сочетание не роняет запуск — берётся дефолт."""
+    store = make_store(tmp_path)
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(json.dumps({"hotkey_start": broken}), encoding="utf-8")
+
+    assert store.load().hotkey_start == Settings.hotkey_start
 
 
 def test_save_leaves_no_temp_file(tmp_path: Path) -> None:

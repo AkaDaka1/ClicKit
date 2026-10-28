@@ -17,6 +17,7 @@ from core.input.backend import Button
 from core.settings import Settings, SettingsStore
 from gui.editor.editor_view import EditorView
 from gui.main_window import MainWindow
+from gui.settings_dialog import SettingsDialog
 from gui.simple_mode.view import START_TEXT, STOP_TEXT
 from tests.test_executor import MockBackend
 
@@ -34,9 +35,10 @@ def wait_gui(predicate: Callable[[], bool], timeout: float = 2.0) -> bool:
 
 
 def find_start_button(window: QWidget) -> QPushButton:
-    """Кнопка старта/стопа — единственная с такими подписями."""
+    """Кнопка старта/стопа — единственная с такой подписью."""
     for button in window.findChildren(QPushButton):
-        if button.text() in (START_TEXT, STOP_TEXT):
+        text = button.text()
+        if text.startswith(("Старт (", "Стоп (")):
             return button
     raise AssertionError("Кнопка старта не найдена")
 
@@ -164,6 +166,57 @@ def test_hotkey_start_routes_to_active_tab(qt_app: object, tmp_path: Path) -> No
     window._start_active_mode()
 
     assert calls == ["scenario", "clicks"]
+
+    window.hide()
+    window.deleteLater()
+
+
+def test_settings_applied_without_restart(qt_app: object, tmp_path: Path) -> None:
+    """Настройки из диалога применяются сразу: тема, хоткеи, подсказки, файл."""
+    window = make_window(tmp_path, MockBackend())
+    dialog = SettingsDialog(window._settings, window)
+    dialog.set_theme_mode("light")
+    dialog.hotkey_edit("start").set_spec("<ctrl>+<alt>+s")
+
+    window._apply_settings(dialog)
+
+    assert window._settings.theme == "light"
+    assert window._settings.hotkey_start == "<ctrl>+<alt>+s"
+    assert window._theme.mode == "light"
+    assert window._theme.effective == "light"
+    assert window._editor_view.theme == "light"
+    assert find_start_button(window).text() == "Старт (Ctrl+Alt+S)"
+    assert "Ctrl+Alt+S" in window._hint_label.text()
+
+    saved = SettingsStore(tmp_path / "settings.json").load()
+    assert saved.theme == "light"
+    assert saved.hotkey_start == "<ctrl>+<alt>+s"
+
+    dialog.deleteLater()
+    window.hide()
+    window.deleteLater()
+
+
+def test_menu_has_settings_entry(qt_app: object, tmp_path: Path) -> None:
+    """В меню есть настройки (Ctrl+запятая) и пункты помощи с журналами."""
+    window = make_window(tmp_path, MockBackend())
+
+    assert [action.text() for action in window.menuBar().actions()] == [
+        "Настройки",
+        "Помощь",
+    ]
+    menu = window.menuBar().actions()[0].menu()
+    assert menu is not None
+    action = menu.actions()[0]
+    assert action.text() == "Параметры…"
+    assert action.shortcut().toString() == "Ctrl+,"
+
+    help_menu = window.menuBar().actions()[1].menu()
+    assert help_menu is not None
+    assert [item.text() for item in help_menu.actions()] == [
+        "Открыть папку журналов",
+        "О программе",
+    ]
 
     window.hide()
     window.deleteLater()

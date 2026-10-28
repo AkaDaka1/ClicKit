@@ -31,6 +31,7 @@
 ## Команды
 
 - Установка зависимостей: `pip install -r requirements.txt`
+- Сборка релиза: `pip install -r requirements-build.txt` и `python scripts/build_exe.py --both`
 - Запуск: `python -m app`
 - Проверки: `ruff check .` + `pytest`
 - Форматирование: `ruff format .`

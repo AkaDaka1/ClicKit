@@ -1,5 +1,5 @@
-/* ClicKit — тёмная тема (M2).
-   Светлая тема и переключатель появятся в M5.
+/* ClicKit — тёмная тема (M2, переключатель тем — M5).
+   Светлая тема лежит рядом в light.qss с тем же набором селекторов.
    Акцентный цвет #5865f2 используется и в иконке (gui/icons.py). */
 
 QWidget {
@@ -9,6 +9,7 @@ QWidget {
 }
 
 QMainWindow,
+QDialog,
 QMessageBox {
     background-color: #1e1f22;
 }
@@ -62,7 +63,9 @@ QGroupBox::title {
 /* --- Поля ввода --- */
 
 QSpinBox,
-QComboBox {
+QComboBox,
+QLineEdit,
+QKeySequenceEdit {
     background-color: #1e1f22;
     border: 1px solid #3a3d43;
     border-radius: 8px;
@@ -72,12 +75,21 @@ QComboBox {
 }
 
 QSpinBox:focus,
-QComboBox:focus {
+QComboBox:focus,
+QLineEdit:focus,
+QKeySequenceEdit:focus {
     border-color: #5865f2;
 }
 
+QLineEdit[invalid="true"],
+QKeySequenceEdit[invalid="true"] {
+    border-color: #d1495b;
+}
+
 QSpinBox:disabled,
-QComboBox:disabled {
+QComboBox:disabled,
+QLineEdit:disabled,
+QKeySequenceEdit:disabled {
     background-color: #26272b;
     color: #6b7078;
 }
@@ -226,6 +238,19 @@ QToolTip {
     padding: 6px;
 }
 
+QMenuBar {
+    background-color: #1e1f22;
+}
+
+QMenuBar::item {
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+
+QMenuBar::item:selected {
+    background-color: #2b2d31;
+}
+
 QMenu {
     background-color: #2b2d31;
     border: 1px solid #3a3d43;
@@ -257,4 +282,29 @@ QScrollBar::handle:vertical {
     background-color: #3a3d43;
     border-radius: 5px;
     min-height: 24px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #4a4d55;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #3a3d43;
+    border-radius: 5px;
+    min-width: 24px;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
 }

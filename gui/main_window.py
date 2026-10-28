@@ -1,11 +1,14 @@
 """Главное окно ClicKit: режимы, управление кликами, трей, закрытие окна."""
 
 import logging
+from html import escape
 
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -15,7 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.logging_setup import log_dir, log_path
+from app.version import APP_NAME, APP_VERSION
 from core.executor import StopReason
+from core.hotkey_spec import spec_to_text
 from core.input.backend import InputBackend
 from core.settings import Settings, SettingsStore
 from gui.editor.editor_view import EditorView
@@ -23,13 +29,21 @@ from gui.executor_adapter import ExecutorAdapter
 from gui.hotkey_bridge import HotkeyBridge
 from gui.icons import app_icon
 from gui.picker import CoordinatePicker
+from gui.settings_dialog import SettingsDialog
 from gui.simple_mode.view import SimpleModeView
+from gui.theme import ThemeManager
 from gui.tray import TrayIcon
 
 logger = logging.getLogger(__name__)
 
-#: Постоянная подсказка в статус-баре.
-HOTKEY_HINT = "F5 — старт активного режима · F6 — стоп · F8 — точка"
+
+def hotkey_hint(settings: Settings) -> str:
+    """Постоянная подсказка в статус-баре с текущими хоткеями."""
+    start = spec_to_text(settings.hotkey_start)
+    stop = spec_to_text(settings.hotkey_stop)
+    pick = spec_to_text(settings.hotkey_pick)
+    return f"{start} — старт активного режима · {stop} — стоп · {pick} — точка"
+
 
 #: Действия при закрытии окна (значения совпадают с `core.settings`).
 CLOSE_ASK = "ask"
@@ -46,6 +60,7 @@ class MainWindow(QMainWindow):
         store: SettingsStore | None = None,
         backend: InputBackend | None = None,
         enable_hotkeys: bool = True,
+        theme: ThemeManager | None = None,
     ) -> None:
         """Создать окно.
 
@@ -54,11 +69,17 @@ class MainWindow(QMainWindow):
             store: хранилище настроек (по умолчанию — `%APPDATA%\\ClicKit`).
             backend: бэкенд ввода; `None` — pyautogui (в тестах — mock).
             enable_hotkeys: регистрировать ли глобальные хоткеи (в тестах — нет).
+            theme: менеджер темы приложения; `None` — создать свой (без QSS).
         """
         super().__init__()
         self._store = store if store is not None else SettingsStore()
         loaded = settings if settings is not None else self._store.load()
         self._settings = loaded.normalized()
+        self._theme = (
+            theme
+            if theme is not None
+            else ThemeManager(self._settings.theme, parent=self)
+        )
         self._clicks = 0
         self._shutting_down = False
         self._tray_hint_shown = False
@@ -73,6 +94,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._connect()
         self._simple_view.apply_settings(self._settings)
+        self._sync_hotkey_labels()
         if enable_hotkeys:
             self._hotkeys.start()
         if self._tray_available:
@@ -110,6 +132,7 @@ class MainWindow(QMainWindow):
         self._editor_view = EditorView(
             self._adapter.backend,
             is_busy_checker=lambda: self._adapter.is_running,
+            theme=self._theme.effective,
         )
         self._tabs = QTabWidget()
         self._tabs.addTab(self._simple_view, "Простой режим")
@@ -117,12 +140,58 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._tabs, 1)
         self.setCentralWidget(central)
 
-        hint = QLabel(HOTKEY_HINT)
+        hint = QLabel(hotkey_hint(self._settings))
         hint.setObjectName("muted")
+        self._hint_label = hint
         self.statusBar().addPermanentWidget(hint)
         self.statusBar().showMessage("Готов к работе")
 
+        self._build_menu()
+
         self._tray = TrayIcon(app_icon(), self)
+
+    def _build_menu(self) -> None:
+        """Меню приложения: настройки, журналы и сведения о программе."""
+        settings_menu = self.menuBar().addMenu("Настройки")
+        params = QAction("Параметры…", self)
+        params.setShortcut(QKeySequence("Ctrl+,"))
+        params.setStatusTip("Тема оформления и глобальные хоткеи")
+        params.triggered.connect(self._open_settings)
+        settings_menu.addAction(params)
+
+        help_menu = self.menuBar().addMenu("Помощь")
+        logs = QAction("Открыть папку журналов", self)
+        logs.setStatusTip(f"Журналы ClicKit: {log_dir()}")
+        logs.triggered.connect(self._open_logs)
+        help_menu.addAction(logs)
+
+        about = QAction("О программе", self)
+        about.triggered.connect(self._show_about)
+        help_menu.addAction(about)
+
+    def _open_logs(self) -> None:
+        """Открыть папку журналов в проводнике."""
+        directory = log_dir()
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.statusBar().showMessage(f"Не удалось открыть журналы: {exc}")
+            return
+        if QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            self.statusBar().showMessage(f"Открыта папка журналов: {directory}")
+        else:
+            self.statusBar().showMessage(f"Журналы: {directory}")
+
+    def _show_about(self) -> None:
+        """Показать версию и путь к журналу."""
+        QMessageBox.about(
+            self,
+            f"О программе {APP_NAME}",
+            f"<b>{APP_NAME}</b> {APP_VERSION}<br><br>"
+            "Автокликер с визуальными сценариями.<br>"
+            "Python + PySide6 + Blockly.<br><br>"
+            f"Журнал: {escape(str(log_path()))}",
+        )
 
     def _connect(self) -> None:
         """Связать форму, хоткеи, пикер, исполнитель и трей."""
@@ -144,11 +213,51 @@ class MainWindow(QMainWindow):
 
         self._editor_view.status_message.connect(self._on_editor_status)
         self._editor_view.running_changed.connect(self._on_scenario_running)
+        self._theme.changed.connect(self._editor_view.set_theme)
 
         self._tray.show_requested.connect(self._restore_window)
         self._tray.start_requested.connect(self._start_active_mode)
         self._tray.stop_requested.connect(self._stop_all)
         self._tray.quit_requested.connect(self._quit)
+
+    # --- настройки -------------------------------------------------------------
+
+    def _open_settings(self) -> None:
+        """Открыть диалог настроек и применить изменения сразу."""
+        dialog = SettingsDialog(self._settings, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._apply_settings(dialog)
+
+    def _apply_settings(self, dialog: SettingsDialog) -> None:
+        """Применить тему и хоткеи из диалога без перезапуска приложения."""
+        hotkeys = dialog.hotkeys()
+        self._settings.theme = dialog.theme_mode()
+        self._settings.hotkey_start = hotkeys["start"]
+        self._settings.hotkey_stop = hotkeys["stop"]
+        self._settings.hotkey_pick = hotkeys["pick"]
+        self._settings = self._settings.normalized()
+
+        self._simple_view.apply_to(self._settings)
+        self._theme.set_mode(self._settings.theme)
+        self._hotkeys.reload(self._settings)
+        self._sync_hotkey_labels()
+        self._store.save(self._settings)
+        self.statusBar().showMessage("Настройки сохранены")
+
+    def _sync_hotkey_labels(self) -> None:
+        """Показать актуальные хоткеи в подсказке, на кнопках и в редакторе."""
+        start = spec_to_text(self._settings.hotkey_start)
+        stop = spec_to_text(self._settings.hotkey_stop)
+        pick = spec_to_text(self._settings.hotkey_pick)
+        self._simple_view.set_hotkeys(start, stop, pick)
+        self._editor_view.set_hotkeys(start, stop)
+        self._hint_label.setText(hotkey_hint(self._settings))
+        if self._tray_available:
+            self._tray.set_hotkeys(start, stop)
+
+    def _stop_hotkey(self) -> str:
+        """Подпись хоткея остановки для сообщений."""
+        return spec_to_text(self._settings.hotkey_stop)
 
     # --- запуск и остановка ----------------------------------------------------
 
@@ -157,7 +266,7 @@ class MainWindow(QMainWindow):
         if self._adapter.is_running:
             return
         if self._editor_view.is_running:
-            message = "Сначала остановите сценарий (F6)"
+            message = f"Сначала остановите сценарий ({self._stop_hotkey()})"
             self._simple_view.set_message(message)
             self.statusBar().showMessage(message)
             return
@@ -196,7 +305,7 @@ class MainWindow(QMainWindow):
         if self._editor_view.is_running:
             return
         if self._adapter.is_running:
-            message = "Сначала остановите клики (F6)"
+            message = f"Сначала остановите клики ({self._stop_hotkey()})"
             self._simple_view.set_message(message)
             self.statusBar().showMessage(message)
             return
@@ -224,7 +333,10 @@ class MainWindow(QMainWindow):
         self._scenario_running = running
         self._sync_tray()
         if running and self.isHidden() and self._tray_available:
-            self._tray.notify("Сценарий запущен", "Остановить: F6 или меню трея.")
+            self._tray.notify(
+                "Сценарий запущен",
+                f"Остановить: {self._stop_hotkey()} или меню трея.",
+            )
 
     def _sync_tray(self) -> None:
         """Трей отражает, выполняется ли хоть какой-то режим."""
@@ -238,9 +350,14 @@ class MainWindow(QMainWindow):
         self._simple_view.set_counter(0)
         self._clicks_running = True
         self._sync_tray()
-        self.statusBar().showMessage("Клики выполняются — остановить: F6")
+        self.statusBar().showMessage(
+            f"Клики выполняются — остановить: {self._stop_hotkey()}"
+        )
         if self.isHidden() and self._tray_available:
-            self._tray.notify("Клики запущены", "Остановить: F6 или меню трея.")
+            self._tray.notify(
+                "Клики запущены",
+                f"Остановить: {self._stop_hotkey()} или меню трея.",
+            )
 
     def _on_step(self, clicks: int) -> None:
         """Обновить счётчик выполненных кликов."""
@@ -278,7 +395,9 @@ class MainWindow(QMainWindow):
     def _capture_point(self) -> None:
         """Снять позицию курсора (кнопка пикера или F8)."""
         if self._adapter.is_running:
-            self.statusBar().showMessage("Сначала остановите клики (F6)")
+            self.statusBar().showMessage(
+                f"Сначала остановите клики ({self._stop_hotkey()})"
+            )
             return
         self._picker.capture()
 
@@ -313,7 +432,7 @@ class MainWindow(QMainWindow):
             return
         self._tray_hint_shown = True
         text = (
-            "F6 — остановить выполнение."
+            f"{self._stop_hotkey()} — остановить выполнение."
             if running
             else "Клик по иконке в трее возвращает окно."
         )

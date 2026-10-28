@@ -8,16 +8,22 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
 
+from core.hotkey_spec import normalize_spec, spec_problem
+
 logger = logging.getLogger(__name__)
 
 #: Версия формата файла настроек (при несовместимых изменениях — увеличить).
-SETTINGS_VERSION = 1
+#: v2 (M5): добавлен режим темы; отсутствующее поле читается как «системная».
+SETTINGS_VERSION = 2
 
 #: Допустимые кнопки мыши (значения `core.input.backend.Button`).
 ALLOWED_BUTTONS: tuple[str, ...] = ("left", "right", "middle")
 
 #: Допустимые действия при закрытии окна.
 ALLOWED_CLOSE_ACTIONS: tuple[str, ...] = ("ask", "tray", "quit")
+
+#: Допустимые режимы темы: системная, тёмная, светлая.
+ALLOWED_THEMES: tuple[str, ...] = ("system", "dark", "light")
 
 #: Границы координат: запас под несколько мониторов и отрицательные координаты.
 MIN_COORDINATE = -32_768
@@ -48,11 +54,18 @@ def _pick_str(value: str, allowed: tuple[str, ...], default: str) -> str:
 
 
 def _pick_hotkey(value: str, default: str) -> str:
-    """Вернуть хоткей, если это непустая строка, иначе `default`."""
+    """Привести хоткей к формату pynput; небезопасный — заменить дефолтом.
+
+    Битый или вручную изменённый файл настроек не должен ронять запуск:
+    нераспознанное, пустое или опасное сочетание (например, одиночная буква)
+    заменяется значением по умолчанию.
+    """
     if not isinstance(value, str):
         return default
-    stripped = value.strip()
-    return stripped or default
+    normalized = normalize_spec(value)
+    if not normalized or spec_problem(normalized) is not None:
+        return default
+    return normalized
 
 
 @dataclass
@@ -73,6 +86,7 @@ class Settings:
     hotkey_start: str = "<f5>"
     hotkey_stop: str = "<f6>"
     hotkey_pick: str = "<f8>"
+    theme: str = "system"
     close_action_running: str = "ask"
     close_action_idle: str = "ask"
 
@@ -96,6 +110,7 @@ class Settings:
             hotkey_start=_pick_hotkey(self.hotkey_start, Settings.hotkey_start),
             hotkey_stop=_pick_hotkey(self.hotkey_stop, Settings.hotkey_stop),
             hotkey_pick=_pick_hotkey(self.hotkey_pick, Settings.hotkey_pick),
+            theme=_pick_str(self.theme, ALLOWED_THEMES, "system"),
             close_action_running=_pick_str(
                 self.close_action_running,
                 ALLOWED_CLOSE_ACTIONS,

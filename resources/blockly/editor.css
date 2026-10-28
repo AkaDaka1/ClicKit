@@ -1,4 +1,5 @@
-/* Стили страницы редактора ClicKit — согласованы с resources/styles/dark.qss. */
+/* Стили страницы редактора ClicKit — согласованы с resources/styles/*.qss.
+   Тема переключается атрибутом body[data-theme] (см. editorApi.setTheme). */
 
 :root {
   --bg: #1e1f22;
@@ -6,12 +7,40 @@
   --panel-2: #2b2d31;
   --border: #3a3d43;
   --text: #e6e6e6;
+  --heading: #ffffff;
   --muted: #9aa0a6;
   --accent: #5865f2;
   --accent-hover: #4752c4;
   --danger: #d1495b;
   --danger-hover: #b73f4f;
   --warning: #ff6b81;
+  --button: #34363c;
+  --button-hover: #3d4047;
+  --button-disabled: #26272b;
+  --disabled-text: #6b7078;
+  --highlight-stroke: #ffffff;
+  --modal-shadow: rgba(0, 0, 0, 0.5);
+}
+
+body[data-theme="light"] {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --panel-2: #eceef2;
+  --border: #d6d9e0;
+  --text: #1f2124;
+  --heading: #14161a;
+  --muted: #6b7280;
+  --accent: #5865f2;
+  --accent-hover: #4752c4;
+  --danger: #d1495b;
+  --danger-hover: #b73f4f;
+  --warning: #c0392b;
+  --button: #eceef2;
+  --button-hover: #e2e5eb;
+  --button-disabled: #f0f1f4;
+  --disabled-text: #a0a5ad;
+  --highlight-stroke: #3c45a5;
+  --modal-shadow: rgba(15, 23, 42, 0.28);
 }
 
 * {
@@ -46,7 +75,7 @@ body {
 }
 
 .brand {
-  color: #ffffff;
+  color: var(--heading);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -109,19 +138,19 @@ button {
   padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #34363c;
+  background: var(--button);
   color: var(--text);
   font: inherit;
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
-  background: #3d4047;
+  background: var(--button-hover);
 }
 
 button:disabled {
-  background: #26272b;
-  color: #6b7078;
+  background: var(--button-disabled);
+  color: var(--disabled-text);
   cursor: default;
 }
 
@@ -199,7 +228,7 @@ button.danger:hover:not(:disabled) {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--panel-2);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 18px 50px var(--modal-shadow);
 }
 
 .modal-card p {

@@ -1,5 +1,7 @@
 """Глобальные хоткеи приложения → Qt-сигналы (pynput работает в своём потоке)."""
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QObject, Signal
 
 from core.hotkeys import HotkeyManager
@@ -21,9 +23,24 @@ class HotkeyBridge(QObject):
         """Зарегистрировать привязки из настроек (до `start()`)."""
         super().__init__(parent)
         self._manager = HotkeyManager()
-        self._manager.register(settings.hotkey_start, self.start_requested.emit)
-        self._manager.register(settings.hotkey_stop, self.stop_requested.emit)
-        self._manager.register(settings.hotkey_pick, self.pick_requested.emit)
+        self._register(settings)
+
+    def _register(self, settings: Settings) -> None:
+        """Привязать три действия к спецификациям из настроек."""
+        for spec, callback in self._bindings(settings).items():
+            self._manager.register(spec, callback)
+
+    def _bindings(self, settings: Settings) -> dict[str, Callable[[], None]]:
+        """Спецификации хоткеев → callbacks (только испускание сигналов)."""
+        return {
+            settings.hotkey_start: self.start_requested.emit,
+            settings.hotkey_stop: self.stop_requested.emit,
+            settings.hotkey_pick: self.pick_requested.emit,
+        }
+
+    def reload(self, settings: Settings) -> None:
+        """Применить новые хоткеи без перезапуска приложения."""
+        self._manager.reload(self._bindings(settings))
 
     def start(self) -> None:
         """Запустить слушатель глобальных хоткеев (идемпотентно)."""

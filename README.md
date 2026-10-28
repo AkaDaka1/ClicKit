@@ -11,7 +11,7 @@ together to script clicks, moves and delays — no coding required.
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![PySide6](https://img.shields.io/badge/GUI-PySide6_%2B_Qt-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Blockly](https://img.shields.io/badge/scripting-Blockly-4285F4?logo=googleblockly&logoColor=white)](https://developers.google.com/blockly)
-![Status](https://img.shields.io/badge/status-in_development-FFA500)
+[![Status](https://img.shields.io/badge/status-1.0.0_release_candidate-5865F2)](#)
 
 **English** · [Русский](#ru)
 
@@ -23,18 +23,15 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-ClicKit is in active development. Milestones **M0**, **M1**, **M2** and **M3**
-are complete and merged into `master`: ClicKit is already usable as a classic
-auto-clicker. The dark-themed main window has two modes: a working Simple mode
-(coordinate picker on `F8`, interval in milliseconds, repeat count or infinite
-mode, start/stop by button and global hotkeys), a system tray icon and settings
-persisted to `%APPDATA%\ClicKit\settings.json`. The scenario model (**M3**) is
-done — scenarios are versioned, validated `.acl.json` data files (IR) that the
-engine can run from the console without the GUI. The visual block editor
-(**M4**) is done: build scenarios by dragging blocks, run them with live block
-highlighting, and save/load them as `.acl.json`. Conditions (`if`/`while`) and
-the input recorder are planned for after M4. There are no public releases yet;
-screenshots and detailed install instructions will appear as milestones land.
+**ClicKit 1.0.0** — the first public release. Milestones **M0–M5** are complete
+and merged into `master`. The app follows the Windows theme by default
+(system / dark / light can be picked in Settings), all three global hotkeys
+(start, stop, coordinate picker) are configurable without a restart, and a
+rotated log is written to `%APPDATA%\ClicKit\logs\app.log`. Two modes are
+available: the classic **Simple mode** and the **block scenario editor** with
+live execution highlighting. The release ships as a single `ClicKit.exe` built
+with PyInstaller, so no Python installation is required. Conditions
+(`if`/`while`) and the input recorder remain on the roadmap.
 
 ## 💡 Why ClicKit?
 
@@ -51,13 +48,15 @@ want to automate a few clicks.
 
 ## ✨ Key features
 
-- ✅ 🎯 **Coordinate picker** — hover the mouse and press `F8` to capture the point;
-- ✅ ⛑️ **Global emergency stop** (`F6`) — works from any application, even if a script is stuck in a loop;
+- ✅ 🎯 **Coordinate picker** — hover the mouse and press the picker hotkey (`F8` by default) to capture the point;
+- ✅ ⛑️ **Global emergency stop** (`F6` by default) — works from any application, even if a script is stuck in a loop;
+- ✅ ⌨️ **Configurable hotkeys** — start, stop and picker keys can be re-recorded in Settings and apply instantly;
 - ✅ 🧩 **Block editor** with a friendly Russian palette — scenarios are assembled visually, no text code (conditions are planned for a later release);
 - ✅ 💾 **Scenarios as safe data files** (`.acl.json`) — validated, versioned internal format (IR); no arbitrary code is ever executed;
 - ✅ ▶️ **Live execution highlighting** — the editor shows which block is running right now;
-- 🌗 **Dark theme** with a system tray icon; the light theme and configurable hotkeys are planned;
-- 🕒 📦 **Single `.exe`** — runs on a clean Windows without Python installed (M5).
+- ✅ 🌗 **System, dark and light themes** — GUI and Blockly switch together, following Windows in system mode;
+- ✅ 🪵 **Logs and clear errors** — rotated UTF-8 log in `%APPDATA%\ClicKit\logs`, friendly crash dialog;
+- ✅ 📦 **Two release builds** — a fast portable folder (`ClicKit-win64.zip`) and a single-file `.exe` for when one file matters; neither needs Python installed.
 
 ## 🗺️ Roadmap
 
@@ -68,14 +67,23 @@ want to automate a few clicks.
 | **M2** | Main window + Simple mode (MVP auto-clicker) | ✅ Done |
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
 | **M4** | Blockly visual editor with live execution | ✅ Done |
-| **M5** | Polish: themes, settings, tests, `.exe` packaging | ⬜ Planned |
+| **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 
 Details: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Getting started
 
-> ClicKit runs from source for now: `python -m app` opens the main window with
-> the working Simple mode and the block editor.
+**Release builds** (Windows 10/11, no Python needed):
+
+- `ClicKit-win64.zip` — **recommended**: unpack the folder and run
+  `ClicKit\ClicKit.exe`; starts in a couple of seconds.
+- `ClicKit.exe` — a single portable file. QtWebEngine (~220 MB) unpacks itself
+  on every launch, so the window may take up to a minute to appear.
+
+Keep `NOTICE.txt` next to the executable. Settings and logs live in
+`%APPDATA%\ClicKit`.
+
+**Run from source:**
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -83,6 +91,18 @@ cd ClicKit
 pip install -r requirements.txt
 python -m app
 ```
+
+**Build the release artifacts:**
+
+```bash
+pip install -r requirements-build.txt
+python scripts/build_exe.py --both   # zip + single .exe
+```
+
+Results: `dist/ClicKit-win64.zip` (folder build, fast start),
+`dist/ClicKit.exe` (single file), and `NOTICE.txt` beside/in the build.
+`--zip` builds only the folder archive, `--onefile` only the single file.
+The `resources/` tree — including the vendored Blockly — is packed into both.
 
 **Simple mode in four steps:**
 
@@ -95,8 +115,11 @@ python -m app
 4. Closing the window asks whether to minimize to tray or exit; tick
    "Remember my choice" to skip the question for that case next time.
 
-Settings live in `%APPDATA%\ClicKit\settings.json`. Moving the cursor to a
-screen corner also triggers the pyautogui fail-safe stop.
+Settings (theme, global hotkeys, click parameters) live in
+`%APPDATA%\ClicKit\settings.json`; **Settings → Parameters…** (`Ctrl+,`) changes
+the theme and hotkeys without a restart. Logs are in
+`%APPDATA%\ClicKit\logs\app.log` (**Help → Open log folder**). Moving the cursor
+to a screen corner also triggers the pyautogui fail-safe stop.
 
 **Scenario editor (M4):**
 
@@ -134,7 +157,8 @@ action count without touching the mouse. Scenario files use the versioned,
 validated ClicKit IR format (`.acl.json`); node types: `click`, `double_click`,
 `move`, `drag`, `delay`, `key`, `scroll`, `loop`, `sequence`.
 
-**Requirements:** Windows 10/11, Python 3.11+.
+**Requirements:** Windows 10/11. The release `.exe` needs no Python; running
+from source or building requires Python 3.11+.
 
 ## 🛠️ Tech stack
 
@@ -177,18 +201,15 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-ClicKit находится в активной разработке. Вехи **M0**, **M1**, **M2** и **M3**
-завершены и влиты в `master`: продукт уже пригоден как классический автокликер.
-Тёмное главное окно с двумя режимами, рабочий «Простой режим» (пикер координат
-по `F8`, интервал в миллисекундах, число повторов или «Бесконечно», старт/стоп
-кнопкой и глобальными хоткеями), иконка в трее и настройки в
-`%APPDATA%\ClicKit\settings.json`. Модель сценариев (**M3**) готова: сценарий —
-это версионированный валидируемый файл данных `.acl.json` (IR), который движок
-исполняет из консоли без GUI. Визуальный редактор блоков (**M4**) готов:
-сценарии собираются перетаскиванием блоков, выполняются с подсветкой текущего
-блока и сохраняются в `.acl.json`. Условия (`if`/`while`) и запись действий —
-после M4. Публичных релизов пока нет; скриншоты и подробные инструкции
-по установке будут добавляться по мере выполнения вех.
+**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M5** завершены и влиты
+в `master`. По умолчанию приложение следует теме Windows (в настройках можно
+выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
+(старт, стоп, захват точки) переназначаются без перезапуска, а журнал
+с ротацией пишется в `%APPDATA%\ClicKit\logs\app.log`. Доступны два режима:
+классический **«Простой режим»** и **блочный редактор сценариев** с подсветкой
+выполнения. Релиз поставляется одним файлом `ClicKit.exe`, собранным через
+PyInstaller, — Python на целевой машине не нужен. Условия (`if`/`while`)
+и запись действий остаются в планах.
 
 ## 💡 Почему ClicKit?
 
@@ -205,13 +226,15 @@ ClicKit находится в активной разработке. Вехи **
 
 ## ✨ Ключевые возможности
 
-- ✅ 🎯 **Пикер координат** — наведи мышь и нажми `F8`, точка захвачена;
-- ✅ ⛑️ **Глобальный аварийный стоп** (`F6`) — срабатывает из любого приложения, даже если сценарий «завис» в цикле;
+- ✅ 🎯 **Пикер координат** — наведи мышь и нажми хоткей захвата (`F8` по умолчанию), точка захвачена;
+- ✅ ⛑️ **Глобальный аварийный стоп** (`F6` по умолчанию) — срабатывает из любого приложения, даже если сценарий «завис» в цикле;
+- ✅ ⌨️ **Настраиваемые хоткеи** — старт, стоп и захват точки переназначаются в настройках и применяются сразу;
 - ✅ 🧩 **Редактор блоков** с понятной палитрой на русском — сценарии собираются визуально, без текстового кода (условия — в следующих версиях);
 - ✅ 💾 **Сценарии — это безопасные файлы данных** (`.acl.json`): валидируемый версионируемый формат (IR), произвольный код никогда не исполняется;
 - ✅ ▶️ **Подсветка выполнения** — редактор показывает, какой блок исполняется прямо сейчас;
-- 🌗 **Тёмная тема** и иконка в системном трее; светлая тема и настраиваемые хоткеи — в планах;
-- 🕒 📦 **Один `.exe`-файл** — работает на чистой Windows без установленного Python (M5).
+- ✅ 🌗 **Системная, тёмная и светлая темы** — GUI и Blockly переключаются вместе, в системном режиме следуют за Windows;
+- ✅ 🪵 **Журналы и понятные ошибки** — UTF-8-журнал с ротацией в `%APPDATA%\ClicKit\logs`, дружелюбный диалог при сбое;
+- ✅ 📦 **Две сборки** — быстрая переносимая папка (`ClicKit-win64.zip`) и один `.exe` для случаев, когда важен единственный файл; Python не нужен ни там, ни там.
 
 ## 🗺️ Дорожная карта
 
@@ -222,14 +245,23 @@ ClicKit находится в активной разработке. Вехи **
 | **M2** | Главное окно + Простой режим (MVP-автокликер) | ✅ Готово |
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
-| **M5** | Полировка: темы, настройки, тесты, упаковка в `.exe` | ⬜ Запланировано |
+| **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 
 Подробнее: [`ROADMAP.md`](ROADMAP.md).
 
 ## 🚀 Быстрый старт
 
-> Пока ClicKit запускается из исходников: `python -m app` открывает главное окно
-> с рабочим «Простым режимом» и редактором сценариев.
+**Готовые сборки** (Windows 10/11, Python не нужен):
+
+- `ClicKit-win64.zip` — **рекомендуется**: распакуйте папку и запустите
+  `ClicKit\ClicKit.exe`; старт за пару секунд.
+- `ClicKit.exe` — один переносимый файл. QtWebEngine (~220 МБ) распаковывается
+  при каждом запуске, поэтому окно может появиться до минуты.
+
+`NOTICE.txt` держите рядом с исполняемым файлом. Настройки и журналы — в
+`%APPDATA%\ClicKit`.
+
+**Запуск из исходников:**
 
 ```bash
 git clone https://github.com/AkaDaka1/ClicKit.git
@@ -237,6 +269,18 @@ cd ClicKit
 pip install -r requirements.txt
 python -m app
 ```
+
+**Сборка артефактов релиза:**
+
+```bash
+pip install -r requirements-build.txt
+python scripts/build_exe.py --both   # zip + один .exe
+```
+
+Результат: `dist/ClicKit-win64.zip` (папка, быстрый старт),
+`dist/ClicKit.exe` (один файл) и `NOTICE.txt` рядом/внутри. `--zip` собирает
+только архив папки, `--onefile` — только один файл. Каталог `resources/`
+вместе с вендоренным Blockly упаковывается в обе сборки.
 
 **Простой режим — четыре шага:**
 
@@ -249,8 +293,11 @@ python -m app
 4. При закрытии окна ClicKit спросит, свернуть его в трей или выйти; галочка
    «Запомнить мой выбор» избавит от вопроса для этого случая.
 
-Настройки хранятся в `%APPDATA%\ClicKit\settings.json`. Курсор в углу экрана
-также срабатывает как аварийный стоп pyautogui (fail-safe).
+Настройки (тема, глобальные хоткеи, параметры кликов) хранятся в
+`%APPDATA%\ClicKit\settings.json`; **«Настройки → Параметры…»** (`Ctrl+,`)
+меняет тему и хоткеи без перезапуска. Журналы — в
+`%APPDATA%\ClicKit\logs\app.log` (**«Помощь → Открыть папку журналов»**).
+Курсор в углу экрана также срабатывает как аварийный стоп pyautogui (fail-safe).
 
 **Редактор сценариев (M4):**
 
@@ -290,7 +337,8 @@ python scripts/run_scenario.py my-scenario.acl.json --dry-run
 формат IR (`.acl.json`); типы узлов: `click`, `double_click`, `move`, `drag`,
 `delay`, `key`, `scroll`, `loop`, `sequence`.
 
-**Требования:** Windows 10/11, Python 3.11+.
+**Требования:** Windows 10/11. Готовому `.exe` Python не нужен; для запуска
+из исходников и сборки — Python 3.11+.
 
 ## 🛠️ Технологии
 

@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from pynput import keyboard
 
@@ -20,7 +20,7 @@ class HotkeyManager:
     def __init__(self) -> None:
         self._bindings: dict[str, Callable[[], None]] = {}
         self._listener: keyboard.GlobalHotKeys | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def register(self, spec: str, callback: Callable[[], None]) -> None:
         """Привязать хоткей в формате pynput (`'<f6>'`, `'<ctrl>+<alt>+s'`)."""
@@ -51,6 +51,18 @@ class HotkeyManager:
                 return
             self._listener.stop()
             self._listener = None
+
+    def reload(self, bindings: Mapping[str, Callable[[], None]]) -> None:
+        """Заменить привязки и перезапустить слушатель, если он работал.
+
+        Нужен для смены хоткеев из настроек без перезапуска приложения.
+        """
+        with self._lock:
+            was_running = self._listener is not None
+            self.stop()
+            self._bindings = dict(bindings)
+            if was_running:
+                self.start()
 
     @staticmethod
     def _wrap(spec: str, callback: Callable[[], None]) -> Callable[[], None]:
