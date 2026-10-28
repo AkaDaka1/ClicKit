@@ -41,8 +41,9 @@
 | Визуальное программирование | Blockly + `QWebEngineView` | Blockly — локально (vendored в `resources/`), без CDN |
 | Мост JS ↔ Python | `QWebChannel` | Обмен JSON между Blockly и движком |
 | Эмуляция ввода | `pyautogui` + `pynput` | За абстракцией `InputBackend` (см. архитектуру) |
-| Глобальные хоткеи | `pynput` | Слушатель в отдельном потоке |
-| Сборка | PyInstaller (позже) | Один .exe для Windows |
+| Глобальные хоткеи | `pynput` | Слушатель в отдельном потоке; сочетания настраиваются |
+| Логирование | `logging` (stdlib) | Файл в `%APPDATA%` с ротацией, UTF-8-консоль |
+| Сборка | PyInstaller | Один `.exe` (onefile, windowed), NOTICE рядом |
 
 ---
 
@@ -82,9 +83,12 @@ ClicKit/
 ├── LICENSE                # MIT © 2026 Danil Momot
 ├── README.md
 ├── requirements.txt
+├── requirements-build.txt   # PyInstaller для сборки .exe (M5)
 ├── app/                   # точка входа (python -m app)
 │   ├── __main__.py
-│   ├── application.py     # QApplication, тема, сборка зависимостей
+│   ├── application.py     # QApplication, тема, логирование, сборка зависимостей
+│   ├── logging_setup.py   # журнал в %APPDATA%, UTF-8-консоль, excepthook
+│   ├── version.py         # APP_VERSION / APP_NAME (единый источник)
 │   └── paths.py           # пути к ресурсам (resources/)
 ├── core/                  # движок — без импортов GUI
 │   ├── input/
@@ -102,9 +106,12 @@ ClicKit/
 │   │   └── storage.py     # .acl.json: загрузка и атомарное сохранение
 │   └── recorder.py        # запись действий пользователя в IR (позже)
 ├── gui/                   # всё PySide6
-│   ├── main_window.py     # два режима, трей, закрытие окна
+│   ├── main_window.py     # два режима, меню, трей, закрытие окна
+│   ├── theme.py           # режим темы → QSS + тема Blockly (system/dark/light)
+│   ├── settings_dialog.py # диалог: тема и глобальные хоткеи
+│   ├── hotkey_spec.py     # преобразование и проверка хоткеев (без виджетов)
 │   ├── executor_adapter.py # Qt-адаптер исполнителя (сигналы в GUI)
-│   ├── hotkey_bridge.py   # глобальные хоткеи → Qt-сигналы
+│   ├── hotkey_bridge.py   # глобальные хоткеи → Qt-сигналы (+ перезагрузка)
 │   ├── picker.py          # пикер координат (F8)
 │   ├── tray.py            # иконка в системном трее
 │   ├── icons.py           # иконка приложения (+ запасной вариант)
@@ -115,16 +122,19 @@ ClicKit/
 │   │   ├── editor_view.py      # вкладка: QWebEngineView + QWebChannel + ленивый старт
 │   │   └── scenario_adapter.py # Qt-адаптер ScenarioRunner (сигналы в GUI)
 │   └── widgets/           # переиспользуемые виджеты
+│       └── hotkey_edit.py # поле записи сочетания клавиш
 ├── bridge/                # мост Blockly ↔ core (без PySide6 в трансляторах)
 │   ├── blockly_ir.py      # Blockly-JSON ↔ IR, ошибки с id блоков
 │   ├── scenario_file.py   # гибридный .acl.json: IR + editor.workspace
 │   └── web_channel.py     # QObject-мост: JS вызывает Python, события обратно
 ├── resources/
-│   ├── blockly/           # vendored Blockly 13.4.0 + наши блоки/тема/тулбар
+│   ├── blockly/           # vendored Blockly 13.4.0 + наши блоки/темы/тулбар
 │   ├── examples/          # примеры сценариев .acl.json
-│   ├── icons/             # app.svg
-│   └── styles/            # dark.qss (светлая тема — M5)
-├── scripts/               # консольные скрипты (демо, запуск сценария, вендоринг)
+│   ├── icons/             # app.svg + app.ico (сборка .exe)
+│   └── styles/            # dark.qss и light.qss
+├── packaging/             # PyInstaller: ClicKit.spec, version_info.txt, NOTICE.txt
+├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
+│                          # генерация иконки, сборка .exe)
 ├── plans/                 # рабочие планы вех (gitignored)
 └── tests/
 ```
@@ -246,6 +256,32 @@ ClicKit/
     и `application.run()` принудительно уничтожают webview до `QApplication`:
     иначе QtWebEngine на Windows падает после завершения процесса. Ошибки бэкенда
     оборачиваются в `ScenarioRuntimeError` с путём узла и `__cause__`.
+25. **Тема — единый источник разрешённой темы** (2026-10-28, M5): настройка
+    хранит режим (`system`/`dark`/`light`), `gui/theme.py` — единственное
+    место, где он превращается в конкретную тему. `ThemeManager` следит за
+    `QStyleHints.colorSchemeChanged`, применяет QSS и сообщает тему редактору
+    сигналом `changed`; Blockly получает уже разрешённое значение (в хэше
+    страницы при загрузке и через `editorApi.setTheme` при смене), поэтому
+    окно и холст не расходятся.
+26. **Хоткей — строка pynput, UI-представление отдельно** (2026-10-28, M5):
+    в настройках и ядре живёт спецификация pynput (`<ctrl>+<alt>+s`),
+    в интерфейсе — человекочитаемый текст (`Ctrl+Alt+S`). Конверсия и
+    проверки — чистые функции `gui/hotkey_spec.py`; сочетания без Ctrl/Alt/Win
+    (кроме F1–F24) запрещены, конфликты ловит диалог. `HotkeyManager.reload`
+    перезапускает слушатель без рестарта приложения.
+27. **Журнал — файл в `%APPDATA%\ClicKit\logs`** (2026-10-28, M5):
+    `RotatingFileHandler` (1 МБ × 3, UTF-8) + консоль в UTF-8; повторная
+    настройка не трогает чужие обработчики (pytest). `sys.excepthook` и
+    `threading.excepthook` пишут CRITICAL; диалог о сбое показывается один раз
+    за запуск и содержит путь к журналу.
+28. **Сборка — PyInstaller onefile + NOTICE рядом** (2026-10-28, M5):
+    `packaging/ClicKit.spec` включает `resources/` целиком (Blockly, темы,
+    иконки, примеры), `.ico` генерируется `scripts/make_icon.py`, версия
+    свойств `.exe` — из `packaging/version_info.txt`. `scripts/build_exe.py`
+    кладёт `NOTICE.txt` рядом с `.exe`; вендоренный Blockly не редактируется.
+29. **Язык в M5 — только русский** (2026-10-28, M5): полноценная локализация
+    RU+EN (Qt `tr`, строки JS и ядра) — отдельная задача после 1.0.0;
+    смешивать её с полировкой и упаковкой нецелесообразно.
 
 ---
 
@@ -267,6 +303,11 @@ ClicKit/
   артефакты (кэши, сборки, логи, локальные конфиги, пользовательские данные) —
   сразу дополни `.gitignore` соответствующими шаблонами. Случайно попавшие в
   индекс артефакты удаляй через `git rm --cached <путь>`.
+- **Пользовательские данные — только в `%APPDATA%\ClicKit`:** настройки
+  (`settings.json`), журналы (`logs/app.log`) и сценарии; в репозиторий они
+  не попадают. Артефакты сборки (`build/`, `dist/`) также gitignored.
+- **Версия — из `app/version.py`:** `APP_VERSION` используется приложением,
+  README и `packaging/version_info.txt`; при релизе менять синхронно.
 - **Вендоренные файлы Blockly не редактируются:** `blockly_compressed.js`,
   `blocks_compressed.js`, `msg/`, `media/` обновляются только через
   `python scripts/vendor_blockly.py` (версия pinned). Наши файлы страницы
@@ -286,7 +327,11 @@ ClicKit/
 - **Простой режим** — классический автокликер без блочного редактора.
 - **Редактор** — вкладка с Blockly для сборки сценариев.
 - **Пикер** — инструмент «наведи и нажми хоткей, чтобы захватить координаты».
+- **Режим темы** — настройка `system`/`dark`/`light`; **действующая тема** —
+  результат разрешения режима (`dark` или `light`), общий для GUI и Blockly.
+- **Журнал** — `%APPDATA%\ClicKit\logs\app.log` с ротацией 1 МБ × 3.
+- **NOTICE** — файл с лицензиями сторонних компонентов рядом с `.exe`.
 
 ---
 
-*Последнее обновление: 2026-10-27 (M4 принят и влит в `master`: Blockly 13.4.0 vendored без CDN, редактор в `QWebEngineView` с русской палитрой и подсветкой, транслятор Blockly-JSON ↔ IR, гибридный `.acl.json` с `editor.workspace`, QWebChannel-мост, контекстные F5/F6; §3.1 — Blockly/WebEngine и офлайн-страница, §3.2 — `bridge/` и `gui/editor/`, §3.3 — ADR №18–24, §4 — правило вендоринга, §5 — глоссарий.)*
+*Последнее обновление: 2026-10-28 (M5 реализован: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*
