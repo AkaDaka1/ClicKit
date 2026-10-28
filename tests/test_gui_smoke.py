@@ -198,14 +198,25 @@ def test_settings_applied_without_restart(qt_app: object, tmp_path: Path) -> Non
 
 
 def test_menu_has_settings_entry(qt_app: object, tmp_path: Path) -> None:
-    """В меню есть «Настройки → Параметры…» с Ctrl+запятая."""
+    """В меню есть настройки (Ctrl+запятая) и пункты помощи с журналами."""
     window = make_window(tmp_path, MockBackend())
 
+    assert [action.text() for action in window.menuBar().actions()] == [
+        "Настройки",
+        "Помощь",
+    ]
     menu = window.menuBar().actions()[0].menu()
     assert menu is not None
     action = menu.actions()[0]
     assert action.text() == "Параметры…"
     assert action.shortcut().toString() == "Ctrl+,"
+
+    help_menu = window.menuBar().actions()[1].menu()
+    assert help_menu is not None
+    assert [item.text() for item in help_menu.actions()] == [
+        "Открыть папку журналов",
+        "О программе",
+    ]
 
     window.hide()
     window.deleteLater()

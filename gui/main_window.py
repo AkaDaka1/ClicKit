@@ -1,8 +1,10 @@
 """Главное окно ClicKit: режимы, управление кликами, трей, закрытие окна."""
 
 import logging
+from html import escape
 
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -16,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.logging_setup import log_dir, log_path
+from app.version import APP_NAME, APP_VERSION
 from core.executor import StopReason
 from core.input.backend import InputBackend
 from core.settings import Settings, SettingsStore
@@ -147,13 +151,47 @@ class MainWindow(QMainWindow):
         self._tray = TrayIcon(app_icon(), self)
 
     def _build_menu(self) -> None:
-        """Меню приложения: настройки и служебные действия."""
+        """Меню приложения: настройки, журналы и сведения о программе."""
         settings_menu = self.menuBar().addMenu("Настройки")
         params = QAction("Параметры…", self)
         params.setShortcut(QKeySequence("Ctrl+,"))
         params.setStatusTip("Тема оформления и глобальные хоткеи")
         params.triggered.connect(self._open_settings)
         settings_menu.addAction(params)
+
+        help_menu = self.menuBar().addMenu("Помощь")
+        logs = QAction("Открыть папку журналов", self)
+        logs.setStatusTip(f"Журналы ClicKit: {log_dir()}")
+        logs.triggered.connect(self._open_logs)
+        help_menu.addAction(logs)
+
+        about = QAction("О программе", self)
+        about.triggered.connect(self._show_about)
+        help_menu.addAction(about)
+
+    def _open_logs(self) -> None:
+        """Открыть папку журналов в проводнике."""
+        directory = log_dir()
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self.statusBar().showMessage(f"Не удалось открыть журналы: {exc}")
+            return
+        if QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory))):
+            self.statusBar().showMessage(f"Открыта папка журналов: {directory}")
+        else:
+            self.statusBar().showMessage(f"Журналы: {directory}")
+
+    def _show_about(self) -> None:
+        """Показать версию и путь к журналу."""
+        QMessageBox.about(
+            self,
+            f"О программе {APP_NAME}",
+            f"<b>{APP_NAME}</b> {APP_VERSION}<br><br>"
+            "Автокликер с визуальными сценариями.<br>"
+            "Python + PySide6 + Blockly.<br><br>"
+            f"Журнал: {escape(str(log_path()))}",
+        )
 
     def _connect(self) -> None:
         """Связать форму, хоткеи, пикер, исполнитель и трей."""

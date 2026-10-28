@@ -6,6 +6,8 @@ import sys
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
+from app.logging_setup import install_excepthook, setup_logging
+from app.version import APP_VERSION
 from core.settings import Settings, SettingsStore
 from gui.icons import app_icon
 from gui.main_window import MainWindow
@@ -13,8 +15,7 @@ from gui.theme import ThemeManager
 
 logger = logging.getLogger(__name__)
 
-#: Версия приложения (M5 — первый публичный релиз).
-APP_VERSION = "1.0.0"
+__all__ = ["APP_VERSION", "initial_settings", "run"]
 
 
 def initial_settings(store: SettingsStore, center: tuple[int, int] | None) -> Settings:
@@ -30,11 +31,10 @@ def initial_settings(store: SettingsStore, center: tuple[int, int] | None) -> Se
 
 
 def run() -> int:
-    """Точка входа: создать приложение, окно, запустить цикл событий."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    """Точка входа: журнал, приложение, окно, цикл событий."""
+    journal = setup_logging()
+    install_excepthook()
+    logger.info("ClicKit %s запускается; журнал: %s", APP_VERSION, journal)
 
     app = QApplication(sys.argv)
     app.setApplicationName("ClicKit")
