@@ -144,7 +144,9 @@ class SimpleModeView(QWidget):
         self._repeats_spin.setValue(Settings.repeats)
 
         self._infinite_check = QCheckBox("Бесконечно")
-        self._infinite_check.setToolTip("Кликать до остановки кнопкой или F6")
+        self._infinite_check.setToolTip(
+            f"Кликать до остановки кнопкой или {self._stop_key}"
+        )
 
         repeats_row = QHBoxLayout()
         repeats_row.addWidget(self._repeats_spin, 1)
@@ -180,7 +182,8 @@ class SimpleModeView(QWidget):
         if x == 0 and y == 0:
             raise ValueError(
                 "Точка (0, 0) — аварийный угол pyautogui, клики там сразу "
-                "остановятся. Выберите другую точку или захватите её по F8."
+                "остановятся. Выберите другую точку или захватите её "
+                f"по {self._pick_key}."
             )
         return SimpleRunConfig(
             x=x,
@@ -213,6 +216,7 @@ class SimpleModeView(QWidget):
         self._pick_text = f"Захватить точку ({pick})"
         self._pick_button.setText(self._pick_text)
         self._update_pick_tooltip()
+        self._infinite_check.setToolTip(f"Кликать до остановки кнопкой или {stop}")
         self._start_button.setText(
             self._stop_text if self._running else self._start_text
         )

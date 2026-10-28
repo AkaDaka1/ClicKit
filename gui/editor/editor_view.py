@@ -188,6 +188,7 @@ class EditorView(QWidget):
         """Обновить подсказки кнопок «Запустить»/«Стоп» в тулбаре страницы."""
         self._hotkey_start = start
         self._hotkey_stop = stop
+        self._bridge.set_stop_hotkey(stop)
         if self._web is None:
             return
         payload = json.dumps({"start": start, "stop": stop}, ensure_ascii=False)

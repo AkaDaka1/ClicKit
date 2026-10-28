@@ -52,6 +52,11 @@ class TrayIcon(QObject):
         """Убрать иконку из трея (при выходе)."""
         self._tray.hide()
 
+    def set_hotkeys(self, start: str, stop: str) -> None:
+        """Показать в меню текущие сочетания запуска и остановки."""
+        self._start_action.setText(f"Старт ({start})")
+        self._stop_action.setText(f"Стоп ({stop})")
+
     def set_running(self, running: bool) -> None:
         """Включить/выключить пункты меню в зависимости от состояния кликов."""
         self._start_action.setEnabled(not running)

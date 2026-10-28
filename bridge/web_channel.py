@@ -89,6 +89,7 @@ class ScenarioBridge(QObject):
         self._dialog_parent = dialog_parent
         self._is_busy_checker = is_busy_checker
         self._current_path: Path | None = None
+        self._stop_hotkey = "F6"
 
         adapter.started.connect(self._on_started)
         adapter.step.connect(self.step_done)
@@ -102,7 +103,8 @@ class ScenarioBridge(QObject):
         """Собрать сценарий из блоков и запустить его."""
         if self._is_busy():
             self.status_changed.emit(
-                "Другой режим уже выполняется — остановите его (F6)", True
+                f"Другой режим уже выполняется — остановите его ({self._stop_hotkey})",
+                True,
             )
             return
         if self._adapter.is_running:
@@ -213,7 +215,13 @@ class ScenarioBridge(QObject):
     def _on_started(self) -> None:
         """Сценарий начал выполняться."""
         self.running_changed.emit(True)
-        self.status_changed.emit("Сценарий выполняется — остановить: F6", False)
+        self.status_changed.emit(
+            f"Сценарий выполняется — остановить: {self._stop_hotkey}", False
+        )
+
+    def set_stop_hotkey(self, text: str) -> None:
+        """Запомнить подпись хоткея остановки для сообщений пользователю."""
+        self._stop_hotkey = text or "F6"
 
     def _on_finished(self, reason_value: str, detail: str) -> None:
         """Сценарий завершился: сообщение, состояние кнопок, статус-бар."""

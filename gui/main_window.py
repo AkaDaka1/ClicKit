@@ -252,6 +252,12 @@ class MainWindow(QMainWindow):
         self._simple_view.set_hotkeys(start, stop, pick)
         self._editor_view.set_hotkeys(start, stop)
         self._hint_label.setText(hotkey_hint(self._settings))
+        if self._tray_available:
+            self._tray.set_hotkeys(start, stop)
+
+    def _stop_hotkey(self) -> str:
+        """Подпись хоткея остановки для сообщений."""
+        return spec_to_text(self._settings.hotkey_stop)
 
     # --- запуск и остановка ----------------------------------------------------
 
@@ -260,7 +266,7 @@ class MainWindow(QMainWindow):
         if self._adapter.is_running:
             return
         if self._editor_view.is_running:
-            message = "Сначала остановите сценарий (F6)"
+            message = f"Сначала остановите сценарий ({self._stop_hotkey()})"
             self._simple_view.set_message(message)
             self.statusBar().showMessage(message)
             return
@@ -299,7 +305,7 @@ class MainWindow(QMainWindow):
         if self._editor_view.is_running:
             return
         if self._adapter.is_running:
-            message = "Сначала остановите клики (F6)"
+            message = f"Сначала остановите клики ({self._stop_hotkey()})"
             self._simple_view.set_message(message)
             self.statusBar().showMessage(message)
             return
@@ -327,7 +333,10 @@ class MainWindow(QMainWindow):
         self._scenario_running = running
         self._sync_tray()
         if running and self.isHidden() and self._tray_available:
-            self._tray.notify("Сценарий запущен", "Остановить: F6 или меню трея.")
+            self._tray.notify(
+                "Сценарий запущен",
+                f"Остановить: {self._stop_hotkey()} или меню трея.",
+            )
 
     def _sync_tray(self) -> None:
         """Трей отражает, выполняется ли хоть какой-то режим."""
@@ -341,9 +350,14 @@ class MainWindow(QMainWindow):
         self._simple_view.set_counter(0)
         self._clicks_running = True
         self._sync_tray()
-        self.statusBar().showMessage("Клики выполняются — остановить: F6")
+        self.statusBar().showMessage(
+            f"Клики выполняются — остановить: {self._stop_hotkey()}"
+        )
         if self.isHidden() and self._tray_available:
-            self._tray.notify("Клики запущены", "Остановить: F6 или меню трея.")
+            self._tray.notify(
+                "Клики запущены",
+                f"Остановить: {self._stop_hotkey()} или меню трея.",
+            )
 
     def _on_step(self, clicks: int) -> None:
         """Обновить счётчик выполненных кликов."""
@@ -381,7 +395,9 @@ class MainWindow(QMainWindow):
     def _capture_point(self) -> None:
         """Снять позицию курсора (кнопка пикера или F8)."""
         if self._adapter.is_running:
-            self.statusBar().showMessage("Сначала остановите клики (F6)")
+            self.statusBar().showMessage(
+                f"Сначала остановите клики ({self._stop_hotkey()})"
+            )
             return
         self._picker.capture()
 
@@ -416,7 +432,7 @@ class MainWindow(QMainWindow):
             return
         self._tray_hint_shown = True
         text = (
-            "F6 — остановить выполнение."
+            f"{self._stop_hotkey()} — остановить выполнение."
             if running
             else "Клик по иконке в трее возвращает окно."
         )
