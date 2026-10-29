@@ -1,6 +1,6 @@
 [project]
 name = "clickit"
-version = "0.2.0"
+version = "1.0.0"
 requires-python = ">=3.11"
 
 [tool.ruff]
@@ -12,3 +12,8 @@ select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app", "core", "gui", "bridge"]
+
+[tool.pytest.ini_options]
+# Корень проекта в sys.path: тесты импортируют `app`, `core`, `gui`, `tests.*`.
+pythonpath = ["."]
+testpaths = ["tests"]

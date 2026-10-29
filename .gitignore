@@ -25,6 +25,8 @@ env/
 .coverage.*
 coverage.xml
 htmlcov/
+# Отчёты CI (JUnit XML и прочие артефакты прогонов)
+reports/
 
 # --- Сборка / PyInstaller ---
 build/

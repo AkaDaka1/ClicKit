@@ -44,6 +44,7 @@
 | Глобальные хоткеи | `pynput` | Слушатель в отдельном потоке; сочетания настраиваются |
 | Логирование | `logging` (stdlib) | Файл в `%APPDATA%` с ротацией, UTF-8-консоль |
 | Сборка | PyInstaller | onedir-архив (быстрый старт) и onefile `.exe`; NOTICE рядом |
+| CI/CD | **GitHub Actions** (`windows-latest`) | Линтер, тесты 3.11–3.13, сборка архива, релиз по тегу `v*` |
 
 ---
 
@@ -81,6 +82,7 @@ ClicKit/
 ├── CHANGELOG.md           # история релизов (Keep a Changelog)
 ├── AGENTS.md              # короткие стартовые инструкции для ИИ-агента
 ├── .gitignore             # игнорируемые артефакты — держать актуальным!
+├── .github/workflows/     # CI (ci.yml) и релиз по тегу (release.yml)
 ├── LICENSE                # MIT © 2026 Danil Momot
 ├── README.md
 ├── requirements.txt
@@ -135,7 +137,7 @@ ClicKit/
 │   └── styles/            # dark.qss и light.qss
 ├── packaging/             # PyInstaller: ClicKit.spec, version_info.txt, NOTICE.txt
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
-│                          # генерация иконки, сборка .exe)
+│                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # рабочие планы вех (gitignored)
 └── tests/
 ```
@@ -280,15 +282,72 @@ ClicKit/
 28. **Сборка — PyInstaller onedir + onefile** (2026-10-28, M5; формат релиза
     уточнён 2026-10-29): `packaging/ClicKit.spec` включает `resources/` целиком
     (Blockly, темы, иконки, примеры); режим выбирается `CLICKIT_ONEFILE=1`.
-    Релиз 1.0.0 содержит оба артефакта: `ClicKit-win64.zip` (onedir — старт
+    Оба артефакта собираются скриптом: `ClicKit-win64.zip` (onedir — старт
     ~2 с, рекомендуется) и `ClicKit.exe` (onefile — один файл, но распаковка
-    ~220 МБ QtWebEngine при каждом запуске даёт до минуты). `.ico` генерируется
-    `scripts/make_icon.py`, версия свойств — из `packaging/version_info.txt`;
-    `scripts/build_exe.py --both` собирает zip и `.exe`, кладя `NOTICE.txt`
-    рядом, и пишет `SHA256SUMS.txt`. Вендоренный Blockly не редактируется.
+    ~220 МБ QtWebEngine при каждом запуске даёт до минуты). В GitHub Release
+    публикуется только архив (ADR №31), `.exe` собирается локально. `.ico`
+    генерируется `scripts/make_icon.py`, версия свойств — из
+    `packaging/version_info.txt`; `scripts/build_exe.py --both` собирает zip
+    и `.exe`, кладя `NOTICE.txt` рядом, и пишет `SHA256SUMS.txt`.
+    Вендоренный Blockly не редактируется.
 29. **Язык в M5 — только русский** (2026-10-28, M5): полноценная локализация
     RU+EN (Qt `tr`, строки JS и ядра) — отдельная задача после 1.0.0;
     смешивать её с полировкой и упаковкой нецелесообразно.
+30. **CI/CD — GitHub Actions на `windows-latest`** (2026-10-29): проект
+    Windows-only, GUI/WebEngine-тесты требуют Qt, поэтому Linux-раннеры и
+    кросс-компиляция не используются. `ci.yml` запускается на PR и push в
+    `master`, а также как переиспользуемый workflow (`workflow_call`) для
+    релиза: job `lint` (`ruff check` + `ruff format --check` на 3.11) и job
+    `tests` (матрица 3.11–3.13, `python -m pytest`, JUnit при падении).
+    Job `package` (сборка `--zip` + проверка + смоук-запуск) идёт только на
+    `master` и при ручном запуске — на PR полная сборка QtWebEngine не нужна.
+    Отменять устаревшие прогоны — через `concurrency` с `cancel-in-progress`.
+31. **Релиз — по тегу `v<APP_VERSION>`, публикация автоматическая**
+    (2026-10-29): `release.yml` на push тега `v*` (и вручную через
+    `workflow_dispatch` с указанием тега) сначала прогоняет полный CI,
+    затем сверяет тег с `APP_VERSION` (`scripts/verify_release.py`), собирает
+    `ClicKit-win64.zip`, проверяет артефакты, SHA-256 и запуск собранного
+    `.exe` (`--smoke`, offscreen) и публикует GitHub Release с файлами
+    `ClicKit-win64.zip`, `NOTICE.txt`, `SHA256SUMS.txt`. Текст релиза берётся
+    из `CHANGELOG.md` (`scripts/release_notes.py`), версии с суффиксом
+    (`1.1.0-rc.1`) помечаются как Pre-release. Onefile `ClicKit.exe` в релиз
+    не входит (решение пользователя 2026-10-29): он собирается локально
+    `python scripts/build_exe.py --onefile`. Повторный запуск workflow
+    обновляет существующий релиз (`gh release upload --clobber`), а не падает.
+32. **Единый источник версии — `app/version.py`** (2026-10-29): `APP_VERSION`
+    сверяется с `pyproject.toml` тестом (`tests/test_release_tools.py`) и с
+    релизным тегом в CI; расхождение — красный пайплайн, а не «особенность»
+    релиза. Поле `version` в `pyproject.toml` остаётся для инструментов Python.
+
+---
+
+### 3.4. CI/CD
+
+```
+PR / push в master ──► ci.yml ──► lint ─┐
+                                        ├─► tests (3.11, 3.12, 3.13)
+                                        └─► package (--zip + smoke, только master)
+
+push тега v* / ручной запуск ──► release.yml ──► ci.yml (полный)
+                                        └─► build: verify tag → build --zip
+                                                 → verify artifacts/smoke
+                                                 → upload release-assets
+                                            └─► publish: gh release create/upload
+```
+
+Правила и локальные аналоги:
+
+- Пуш в `master` — только через PR с зелёным CI (настройки репозитория:
+  branch protection, обязательные проверки `lint` и `tests`, удаление ветки
+  после merge).
+- Локальная проверка того же, что в CI: `ruff check .`, `ruff format --check .`,
+  `python -m pytest`.
+- Локальная проверка релиза перед тегом:
+  `python scripts/build_exe.py --zip` и
+  `python scripts/verify_release.py --tag v<версия> --smoke`.
+- Версия для релиза: правится в `app/version.py` + `pyproject.toml` +
+  `packaging/version_info.txt`, добавляется раздел в `CHANGELOG.md`,
+  затем создаётся тег `v<версия>` и пушится.
 
 ---
 
@@ -314,7 +373,12 @@ ClicKit/
   (`settings.json`), журналы (`logs/app.log`) и сценарии; в репозиторий они
   не попадают. Артефакты сборки (`build/`, `dist/`) также gitignored.
 - **Версия — из `app/version.py`:** `APP_VERSION` используется приложением,
-  README и `packaging/version_info.txt`; при релизе менять синхронно.
+  README и `packaging/version_info.txt`; при релизе менять синхронно
+  (и `pyproject.toml` — расхождение ловит `tests/test_release_tools.py`).
+- **CI/CD не обходится:** `master` принимает изменения только через PR с
+  зелёными `lint`/`tests`; релиз — только тегом `v<APP_VERSION>`; скрипты
+  `scripts/verify_release.py` и `scripts/release_notes.py` обязаны оставаться
+  рабочими, их поведение покрыто тестами.
 - **Вендоренные файлы Blockly не редактируются:** `blockly_compressed.js`,
   `blocks_compressed.js`, `msg/`, `media/` обновляются только через
   `python scripts/vendor_blockly.py` (версия pinned). Наши файлы страницы
@@ -338,7 +402,11 @@ ClicKit/
   результат разрешения режима (`dark` или `light`), общий для GUI и Blockly.
 - **Журнал** — `%APPDATA%\ClicKit\logs\app.log` с ротацией 1 МБ × 3.
 - **NOTICE** — файл с лицензиями сторонних компонентов рядом с `.exe`.
+- **Релизный тег** — git-тег `v<APP_VERSION>` (например `v1.0.0`); его пуш
+  запускает `release.yml` и публикацию GitHub Release.
+- **Смоук-запуск** — запуск собранного `.exe` в offscreen-режиме с временным
+  `%APPDATA%`; успех — строка о запуске в журнале приложения.
 
 ---
 
-*Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; §2 — стек и логирование, §3.2 — `theme.py`, `settings_dialog.py`, `core/hotkey_spec.py`, `packaging/`, §3.3 — ADR №25–29, §4 — правила данных и версии, §5 — глоссарий.)*
+*Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; **CI/CD на GitHub Actions:** `ci.yml` (lint + тесты 3.11–3.13 + сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release), `scripts/verify_release.py`, `scripts/release_notes.py`, версия `pyproject.toml` синхронизирована с `APP_VERSION`; §2 — стек, §3.2 — `.github/workflows/`, §3.3 — ADR №30–32, §3.4 — схема CI/CD, §4 — правила версии и CI, §5 — глоссарий.)*

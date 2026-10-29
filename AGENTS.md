@@ -33,5 +33,9 @@
 - Установка зависимостей: `pip install -r requirements.txt`
 - Сборка релиза: `pip install -r requirements-build.txt` и `python scripts/build_exe.py --both`
 - Запуск: `python -m app`
-- Проверки: `ruff check .` + `pytest`
+- Проверки: `ruff check .` + `ruff format --check .` + `python -m pytest`
+- Проверка релиза: `python scripts/verify_release.py --tag v<версия> --smoke`
 - Форматирование: `ruff format .`
+- CI/CD: GitHub Actions (`windows-latest`) — `.github/workflows/ci.yml` (PR и
+  `master`) и `.github/workflows/release.yml` (тег `v<APP_VERSION>`); схема в
+  `AI_CONTEXT.md` §3.4

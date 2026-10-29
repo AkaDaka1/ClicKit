@@ -12,6 +12,7 @@ together to script clicks, moves and delays — no coding required.
 [![PySide6](https://img.shields.io/badge/GUI-PySide6_%2B_Qt-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Blockly](https://img.shields.io/badge/scripting-Blockly-4285F4?logo=googleblockly&logoColor=white)](https://developers.google.com/blockly)
 [![Status](https://img.shields.io/badge/status-1.0.0-5865F2)](#)
+[![CI](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml/badge.svg)](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml)
 
 **English** · [Русский](#ru)
 
@@ -29,8 +30,9 @@ and merged into `master`. The app follows the Windows theme by default
 (start, stop, coordinate picker) are configurable without a restart, and a
 rotated log is written to `%APPDATA%\ClicKit\logs\app.log`. Two modes are
 available: the classic **Simple mode** and the **block scenario editor** with
-live execution highlighting. The release ships as a single `ClicKit.exe` built
-with PyInstaller, so no Python installation is required. Conditions
+live execution highlighting. The release is a portable folder archive
+`ClicKit-win64.zip` built with PyInstaller (a single-file `ClicKit.exe` can be
+built locally with `--onefile`), so no Python installation is required. Conditions
 (`if`/`while`) and the input recorder remain on the roadmap.
 
 ## 💡 Why ClicKit?
@@ -78,8 +80,10 @@ Details: [`ROADMAP.md`](ROADMAP.md).
 
 - `ClicKit-win64.zip` — **recommended**: unpack the folder and run
   `ClicKit\ClicKit.exe`; starts in a couple of seconds.
-- `ClicKit.exe` — a single portable file. QtWebEngine (~220 MB) unpacks itself
-  on every launch, so the window may take up to a minute to appear.
+
+Prefer a single file? Build the portable `ClicKit.exe` locally with
+`python scripts/build_exe.py --onefile` — QtWebEngine (~220 MB) unpacks itself
+on every launch, so the window may take up to a minute to appear.
 
 Keep `NOTICE.txt` next to the executable; `SHA256SUMS.txt` lets you verify the
 downloads. Settings and logs live in `%APPDATA%\ClicKit`. The builds are
@@ -163,6 +167,33 @@ validated ClicKit IR format (`.acl.json`); node types: `click`, `double_click`,
 **Requirements:** Windows 10/11. The release `.exe` needs no Python; running
 from source or building requires Python 3.11+.
 
+## 🔄 CI/CD
+
+Every pull request and every push to `master` runs
+[GitHub Actions](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml)
+on `windows-latest`:
+
+- `ruff check .` and `ruff format --check .`;
+- `pytest` on Python **3.11, 3.12 and 3.13** (offscreen Qt, WebEngine without
+  sandbox and GPU);
+- on `master` and on manual runs — a full PyInstaller build of
+  `ClicKit-win64.zip`, archive/checksum checks and an offscreen smoke launch of
+  the built `.exe`.
+
+Releases are automatic: push a `v<version>` tag that matches `APP_VERSION` in
+`app/version.py`, and
+[`release.yml`](https://github.com/AkaDaka1/ClicKit/actions/workflows/release.yml)
+re-runs the CI, builds the archive, verifies it and publishes a GitHub Release
+with `ClicKit-win64.zip`, `NOTICE.txt` and `SHA256SUMS.txt`; release notes come
+from `CHANGELOG.md`. Tags with a suffix (`v1.1.0-rc.1`) become pre-releases.
+The same checks locally:
+
+```bash
+ruff check . && ruff format --check . && python -m pytest
+python scripts/build_exe.py --zip
+python scripts/verify_release.py --tag v1.0.0 --smoke
+```
+
 ## 🛠️ Tech stack
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
@@ -211,9 +242,10 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 (старт, стоп, захват точки) переназначаются без перезапуска, а журнал
 с ротацией пишется в `%APPDATA%\ClicKit\logs\app.log`. Доступны два режима:
 классический **«Простой режим»** и **блочный редактор сценариев** с подсветкой
-выполнения. Релиз поставляется одним файлом `ClicKit.exe`, собранным через
-PyInstaller, — Python на целевой машине не нужен. Условия (`if`/`while`)
-и запись действий остаются в планах.
+выполнения. Релиз — это архив `ClicKit-win64.zip` (PyInstaller onedir); один
+файл `ClicKit.exe` собирается отдельно (`--onefile`), — Python на целевой
+машине в обоих случаях не нужен. Условия (`if`/`while`) и запись действий
+остаются в планах.
 
 ## 💡 Почему ClicKit?
 
@@ -260,8 +292,12 @@ PyInstaller, — Python на целевой машине не нужен. Усл
 
 - `ClicKit-win64.zip` — **рекомендуется**: распакуйте папку и запустите
   `ClicKit\ClicKit.exe`; старт за пару секунд.
-- `ClicKit.exe` — один переносимый файл. QtWebEngine (~220 МБ) распаковывается
-  при каждом запуске, поэтому окно может появиться до минуты.
+
+Локальная сборка: один файл можно собрать отдельно:
+
+```bash
+python scripts/build_exe.py --onefile   # ClicKit.exe (~58 с при старте)
+```
 
 `NOTICE.txt` держите рядом с исполняемым файлом; `SHA256SUMS.txt` позволяет
 проверить загрузку. Настройки и журналы — в `%APPDATA%\ClicKit`. Сборки не
@@ -346,6 +382,33 @@ python scripts/run_scenario.py my-scenario.acl.json --dry-run
 
 **Требования:** Windows 10/11. Готовому `.exe` Python не нужен; для запуска
 из исходников и сборки — Python 3.11+.
+
+## 🔄 CI/CD
+
+Каждый pull request и каждый push в `master` запускает
+[GitHub Actions](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml)
+на `windows-latest`:
+
+- `ruff check .` и `ruff format --check .`;
+- `pytest` на Python **3.11, 3.12 и 3.13** (Qt в offscreen-режиме, WebEngine
+  без sandbox и GPU);
+- на `master` и при ручном запуске — полную сборку PyInstaller
+  `ClicKit-win64.zip`, проверку архива и контрольных сумм и смоук-запуск
+  собранного `.exe` без экрана.
+
+Релизы — автоматические: запушьте тег `v<версия>`, совпадающий с `APP_VERSION`
+в `app/version.py`, и
+[`release.yml`](https://github.com/AkaDaka1/ClicKit/actions/workflows/release.yml)
+повторно прогонит CI, соберёт архив, проверит его и опубликует GitHub Release
+с `ClicKit-win64.zip`, `NOTICE.txt` и `SHA256SUMS.txt`; текст релиза берётся
+из `CHANGELOG.md`. Теги с суффиксом (`v1.1.0-rc.1`) становятся Pre-release.
+Те же проверки локально:
+
+```bash
+ruff check . && ruff format --check . && python -m pytest
+python scripts/build_exe.py --zip
+python scripts/verify_release.py --tag v1.0.0 --smoke
+```
 
 ## 🛠️ Технологии
 

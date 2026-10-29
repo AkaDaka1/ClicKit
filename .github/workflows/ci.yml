@@ -1,0 +1,116 @@
+# CI ClicKit: линтер, автотесты и проверка сборки на Windows.
+# Проект Windows-only (PySide6/QtWebEngine + PyInstaller), поэтому Linux-раннеры
+# не используются. Параметры CI/CD зафиксированы в AI_CONTEXT.md (ADR №30).
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  workflow_call:
+
+# Отменяем устаревшие прогоны той же ветки/PR — экономит минуты раннера.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONUTF8: "1"
+  # Смоук-тесты Qt/WebEngine идут без экрана, sandbox и GPU.
+  QT_QPA_PLATFORM: offscreen
+  QTWEBENGINE_DISABLE_SANDBOX: "1"
+  QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+
+jobs:
+  lint:
+    name: Линтер (ruff)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Установить ruff
+        run: python -m pip install "ruff>=0.8"
+      - name: ruff check
+        run: python -m ruff check .
+      - name: ruff format --check
+        run: python -m ruff format --check .
+
+  tests:
+    name: Тесты (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Установить зависимости
+        run: python -m pip install -r requirements.txt
+      - name: Запустить автотесты
+        run: python -m pytest -q --junitxml=reports/junit.xml
+      - name: Сохранить отчёт о тестах
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-python-${{ matrix.python-version }}
+          path: reports/junit.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    # Сборка нужна только для master и ручного запуска: на PR она не гоняется.
+    name: Сборка onedir-архива
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [lint, tests]
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+      - name: Установить зависимости
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Собрать архив
+        run: python scripts/build_exe.py --zip
+      - name: Проверить артефакты и запуск
+        run: python scripts/verify_release.py --smoke --timeout 120
+      - name: Сохранить артефакты при ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            dist/SHA256SUMS.txt
+            dist/ClicKit-win64.zip
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Сохранить архив для проверки
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClicKit-win64
+          path: dist/ClicKit-win64.zip
+          if-no-files-found: error
+          retention-days: 7

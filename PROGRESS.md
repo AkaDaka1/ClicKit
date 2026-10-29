@@ -35,6 +35,7 @@
 | 2026-10-28 | **M5 реализован** в ветке `feat/m5-polish-packaging` (5 коммитов): `gui/theme.py` + `light.qss` + светлая тема Blockly, диалог настроек с `HotkeyEdit` и перезагрузкой слушателя, `app/logging_setup.py` (журнал, UTF-8, excepthook), `packaging/` (spec, ICO, NOTICE, version_info), `scripts/{make_icon,build_exe}.py`, нормализация хоткеев при загрузке настроек; 256 автотестов, `ruff` чист; локальная сборка `dist/ClicKit.exe` (220 МБ) запущена — окно создаётся, журнал пишется | ✅ Готово, ждёт приёмки |
 | 2026-10-29 | Уточнён формат релиза по результатам замеров: onefile стартует ~58 с (распаковка QtWebEngine), onedir — ~2 с. Решено публиковать оба: `dist/ClicKit-win64.zip` (227.8 МБ, рекомендуется) и `dist/ClicKit.exe` (220.3 МБ); `build_exe.py` получил `--zip`/`--onefile`/`--both`, spec — режим `CLICKIT_ONEFILE`; zip проверен, версия свойств `.exe` — 1.0.0 | ✅ Готово |
 | 2026-10-29 | **M5 влит в `master`** через PR #1 (merge `522da54`); merge проверен: деревья `origin/master` и ветки совпадают, конфликтов нет; локальная `master` обновлена, `ruff` и 256 тестов на `master` зелёные. Подготовлены релизные материалы: `CHANGELOG.md`, контрольные суммы артефактов | ✅ Готово |
+| 2026-10-29 | **CI/CD на GitHub Actions:** `.github/workflows/ci.yml` (ruff + тесты на Python 3.11/3.12/3.13 + сборка `--zip` и смоук на `master`; `concurrency`, кэш pip, JUnit при падении) и `.github/workflows/release.yml` (тег `v*` или ручной запуск → полный CI → сверка тега с `APP_VERSION` → сборка → GitHub Release с `ClicKit-win64.zip` + `NOTICE.txt` + `SHA256SUMS.txt`, заметки из `CHANGELOG.md`, Pre-release для суффиксов, повторный запуск обновляет релиз). Добавлены `scripts/verify_release.py` (версия, артефакты, SHA-256, смоук-запуск offscreen) и `scripts/release_notes.py` (раздел CHANGELOG + флаг pre-release); `pyproject.toml`: `version` → `1.0.0`, `pythonpath`/`testpaths` для pytest; тесты `tests/test_release_tools.py` (16). Итог: `ruff` чист, 272 теста зелёные | ✅ Готово |
 
 ---
 
@@ -67,19 +68,25 @@
   свойства версии 1.0.0): onedir-архив и onefile `.exe`; 256 автотестов.
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
+- **CI/CD:** GitHub Actions — `ci.yml` (ruff + тесты 3.11–3.13, сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release); ADR №30–32, схема в `AI_CONTEXT.md` §3.4.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
 - **Ближайшая веха:** публикация релиза **1.0.0** на GitHub (zip onedir +
   `ClicKit.exe` + NOTICE + SHA256SUMS).
 
 ## Следующие шаги (по порядку)
 
-1. **Релиз 1.0.0:** создать GitHub Release, приложить `ClicKit-win64.zip`,
-   `ClicKit.exe`, `NOTICE.txt`, `SHA256SUMS.txt`; текст — из `CHANGELOG.md`.
-2. **Финальный смоук на чистой Windows** (если не входил в приёмку M5):
+1. **Релиз 1.0.0:** тег `v1.0.0` уже в `origin`, поэтому запустить
+   **Actions → Release → Run workflow** с `tag = v1.0.0` (или снять/поставить
+   галочку «publish» для сухого прогона): workflow прогонит CI, соберёт
+   `ClicKit-win64.zip`, проверит суммы и опубликует GitHub Release с
+   `ClicKit-win64.zip`, `NOTICE.txt`, `SHA256SUMS.txt`; текст — из `CHANGELOG.md`.
+2. **Защита `master`** (Settings → Branches): обязательные проверки `lint` и
+   `tests`, запрет прямого push, обязательный PR, удаление ветки после merge.
+3. **Финальный смоук на чистой Windows** (если не входил в приёмку M5):
    распаковать zip, запустить оба режима и редактор Blockly.
-3. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
+4. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
    и матрица совместимости приложений.
-4. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
+5. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
    пикер координат прямо в поле блока, библиотека шаблонов, локализация RU+EN.
 
 ### Материалы для GitHub-репозитория (About)

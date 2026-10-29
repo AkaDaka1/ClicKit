@@ -1,0 +1,146 @@
+# CD ClicKit: по тегу `v<версия>` прогоняет CI, собирает onedir-архив
+# и публикует GitHub Release с заметками из CHANGELOG.md.
+# Ручной запуск (Actions → Release → Run workflow) собирает релиз без
+# создания GitHub Release, если снять галочку «publish».
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Существующий тег релиза (например v1.0.0)"
+        required: true
+        type: string
+      publish:
+        description: "Опубликовать GitHub Release"
+        required: false
+        default: true
+        type: boolean
+
+# Релизы не отменяем: параллельный прогон по тому же тегу должен дойти до конца.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+  QTWEBENGINE_DISABLE_SANDBOX: "1"
+  QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+
+jobs:
+  # Полный CI перед релизом: линтер и тесты на трёх версиях Python.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Сборка релиза
+    needs: ci
+    runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - name: Определить тег
+        id: meta
+        shell: pwsh
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          $tag = $env:INPUT_TAG
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = $env:REF_NAME }
+          Write-Host "Тег релиза: $tag"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Установить зависимости
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+
+      - name: Сверить версию с тегом
+        shell: pwsh
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: python scripts/verify_release.py --tag "$env:TAG" --no-artifacts
+
+      - name: Подготовить заметки релиза
+        run: python scripts/release_notes.py --output release-notes.md --prerelease-flag prerelease.txt
+
+      - name: Собрать архив
+        run: python scripts/build_exe.py --zip
+
+      - name: Проверить артефакты и запуск
+        run: python scripts/verify_release.py --smoke --timeout 180
+
+      - name: Сохранить артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: |
+            dist/ClicKit-win64.zip
+            dist/NOTICE.txt
+            dist/SHA256SUMS.txt
+            release-notes.md
+            prerelease.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Публикация GitHub Release
+    needs: build
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: assets
+
+      - name: Создать или обновить релиз
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          title="ClicKit ${TAG#v}"
+          files=(assets/ClicKit-win64.zip assets/NOTICE.txt assets/SHA256SUMS.txt)
+          prerelease="$(tr -d '[:space:]' < assets/prerelease.txt)"
+          export GH_REPO="$REPO"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Релиз $TAG уже существует — обновляю файлы и описание"
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --title "$title" --notes-file assets/release-notes.md
+          else
+            extra=()
+            if [ "$prerelease" = "true" ]; then
+              extra+=(--prerelease)
+            fi
+            gh release create "$TAG" "${files[@]}" \
+              --title "$title" \
+              --notes-file assets/release-notes.md \
+              --verify-tag \
+              "${extra[@]}"
+          fi
