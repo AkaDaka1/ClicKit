@@ -126,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           title="ClicKit ${TAG#v}"
-          files=(assets/ClicKit-win64.zip assets/NOTICE.txt assets/SHA256SUMS.txt)
+          files=(assets/dist/ClicKit-win64.zip assets/dist/NOTICE.txt assets/dist/SHA256SUMS.txt)
           prerelease="$(tr -d '[:space:]' < assets/prerelease.txt)"
           export GH_REPO="$REPO"
           if gh release view "$TAG" >/dev/null 2>&1; then
