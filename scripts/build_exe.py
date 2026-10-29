@@ -72,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     shutil.copy2(NOTICE, exe.parent / "NOTICE.txt")
+    # Для GitHub Release нужен NOTICE.txt в корне dist/ (рядом с архивом).
+    if (exe.parent / "NOTICE.txt") != DIST / "NOTICE.txt":
+        shutil.copy2(NOTICE, DIST / "NOTICE.txt")
     target = exe if onefile else exe.parent
     size_mb = _directory_size(target) / (1024 * 1024)
     print(f"Готово: {exe} ({size_mb:.1f} МБ)")

@@ -33,6 +33,9 @@ CHECKSUMS_FILENAME = "SHA256SUMS.txt"
 ZIP_FILENAME = "ClicKit-win64.zip"
 NOTICE_FILENAME = "NOTICE.txt"
 ONEDIR_EXE = Path("ClicKit") / "ClicKit.exe"
+#: `build_exe.py` кладёт NOTICE рядом с `.exe` (внутрь onedir-папки),
+#: поэтому в `dist/` корневой копии может не быть.
+NOTICE_CANDIDATES = (Path(NOTICE_FILENAME), Path("ClicKit") / NOTICE_FILENAME)
 #: Нижняя граница размера архива: QtWebEngine весит сотни мегабайт,
 #: поэтому мелкий архив означает неполную сборку.
 MIN_ZIP_BYTES = 100 * 1024 * 1024
@@ -69,17 +72,28 @@ def _display(path: Path) -> str:
         return str(path)
 
 
+def find_notice(dist: Path) -> Path | None:
+    """Найти `NOTICE.txt`: в корне `dist/` или внутри onedir-папки."""
+    for relative in NOTICE_CANDIDATES:
+        candidate = dist / relative
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def check_artifacts(dist: Path = DIST) -> list[str]:
     """Проверить наличие и содержимое релизных артефактов в `dist/`."""
     problems: list[str] = []
 
     archive = dist / ZIP_FILENAME
-    notice = dist / NOTICE_FILENAME
     checksums = dist / CHECKSUMS_FILENAME
+    notice = find_notice(dist)
 
-    for required in (archive, notice, checksums):
+    for required in (archive, checksums):
         if not required.is_file():
             problems.append(f"нет файла: {_display(required)}")
+    if notice is None:
+        problems.append(f"нет файла: {_display(dist / NOTICE_FILENAME)}")
 
     if archive.is_file():
         if archive.stat().st_size < MIN_ZIP_BYTES:

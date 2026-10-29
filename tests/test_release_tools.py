@@ -43,6 +43,26 @@ def test_check_artifacts_reports_missing_files(tmp_path: Path) -> None:
     assert len(missing) == 3
 
 
+def test_find_notice_inside_onedir(tmp_path: Path) -> None:
+    """`build_exe.py` кладёт NOTICE рядом с `.exe` — это тоже валидно."""
+    onedir = tmp_path / "ClicKit"
+    onedir.mkdir()
+    notice = onedir / "NOTICE.txt"
+    notice.write_text("MIT", encoding="utf-8")
+
+    assert verify_release.find_notice(tmp_path) == notice
+
+
+def test_find_notice_prefers_dist_root(tmp_path: Path) -> None:
+    """Копия в корне `dist/` (артефакт релиза) имеет приоритет."""
+    (tmp_path / "ClicKit").mkdir()
+    (tmp_path / "ClicKit" / "NOTICE.txt").write_text("MIT", encoding="utf-8")
+    root_notice = tmp_path / "NOTICE.txt"
+    root_notice.write_text("MIT", encoding="utf-8")
+
+    assert verify_release.find_notice(tmp_path) == root_notice
+
+
 def test_check_checksums_accepts_valid_file(tmp_path: Path) -> None:
     """Совпадающая контрольная сумма не даёт замечаний."""
     artifact = tmp_path / "ClicKit-win64.zip"
