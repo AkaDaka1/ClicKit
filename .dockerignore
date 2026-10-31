@@ -1,0 +1,22 @@
+# Контекст сборки образов ClicKit (см. plans/M6-docker.md §4.4).
+# Windows-движок Docker Desktop собирает образом legacy-билдером без BuildKit,
+# поэтому фильтрация контекста — только через этот файл: dist/ достигает 1 ГБ.
+.git/
+.github/
+docker/
+plans/
+dist/
+build/
+reports/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.log
+*.zip
+SHA256SUMS.txt

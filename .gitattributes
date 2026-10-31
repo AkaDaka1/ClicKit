@@ -1,0 +1,5 @@
+# Dockerfile'ы обязаны оставаться с LF: Windows-движок собирает legacy-билдером,
+# и CRLF в продолжениях строк (`\`) ломает RUN-инструкции.
+docker/Dockerfile* text eol=lf
+docker-compose.yml text eol=lf
+.gitattributes text eol=lf

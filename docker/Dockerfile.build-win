@@ -1,0 +1,84 @@
+# Окружение сборки ClicKit: Windows-контейнер с Python 3.11, PyInstaller и
+# зависимостями приложения (см. ADR №34 в AI_CONTEXT.md §3.3).
+#
+# Сборка образа (Docker Desktop в режиме Windows-контейнеров; BuildKit для
+# Windows-контейнеров недоступен, собирает legacy-билдер):
+#   docker context use desktop-windows
+#   docker buildx use desktop-windows
+#   docker build -f docker/Dockerfile.build-win -t clikit-build-win:local .
+#
+# Сборка релиза в контейнере, артефакты — в dist/ на хосте:
+#   docker run --rm -v "<путь к репозиторию>:C:/work" clikit-build-win:local --zip
+#
+# База — минимальный servercore: официального Python-образа для Windows нет,
+# поэтому интерпретатор ставится из NuGet-пакета (самодостаточная распаковка
+# без MSI, интерактивных мастеров и правки системного PATH вручную).
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+SHELL ["powershell", "-NoLogo", "-NoProfile", "-Command", \
+       "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# 3.11.9 — последний релиз ветки 3.11 (далее только security-фиксы).
+ARG PYTHON_VERSION=3.11.9
+ARG PYTHON_ROOT=C:\Python311
+
+# Python из NuGet: python.exe, Lib/, DLLs/ и pip уже на месте.
+# Адрес — flat container api.nuget.org (а не www.nuget.org/api/v2): в контейнере
+# цепочка CNAME у www.nuget.org через trafficmanager не резолвится, а
+# api.nuget.org/pypi.org/python.org доступны. Повторы — прокси Docker
+# периодически обрывает соединения (факт T0.1).
+RUN Write-Host ('Установка Python ' + $env:PYTHON_VERSION); \
+    $archive = Join-Path $env:TEMP 'python.zip'; \
+    $uri = 'https://api.nuget.org/v3-flatcontainer/python/' + \
+        $env:PYTHON_VERSION + '/python.' + $env:PYTHON_VERSION + '.nupkg'; \
+    for ($attempt = 1; ; $attempt++) { \
+        try { \
+            Invoke-WebRequest -UseBasicParsing -OutFile $archive -Uri $uri; \
+            break; \
+        } catch { \
+            if ($attempt -ge 3) { throw }; \
+            Write-Host ('Повтор загрузки (' + $attempt + '): ' + $_.Exception.Message); \
+            Start-Sleep -Seconds 5; \
+        } \
+    }; \
+    Expand-Archive -Path $archive -DestinationPath (Join-Path $env:TEMP 'python'); \
+    Move-Item -Path (Join-Path $env:TEMP 'python\tools') -Destination $env:PYTHON_ROOT; \
+    Remove-Item -Recurse -Force $archive, (Join-Path $env:TEMP 'python'); \
+    [Environment]::SetEnvironmentVariable('Path', \
+        $env:PYTHON_ROOT + ';' + $env:PYTHON_ROOT + '\Scripts;' + \
+        [Environment]::GetEnvironmentVariable('Path', 'Machine'), 'Machine'); \
+    & "$env:PYTHON_ROOT\python.exe" --version; \
+    & "$env:PYTHON_ROOT\python.exe" -m pip --version
+
+# UTF-8 в консоли: вывод pytest/PyInstaller на русском не должен превращаться
+# в кракозябры (тот же приём, что в app/logging_setup.py).
+ENV PYTHONUTF8=1 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR C:/work
+
+# Зависимости отдельным слоем: правка кода не переустанавливает PySide6.
+# PySide6 несёт собственные MSVC-библиотеки (msvcp140/vcruntime140), поэтому
+# установка распространяемого пакета VC++ в образе не требуется.
+COPY requirements.txt requirements-build.txt ./
+RUN C:\Python311\python.exe -m pip install --retries 5 --timeout 60 \
+        -r requirements.txt -r requirements-build.txt
+
+# Исходники перечислены явно (вместо `COPY . .`) и фильтруются `.dockerignore`:
+# в контекст не попадают dist/ (сейчас ~1 ГБ), build/, .git/ и кэши. При запуске
+# `docker run -v` каталог монтируется поверх и берётся код из рабочей копии
+# (как в release.yml).
+COPY app/ ./app/
+COPY bridge/ ./bridge/
+COPY core/ ./core/
+COPY gui/ ./gui/
+COPY packaging/ ./packaging/
+COPY resources/ ./resources/
+COPY scripts/ ./scripts/
+
+# Обратные слэши в WORKDIR/ENTRYPOINT не используются: CLI Windows-движка
+# нормализует `C:\work` в `C:work` и падает с «invalid absolute path».
+ENTRYPOINT ["C:/Python311/python.exe", "scripts/build_exe.py"]
