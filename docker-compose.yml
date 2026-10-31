@@ -1,0 +1,19 @@
+# Локальный запуск автотестов ClicKit в Linux-контейнере (ADR №33).
+#   docker compose run --rm test           # полный прогон pytest
+#   docker compose run --rm test -k ir     # аргументы передаются в pytest
+# Переменные Qt/WebEngine заданы здесь же и совпадают с ci.yml.
+
+name: clikit
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.test
+    image: clikit-test:local
+    environment:
+      QT_QPA_PLATFORM: offscreen
+      QTWEBENGINE_DISABLE_SANDBOX: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+    # init: корректно завершать контейнер по Ctrl+C и подбирать дочерние процессы.
+    init: true

@@ -1,0 +1,53 @@
+# Образ для прогона автотестов ClicKit в Linux-контейнере.
+#
+# Продукт Windows-only, поэтому контейнеризуется только инфраструктура
+# разработки (ADR №33): тесты идут в offscreen-режиме Qt без реального экрана.
+# Системные библиотеки нужны PySide6 (QtCore/QtGui/QtWidgets/QtWebEngine);
+# точный список доводится до зелёного прогона в задаче T1.2.
+
+FROM python:3.11-slim
+
+# Без интерактивных вопросов apt и без лишних рекомендаций.
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Системные зависимости Qt, WebEngine и виртуальный дисплей (Xvfb).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        xvfb \
+        libxkbcommon-x11-0 \
+        libnss3 \
+        libasound2 \
+        libgl1 \
+        libdbus-1-3 \
+        libfontconfig1 \
+        libglib2.0-0 \
+        libsm6 \
+        libice6 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
+
+# Сначала только зависимости — слой кэшируется, пока requirements.txt не менялся.
+# `evdev` (зависимость pynput на Linux) собирается из исходников: нужны gcc
+# и заголовки libc/ядра. Ставим их только на время pip install и удаляем
+# в том же слое.
+COPY requirements.txt ./
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        libc6-dev \
+        linux-libc-dev \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && apt-get purge -y --auto-remove gcc libc6-dev linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Код проекта (артефакты исключены через .dockerignore).
+COPY . .
+
+# По умолчанию — полный прогон тестов; аргументы можно переопределить
+# (например, `docker compose run test python -m pytest -q -k ir`).
+ENTRYPOINT ["python", "-m", "pytest"]
+CMD ["-q"]
