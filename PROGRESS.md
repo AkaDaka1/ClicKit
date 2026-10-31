@@ -36,6 +36,8 @@
 | 2026-10-29 | Уточнён формат релиза по результатам замеров: onefile стартует ~58 с (распаковка QtWebEngine), onedir — ~2 с. Решено публиковать оба: `dist/ClicKit-win64.zip` (227.8 МБ, рекомендуется) и `dist/ClicKit.exe` (220.3 МБ); `build_exe.py` получил `--zip`/`--onefile`/`--both`, spec — режим `CLICKIT_ONEFILE`; zip проверен, версия свойств `.exe` — 1.0.0 | ✅ Готово |
 | 2026-10-29 | **M5 влит в `master`** через PR #1 (merge `522da54`); merge проверен: деревья `origin/master` и ветки совпадают, конфликтов нет; локальная `master` обновлена, `ruff` и 256 тестов на `master` зелёные. Подготовлены релизные материалы: `CHANGELOG.md`, контрольные суммы артефактов | ✅ Готово |
 | 2026-10-29 | **CI/CD на GitHub Actions:** `.github/workflows/ci.yml` (ruff + тесты на Python 3.11/3.12/3.13 + сборка `--zip` и смоук на `master`; `concurrency`, кэш pip, JUnit при падении) и `.github/workflows/release.yml` (тег `v*` или ручной запуск → полный CI → сверка тега с `APP_VERSION` → сборка → GitHub Release с `ClicKit-win64.zip` + `NOTICE.txt` + `SHA256SUMS.txt`, заметки из `CHANGELOG.md`, Pre-release для суффиксов, повторный запуск обновляет релиз). Добавлены `scripts/verify_release.py` (версия, артефакты, SHA-256, смоук-запуск offscreen) и `scripts/release_notes.py` (раздел CHANGELOG + флаг pre-release); `pyproject.toml`: `version` → `1.0.0`, `pythonpath`/`testpaths` для pytest; тесты `tests/test_release_tools.py` (16). Итог: `ruff` чист, 272 теста зелёные | ✅ Готово |
+| 2026-10-31 | Создан план M6 «DevOps: Docker + тестовые релизы» — `plans/M6-docker.md`: цель, критерий готовности, согласованные параметры (полный стек: Linux-тесты в контейнере, Windows-образ сборки, GHCR, CI-интеграция, dev-релизы; Windows-матрица CI не трогается; долгоживущей `dev`-ветки нет — только механизм), модули, ADR-черновики, 7 коммитов, чек-лист приёмки, **граф задач T0.1–T6.1** с зависимостями и параллельными волнами; новая практика зафиксирована в `AGENTS.md` («Планы вех»): задачи вех выполняются по отдельности в разных сессиях по ID; ADR №33–35 внесены в `AI_CONTEXT.md` §3.3 | ✅ Готово |
+| 2026-10-31 | **T0.1 (M6) выполнена — Docker проверен:** Docker Desktop 4.97.0 (244584), engine 29.9.2, compose v5.6.1, backend WSL2; `docker run hello-world` и `python:3.11-slim` (3.11.18) — ок. Windows-часть: Docker Desktop был установлен без компонента Windows-контейнеров (`noWindowsContainers: true`) — компонент доустановлен инсталлятором + перезагрузка машины, после чего `-SwitchWindowsEngine` дал контекст `desktop-windows`; `mcr.microsoft.com/windows/servercore:ltsc2022` (5.05 GB, isolation=hyperv) → `cmd /c echo ok` = `ok`; движок возвращён на Linux. Попутно: pull'ы Docker Hub периодически падают с `EOF` через прокси Docker Desktop — помогает ретрай | ✅ Готово |
 
 ---
 
@@ -69,6 +71,12 @@
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
 - **CI/CD:** GitHub Actions — `ci.yml` (ruff + тесты 3.11–3.13, сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release); ADR №30–32, схема в `AI_CONTEXT.md` §3.4.
+- **M6 (Docker + тестовые релизы):** план согласован 2026-10-31 — `plans/M6-docker.md`
+  с графом задач T0.1–T6.1 (волны: T0.1 → T1.1∥T3.1 → T1.2 → T2.1∥T3.2 →
+  T4.1∥T5.1 → T6.1); ADR №33–35; задачи выполняются по отдельности в разных
+  сессиях по ID (практика зафиксирована в `AGENTS.md`). Запущено задач: 1 —
+  **T0.1 ✅** (Docker Desktop 4.97.0: `hello-world`, compose v5.6.1,
+  Windows-движок → `servercore:ltsc2022` → `ok`, движок возвращён на Linux).
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
 - **Ближайшая веха:** публикация релиза **1.0.0** на GitHub (zip onedir +
   `ClicKit.exe` + NOTICE + SHA256SUMS).
@@ -84,9 +92,13 @@
    `tests`, запрет прямого push, обязательный PR, удаление ветки после merge.
 3. **Финальный смоук на чистой Windows** (если не входил в приёмку M5):
    распаковать zip, запустить оба режима и редактор Blockly.
-4. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
+4. **M6 — Docker + тестовые релизы** (план `plans/M6-docker.md`): задачи
+   выполняются по отдельности в разных сессиях по ID («выполни T1.1» и т.д.,
+   параллельные волны T1.1∥T3.1, T2.1∥T3.2, T4.1∥T5.1). T0.1 закрыта —
+   следующая волна: **T1.1 ∥ T3.1**. Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
+5. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
    и матрица совместимости приложений.
-5. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
+6. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
    пикер координат прямо в поле блока, библиотека шаблонов, локализация RU+EN.
 
 ### Материалы для GitHub-репозитория (About)
@@ -138,6 +150,20 @@
       `QTWEBENGINE_DISABLE_SANDBOX=1` и `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`;
       при недоступном Chromium смоук отключается `CLICKIT_SKIP_WEB=1`.
       Реальный рендер Blockly проверен на приёмке M4 (2026-10-27).
+- [x] **Docker Desktop и Windows-контейнеры (T0.1, M6):** установщик по
+      умолчанию ставит Docker Desktop без компонента Windows-контейнеров
+      (`"noWindowsContainers": true` в `C:\ProgramData\DockerDesktop\install-settings.json`),
+      из-за чего `DockerCli.exe -SwitchWindowsEngine` падает с
+      `windows containers have been disabled for this installation`.
+      (✅ 2026-10-31: компонент доустановлен перезапуском инсталлятора,
+      потребовалась перезагрузка Windows; после неё переключение движка
+      и `servercore:ltsc2022` работают — isolation=hyperv. Переключение из
+      неэлевированного процесса невозможно.)
+- [ ] **Docker Hub: единичные `EOF` при pull (T0.1, M6):** через прокси
+      Docker Desktop (`http.docker.internal:3128`) скачивание слоёв с
+      `production.cloudfront.docker.com` иногда обрывается с `EOF`;
+      повтор `docker pull` проходит. В CI не считать единичный `EOF`
+      фатальной ошибкой (ретраи при cold-pull).
 - [x] Ручная приёмка M1: реальные клики и F5/F6/fail-safe на машине пользователя
       (✅ 2026-10-24: 100/100 кликов, все хоткеи работают; автотесты хоткеи
       не проверяют: `pynput.GlobalHotKeys` с версии 1.8.2 игнорирует

@@ -318,6 +318,33 @@ ClicKit/
     сверяется с `pyproject.toml` тестом (`tests/test_release_tools.py`) и с
     релизным тегом в CI; расхождение — красный пайплайн, а не «особенность»
     релиза. Поле `version` в `pyproject.toml` остаётся для инструментов Python.
+ 33. **Docker в Windows-only продукте** (2026-10-31, план M6):
+     контейнерируется инфраструктура разработки, а не продукт — GUI
+     (PySide6/QtWebEngine) не может работать в Linux-контейнере.
+     `docker/Dockerfile.test` (python-slim + Xvfb + системные библиотеки
+     Qt) гоняет полный прогон `pytest` в Linux-контейнере: локально
+     `docker compose run test` и в CI (job `tests-docker` в `ci.yml`).
+     Linux-тесты **дополняют** Windows-матрицу 3.11–3.13, а не заменяют
+     её — целевая платформа остаётся Windows.
+ 34. **Окружение сборки — Windows-образ в GHCR** (2026-10-31, план M6):
+     `docker/Dockerfile.build-win` (servercore ltsc2022 + Python 3.11 +
+     PyInstaller + зависимости) фиксирует окружение сборки `.exe`;
+     `docker.yml` публикует оба образа в GHCR (`clikit-test`,
+     `clikit-build-win`; теги `<sha>`/`latest` по master, `dev` по dev).
+     Релизная сборка — `docker run` из образа, собранного из текущего
+     коммита; ключ `container:` с динамическим тегом не используется:
+     тег статичен в YAML, а `latest` даёт race при движении `master`.
+     Windows-контейнеры требуют установленного компонента Docker Desktop
+     (инсталлятор по умолчанию его не ставит) и прав администратора на
+     переключение движка — проверено в T0.1 (2026-10-31).
+ 35. **Тестовые релизы (dev-практика)** (2026-10-31, план M6): аналог
+     «деплоя на dev» для desktop-приложения — `dev-release.yml` по пушу в
+     ветку `dev` (или вручную для любого ref) прогоняет полный CI,
+     собирает `ClicKit-win64.zip` и публикует/обновляет rolling
+     **draft** GitHub Release «dev» (`gh release upload --clobber`).
+     Долгоживущая `dev`-ветка намеренно не создаётся (один разработчик,
+     расходимость gitflow без пользы) — механизм готов, ветка появится
+     при необходимости (M7+).
 
 ---
 
@@ -408,5 +435,15 @@ push тега v* / ручной запуск ──► release.yml ──► ci.
   `%APPDATA%`; успех — строка о запуске в журнале приложения.
 
 ---
+
+*Последнее обновление: 2026-10-31 (план M6 «DevOps: Docker + тестовые
+релизы» создан и согласован — `plans/M6-docker.md` с графом задач T0.1–T6.1;
+**T0.1 выполнена** — Docker Desktop 4.97.0 (engine 29.9.2, compose v5.6.1):
+Linux-контейнеры и Windows-контейнеры (`servercore:ltsc2022`, isolation=hyperv)
+проверены; §3.3 — ADR №33–35: Docker-стратегия Windows-only продукта,
+Windows-образ сборки в GHCR, тестовые релизы «dev»; в ADR №34 добавлено
+требование установленного компонента Windows-контейнеров; практика запуска
+задач вех по ID из разных сессий зафиксирована в `AGENTS.md`; §4 — правила
+плана вехи дополнены графом задач).*
 
 *Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; **CI/CD на GitHub Actions:** `ci.yml` (lint + тесты 3.11–3.13 + сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release), `scripts/verify_release.py`, `scripts/release_notes.py`, версия `pyproject.toml` синхронизирована с `APP_VERSION`; §2 — стек, §3.2 — `.github/workflows/`, §3.3 — ADR №30–32, §3.4 — схема CI/CD, §4 — правила версии и CI, §5 — глоссарий.)*
