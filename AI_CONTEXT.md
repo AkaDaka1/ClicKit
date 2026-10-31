@@ -82,6 +82,7 @@ ClicKit/
 ├── CHANGELOG.md           # история релизов (Keep a Changelog)
 ├── AGENTS.md              # короткие стартовые инструкции для ИИ-агента
 ├── .gitignore             # игнорируемые артефакты — держать актуальным!
+├── .dockerignore          # что не попадает в контекст сборки образов (docker/)
 ├── .github/workflows/     # CI (ci.yml) и релиз по тегу (release.yml)
 ├── LICENSE                # MIT © 2026 Danil Momot
 ├── README.md
@@ -136,6 +137,7 @@ ClicKit/
 │   ├── icons/             # app.svg + app.ico (сборка .exe)
 │   └── styles/            # dark.qss и light.qss
 ├── packaging/             # PyInstaller: ClicKit.spec, version_info.txt, NOTICE.txt
+├── docker/                # Dockerfile.test (Linux-тесты) и Dockerfile.build-win (M6)
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # рабочие планы вех (gitignored)
@@ -336,7 +338,13 @@ ClicKit/
      тег статичен в YAML, а `latest` даёт race при движении `master`.
      Windows-контейнеры требуют установленного компонента Docker Desktop
      (инсталлятор по умолчанию его не ставит) и прав администратора на
-     переключение движка — проверено в T0.1 (2026-10-31).
+     переключение движка — проверено в T0.1 (2026-10-31). Образ собирается
+     **legacy-билдером** (BuildKit для Windows-контейнеров в Docker Desktop
+     недоступен): контекст фильтруется `.dockerignore`, пути в Dockerfile —
+     через `/` (`WORKDIR C:/work`, иначе CLI нормализует `C:\work` в `C:work`),
+     Python 3.11 ставится из NuGet flat-container (`api.nuget.org`:
+     `www.nuget.org` в контейнере не резолвится), VC++ redist не нужен —
+     PySide6 несёт `msvcp140`/`vcruntime140`. Проверено в T3.1 (2026-10-31).
  35. **Тестовые релизы (dev-практика)** (2026-10-31, план M6): аналог
      «деплоя на dev» для desktop-приложения — `dev-release.yml` по пушу в
      ветку `dev` (или вручную для любого ref) прогоняет полный CI,
@@ -444,6 +452,9 @@ Linux-контейнеры и Windows-контейнеры (`servercore:ltsc2022
 Windows-образ сборки в GHCR, тестовые релизы «dev»; в ADR №34 добавлено
 требование установленного компонента Windows-контейнеров; практика запуска
 задач вех по ID из разных сессий зафиксирована в `AGENTS.md`; §4 — правила
-плана вехи дополнены графом задач).*
+плана вехи дополнены графом задач; **T3.1 выполнена** — `docker/Dockerfile.build-win`
+собирает релизный `ClicKit-win64.zip` в Windows-контейнере (`docker run -v … --zip`,
+артефакт прошёл `verify_release.py --smoke`), в ADR №34 добавлены детали
+Windows-образа, §3.2 — `docker/` и `.dockerignore`).*
 
 *Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; **CI/CD на GitHub Actions:** `ci.yml` (lint + тесты 3.11–3.13 + сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release), `scripts/verify_release.py`, `scripts/release_notes.py`, версия `pyproject.toml` синхронизирована с `APP_VERSION`; §2 — стек, §3.2 — `.github/workflows/`, §3.3 — ADR №30–32, §3.4 — схема CI/CD, §4 — правила версии и CI, §5 — глоссарий.)*

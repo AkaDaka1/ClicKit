@@ -38,6 +38,8 @@
 | 2026-10-29 | **CI/CD на GitHub Actions:** `.github/workflows/ci.yml` (ruff + тесты на Python 3.11/3.12/3.13 + сборка `--zip` и смоук на `master`; `concurrency`, кэш pip, JUnit при падении) и `.github/workflows/release.yml` (тег `v*` или ручной запуск → полный CI → сверка тега с `APP_VERSION` → сборка → GitHub Release с `ClicKit-win64.zip` + `NOTICE.txt` + `SHA256SUMS.txt`, заметки из `CHANGELOG.md`, Pre-release для суффиксов, повторный запуск обновляет релиз). Добавлены `scripts/verify_release.py` (версия, артефакты, SHA-256, смоук-запуск offscreen) и `scripts/release_notes.py` (раздел CHANGELOG + флаг pre-release); `pyproject.toml`: `version` → `1.0.0`, `pythonpath`/`testpaths` для pytest; тесты `tests/test_release_tools.py` (16). Итог: `ruff` чист, 272 теста зелёные | ✅ Готово |
 | 2026-10-31 | Создан план M6 «DevOps: Docker + тестовые релизы» — `plans/M6-docker.md`: цель, критерий готовности, согласованные параметры (полный стек: Linux-тесты в контейнере, Windows-образ сборки, GHCR, CI-интеграция, dev-релизы; Windows-матрица CI не трогается; долгоживущей `dev`-ветки нет — только механизм), модули, ADR-черновики, 7 коммитов, чек-лист приёмки, **граф задач T0.1–T6.1** с зависимостями и параллельными волнами; новая практика зафиксирована в `AGENTS.md` («Планы вех»): задачи вех выполняются по отдельности в разных сессиях по ID; ADR №33–35 внесены в `AI_CONTEXT.md` §3.3 | ✅ Готово |
 | 2026-10-31 | **T0.1 (M6) выполнена — Docker проверен:** Docker Desktop 4.97.0 (244584), engine 29.9.2, compose v5.6.1, backend WSL2; `docker run hello-world` и `python:3.11-slim` (3.11.18) — ок. Windows-часть: Docker Desktop был установлен без компонента Windows-контейнеров (`noWindowsContainers: true`) — компонент доустановлен инсталлятором + перезагрузка машины, после чего `-SwitchWindowsEngine` дал контекст `desktop-windows`; `mcr.microsoft.com/windows/servercore:ltsc2022` (5.05 GB, isolation=hyperv) → `cmd /c echo ok` = `ok`; движок возвращён на Linux. Попутно: pull'ы Docker Hub периодически падают с `EOF` через прокси Docker Desktop — помогает ретрай | ✅ Готово |
+| 2026-10-31 | **T1.1 (M6) выполнена — Docker-среда тестов собрана:** `docker/Dockerfile.test` (python:3.11-slim + apt-пакеты Qt/WebEngine/Xvfb, pip из `requirements.txt`, ENTRYPOINT `python -m pytest`), `.dockerignore`, `docker-compose.yml` (сервис `test`, offscreen-переменные Qt, `init: true`). Образ `clikit-test:local` — 421 MB; `docker compose run test` стартует и собирает тесты. Первая сборка падала на `evdev` (pynput на Linux): добавлены временные `gcc`+`libc6-dev`+`linux-libc-dev` — ставятся и удаляются в том же слое. Ожидаемые 12 ошибок сбора (`libEGL.so.1`, `DISPLAY`) — вход в гейт T1.2; коммита пока нет (по плану `feat: docker-среда для автотестов` — в T1.2). Попутно: Docker Desktop был на Windows-контейнерах — `docker context use desktop-linux` вернул Linux-движок; pull `python:3.11-slim` повторили после `EOF` | ✅ Готово |
+| 2026-10-31 | **T3.1 (M6) выполнена — Windows-образ сборки:** `docker/Dockerfile.build-win` (servercore:ltsc2022 + Python 3.11.9 из NuGet flat-container, зависимости отдельным слоем, явный `COPY` исходников, ENTRYPOINT `python scripts/build_exe.py`) и `.dockerignore`. Образ `clikit-build-win:local` — 5.94 ГБ, сборка ~25 мин (pip через прокси контейнера). `docker run --rm -v "<копия репозитория>:C:/work" clikit-build-win:local --zip` → `ClicKit-win64.zip` 230.6 МБ (3286 записей, Blockly в `_internal/resources/`) + `SHA256SUMS.txt`; артефакт прошёл на хосте `python scripts/verify_release.py --dist … --smoke`. Особенности Windows-контейнеров (в §9 плана): legacy-билдер без BuildKit (`.dockerignore` обязателен), `WORKDIR C:\work` → «invalid absolute path» (пишем `C:/work`, монтируем `-v "<путь>:C:/work"`), `www.nuget.org` не резолвится в контейнере (качаем с `api.nuget.org`), VC++ redist не нужен (PySide6 несёт `msvcp140`/`vcruntime140`). Движок возвращён на Linux | ✅ Готово |
 
 ---
 
@@ -74,9 +76,13 @@
 - **M6 (Docker + тестовые релизы):** план согласован 2026-10-31 — `plans/M6-docker.md`
   с графом задач T0.1–T6.1 (волны: T0.1 → T1.1∥T3.1 → T1.2 → T2.1∥T3.2 →
   T4.1∥T5.1 → T6.1); ADR №33–35; задачи выполняются по отдельности в разных
-  сессиях по ID (практика зафиксирована в `AGENTS.md`). Запущено задач: 1 —
+  сессиях по ID (практика зафиксирована в `AGENTS.md`). Запущено задач: 3 —
   **T0.1 ✅** (Docker Desktop 4.97.0: `hello-world`, compose v5.6.1,
-  Windows-движок → `servercore:ltsc2022` → `ok`, движок возвращён на Linux).
+  Windows-движок → `servercore:ltsc2022` → `ok`, движок возвращён на Linux);
+  **T1.1 ✅** (образ `clikit-test:local` собран: Dockerfile.test, `.dockerignore`,
+  `docker-compose.yml`; `docker compose run test` стартует, зелёные тесты —
+  гейт T1.2); **T3.1 ✅** (образ `clikit-build-win:local` собирает релизный
+  zip в Windows-контейнере). Остались открытыми: T1.2 (гейт), T3.2 и далее.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
 - **Ближайшая веха:** публикация релиза **1.0.0** на GitHub (zip onedir +
   `ClicKit.exe` + NOTICE + SHA256SUMS).
@@ -94,8 +100,10 @@
    распаковать zip, запустить оба режима и редактор Blockly.
 4. **M6 — Docker + тестовые релизы** (план `plans/M6-docker.md`): задачи
    выполняются по отдельности в разных сессиях по ID («выполни T1.1» и т.д.,
-   параллельные волны T1.1∥T3.1, T2.1∥T3.2, T4.1∥T5.1). T0.1 закрыта —
-   следующая волна: **T1.1 ∥ T3.1**. Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
+   параллельные волны T1.1∥T3.1, T2.1∥T3.2, T4.1∥T5.1). Закрыты **T0.1**,
+   **T1.1** (образ тестов собирается, контейнер стартует) и **T3.1** (образ
+   сборки `.exe` собирает релизный zip); следующая — **T1.2** (гейт: довести
+   тесты в контейнере до зелёного). Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
 5. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
    и матрица совместимости приложений.
 6. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
@@ -158,7 +166,28 @@
       (✅ 2026-10-31: компонент доустановлен перезапуском инсталлятора,
       потребовалась перезагрузка Windows; после неё переключение движка
       и `servercore:ltsc2022` работают — isolation=hyperv. Переключение из
-      неэлевированного процесса невозможно.)
+      неэлевированного процесса невозможно. ✅ 2026-10-31 (T1.1): при работающем
+      Docker Desktop `docker context use desktop-linux` переключает движок
+      из обычного терминала без прав администратора.)
+- [ ] **Docker Desktop сам возвращается на Windows-контейнеры (T1.1, M6):**
+      после успешного переключения на `desktop-linux` и работы с Linux-образом
+      движок снова оказался `windows` — Linux-образ «пропадает»
+      (`no matching manifest for windows(...)`, `pull access denied`).
+      Перед docker-командами проверять `docker context ls` и выполнять
+      `docker context use desktop-linux`; образ `clikit-test:local` остаётся
+      в Linux-движке. В CI (ubuntu-раннер) проблемы нет.
+- [ ] **Windows-контейнеры: legacy-билдер и пути (T3.1, M6):** Docker Desktop
+      в режиме Windows-контейнеров собирает **без BuildKit** — фильтрация
+      контекста по `COPY` не действует, без `.dockerignore` в контекст уходит
+      `dist/` (~1 ГБ). CLI нормализует `WORKDIR C:\work` в `C:work` и падает
+      с «invalid absolute path» → в Dockerfile пути через `/` (`C:/work`),
+      монтирование тоже `-v "<путь>:C:/work"`. В контейнере не резолвится
+      `www.nuget.org` (CNAME через trafficmanager) — Python качается с
+      `api.nuget.org/v3-flatcontainer/...`. VC++ redist не нужен: PySide6
+      несёт `msvcp140`/`vcruntime140`. Переключение движка:
+      `docker context use desktop-windows`/`desktop-linux`, сборка —
+      `docker buildx use desktop-windows` (иначе BuildKit берёт Linux-билдер
+      и падает с `no match for platform`).
 - [ ] **Docker Hub: единичные `EOF` при pull (T0.1, M6):** через прокси
       Docker Desktop (`http.docker.internal:3128`) скачивание слоёв с
       `production.cloudfront.docker.com` иногда обрывается с `EOF`;
