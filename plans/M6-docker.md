@@ -210,7 +210,8 @@
  | 2026-11-01 | T3.2 | `.github/workflows/docker.yml`: два независимых job (`ubuntu-latest`/`windows-latest`), `docker/login-action` + `docker/metadata-action`, публикация `ghcr.io/akadaka1/clikit-test` и `ghcr.io/akadaka1/clikit-build-win` (SHA + `latest` для master, SHA + `dev` для dev). Первый прогон упал: `docker/build-push-action` требует Buildx, которого нет в Windows engine → Windows job переведён на `docker build`/`docker push`. Чекпоинт: run 41336011415 — Linux 1m43s, Windows 9m39s, оба зелёные | `feat: finish M6 Docker workflows` (90813df), `fix: support legacy Windows Docker publishing` (6d717b1) |
  | 2026-11-01 | T4.1 | `release.yml`: job `build` собирает `docker/Dockerfile.build-win` и запускает `build_exe.py --zip` с bind mount, smoke — на хосте; `permissions` публикации не менялись. Dry-run с тегом `v1.0.0` сначала падал: старый тег создан до M6 и не содержит `docker/` → для `workflow_dispatch` checkout переключён на `master` при сверке версии с указанным тегом. Чекпоинт: run 41337101336 — сборка 8m21s, smoke и артефакты зелёные, publish пропущен | `fix: build manual release from current master` (59b61c0) |
  | 2026-11-01 | T5.1 | `.github/workflows/dev-release.yml`: reusable CI, input `branch`, сборка/смоук и rolling draft `dev` (`gh release upload --clobber`). Первый прогон собрал и проверил архив, но публикация упала `HTTP 403` — job не имел `contents: write`; добавлено явное разрешение. Чекпоинт: runs 41337281967 (создание) и 41338058699 (обновление) — draft `dev` с zip 223.4 МБ, NOTICE, SHA256SUMS | `fix: grant dev release write permission` (9a72d08) |
- | 2026-11-01 | T6.1 | README дополнен разделом DevOps/Docker (EN+RU), план и статусные документы синхронизированы с тремя workflow, `plans/` отформатирован `ruff format` (публичные fenced-блоки), локально проверены `ruff check`, `ruff format --check`, `git diff --check` | `docs: M6 в документации` |
+ | 2026-11-01 | T6.1 | README дополнен разделом DevOps/Docker (EN+RU), план и статусные документы синхронизированы с тремя workflow, `plans/` отформатирован `ruff format` (публичные fenced-блоки), локально проверены `ruff check`, `ruff format --check`, `git diff --check` | `docs: M6 в документации` (8ab2c13) |
+ | 2026-11-01 | — | Повторный push в `master` показал нестабильность раннера: Windows job упал с `failed to connect to the docker API at npipe://./pipe/docker_engine` (служба Docker ещё не поднята). В `docker.yml` и `release.yml` добавлен шаг «Подготовить Docker Engine»: до 6 попыток `docker version` + `Start-Service docker`, затем понятная ошибка. Чекпоинт: run 41340727155 — Linux и Windows job зелёные; CI на 7a2743e — зелёный | `fix: wait for Windows Docker engine in CI` (7a2743e) |
 
 ## 8. Список коммитов (итог вехи)
 
@@ -222,7 +223,8 @@
 6. `fix: support legacy Windows Docker publishing` (T3.2 — 6d717b1)
 7. `fix: build manual release from current master` (T4.1 — 59b61c0)
 8. `fix: grant dev release write permission` (T5.1 — 9a72d08)
-9. `docs: M6 в документации` (T6.1)
+9. `docs: M6 в документации` (T6.1 — 8ab2c13)
+10. `fix: wait for Windows Docker engine in CI` (T3.2/T4.1 — 7a2743e)
 
 ## 9. Риски и меры
 
@@ -240,6 +242,7 @@
 | **Факт (T1.1):** Docker Desktop после успешного `docker context use desktop-linux` может сам вернуться на Windows-контейнеры — Linux-образ тогда «пропадает» (`no matching manifest for windows(...)` / `pull access denied` для `clikit-test:local`) | Перед docker-командами проверять `docker context ls` и возвращать `docker context use desktop-linux` (переключение из CLI работает без перезапуска и прав администратора). В CI образы linux/amd64 на `ubuntu-latest` — проблема только локальная |
 | **Факт (T1.2):** `pynput`/`pyautogui` на Linux требуют `DISPLAY` даже при `QT_QPA_PLATFORM=offscreen` — 6 тестовых модулей не собираются (`failed to acquire X connection`, `KeyError: 'DISPLAY'`) | ENTRYPOINT образа — `xvfb-run --auto-servernum python -m pytest`; `xvfb` и `xauth` в apt-слое. Env Qt/WebEngine передаётся в `docker run` из `docker-compose.yml`/`ci.yml` |
 | **Факт (T1.2):** PySide6 + xvfb падает на финализации интерпретатора (`Fatal Python error: bool_dealloc`) после зелёного прогона QtWebEngine-тестов — exit code 134 | В `tests/conftest.py`: на Linux при загруженном `PySide6.QtWebEngineCore` — закрытие окон и `gc` в `pytest_sessionfinish`, затем `os._exit(exitstatus)` в `pytest_unconfigure` (JUnit и сводка уже записаны). На Windows хук не активен |
+| **Факт (M6):** служба Docker на `windows-latest` иногда не поднята к началу job — `docker build` падает с `failed to connect to the docker API at npipe://./pipe/docker_engine` | Шаг «Подготовить Docker Engine» в `docker.yml`/`release.yml`: до 6 попыток `docker version` с `Start-Service docker` и паузой 10 с; затем явная ошибка |
 | Race тегов GHCR в релизе | Обойдён архитектурно (ADR №34: `docker run` из образа коммита, а не `container: latest`) |
 
 ## 10. Чек-лист приёмки (дублирует §2, для финальной сессии)
