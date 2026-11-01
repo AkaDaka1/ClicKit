@@ -1,6 +1,7 @@
-# CI ClicKit: линтер, автотесты и проверка сборки на Windows.
+# CI ClicKit: линтер, автотесты (Windows + Linux в Docker) и проверка сборки.
 # Проект Windows-only (PySide6/QtWebEngine + PyInstaller), поэтому Linux-раннеры
-# не используются. Параметры CI/CD зафиксированы в AI_CONTEXT.md (ADR №30).
+# используются только для тестов в контейнере (ADR №33). Параметры CI/CD зафиксированы
+# в AI_CONTEXT.md (ADR №30).
 name: CI
 
 on:
@@ -70,6 +71,35 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: junit-python-${{ matrix.python-version }}
+          path: reports/junit.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tests-docker:
+    # Linux-прогон дополняет Windows-матрицу (ADR №33): образ собирается из
+    # контекста PR, а не из GHCR, — проверяется содержимое коммита.
+    name: Тесты (Docker, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Собрать образ тестов
+        run: |
+          docker build -f docker/Dockerfile.test -t clikit-test:ci .
+      - name: Запустить автотесты в контейнере
+        run: |
+          mkdir -p reports
+          docker run --rm --init \
+            -e QT_QPA_PLATFORM=offscreen \
+            -e QTWEBENGINE_DISABLE_SANDBOX=1 \
+            -e QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu \
+            -v "${{ github.workspace }}/reports:/work/reports" \
+            clikit-test:ci -q --junitxml=reports/junit.xml
+      - name: Сохранить отчёт о тестах
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-docker
           path: reports/junit.xml
           if-no-files-found: ignore
           retention-days: 7
