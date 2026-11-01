@@ -14,9 +14,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1
 
 # Системные зависимости Qt, WebEngine и виртуальный дисплей (Xvfb).
+# Полный список довёл T1.2: xvfb+xauth, libtk8.6 (tkinter/pyautogui),
+# EGL/GLES, X11/XCB, DRM/GBM, GTK/Pango/ATK/AT-SPI для QtWebEngine offscreen.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         xvfb \
+        xauth \
+        libtk8.6 \
         libxkbcommon-x11-0 \
         libnss3 \
         libasound2 \
@@ -26,6 +30,40 @@ RUN apt-get update \
         libglib2.0-0 \
         libsm6 \
         libice6 \
+        libegl1 \
+        libgles2 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxrandr2 \
+        libxtst6 \
+        libxi6 \
+        libxcursor1 \
+        libxfixes3 \
+        libxrender1 \
+        libxext6 \
+        libdrm2 \
+        libgbm1 \
+        libxshmfence1 \
+        libcups2 \
+        libpango-1.0-0 \
+        libnspr4 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libatspi2.0-0 \
+        libcairo2 \
+        libxcb-cursor0 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-randr0 \
+        libxcb-render-util0 \
+        libxcb-shape0 \
+        libxcb-sync1 \
+        libxcb-util1 \
+        libxcb-xfixes0 \
+        libxcb-xinerama0 \
+        libxcb-xkb1 \
+        libxkbfile1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
@@ -48,6 +86,8 @@ RUN apt-get update \
 COPY . .
 
 # По умолчанию — полный прогон тестов; аргументы можно переопределить
-# (например, `docker compose run test python -m pytest -q -k ir`).
-ENTRYPOINT ["python", "-m", "pytest"]
+# (например, `docker compose run test -q -k ir`).
+# xvfb-run поднимает временный X-дисплей: pynput/pyautogui требуют DISPLAY
+# даже при QT_QPA_PLATFORM=offscreen (факт T1.2).
+ENTRYPOINT ["xvfb-run", "--auto-servernum", "python", "-m", "pytest"]
 CMD ["-q"]
