@@ -86,8 +86,10 @@
 - Job `build-test` (`ubuntu-latest`): `docker/login-action@v3` (GITHUB_TOKEN)
   → `docker/build-push-action@v6` (context `.`, file `docker/Dockerfile.test`,
   tags: `master` → `latest`+`<sha>`, `dev` → `dev`; `push: true`).
-- Job `build-win` (`windows-latest`): то же с `docker/Dockerfile.build-win`
-  и `clikit-build-win`.
+- Job `build-win` (`windows-latest`): Windows engine использует совместимую
+  последовательность `docker build` + `docker push` с `docker/Dockerfile.build-win`
+  и `clikit-build-win`; `build-push-action` здесь не применяется, потому что
+  runner не предоставляет Buildx для legacy Windows-контейнеров.
 - Jobs независимы → идут параллельно.
 
 ### 4.6 `ci.yml` (изменения)

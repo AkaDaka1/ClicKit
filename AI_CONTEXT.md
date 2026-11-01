@@ -347,8 +347,10 @@ ClicKit/
   34. **Окружение сборки — Windows-образ в GHCR** (2026-10-31, M6):
      `docker/Dockerfile.build-win` (servercore ltsc2022 + Python 3.11 +
      PyInstaller + зависимости) фиксирует окружение сборки `.exe`;
-     `docker.yml` публикует оба образа в GHCR (`clikit-test`,
-     `clikit-build-win`; теги `<sha>`/`latest` по master, `dev` по dev).
+      `docker.yml` публикует оба образа в GHCR (`clikit-test`,
+      `clikit-build-win`; теги `<sha>`/`latest` по master, `dev` по dev).
+      Linux-образ публикуется через Buildx action, а Windows-образ — через
+      совместимые с legacy Windows engine команды `docker build`/`docker push`.
      Релизная сборка — `docker run` из образа, собранного из текущего
      коммита; ключ `container:` с динамическим тегом не используется:
      тег статичен в YAML, а `latest` даёт race при движении `master`.

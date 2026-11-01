@@ -59,21 +59,23 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Сформировать теги
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/clikit-build-win
-          tags: |
-            type=raw,value=${{ github.sha }}
-            type=raw,value=latest,enable=${{ github.ref_name == 'master' }}
-            type=raw,value=dev,enable=${{ github.ref_name == 'dev' }}
-      - name: Собрать и опубликовать образ
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile.build-win
-          platforms: windows/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+      # Windows-контейнеры на runner используют legacy-билдер. Поэтому здесь
+      # нельзя применять build-push-action: ему требуется Buildx, которого в
+      # Windows engine нет. Обычные docker build/push сохраняют тот же набор
+      # тегов и совместимы с servercore:ltsc2022 (ADR №34).
+      - name: Собрать Windows-образ
+        shell: pwsh
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/clikit-build-win
+          SHA_TAG: ${{ github.sha }}
+        run: |
+          $tags = @("$env:IMAGE`:$env:SHA_TAG")
+          if ("${{ github.ref_name }}" -eq "master") {
+            $tags += "$env:IMAGE`:latest"
+          }
+          if ("${{ github.ref_name }}" -eq "dev") {
+            $tags += "$env:IMAGE`:dev"
+          }
+          $tagArgs = $tags | ForEach-Object { "--tag", $_ }
+          docker build @tagArgs -f docker/Dockerfile.build-win .
+          $tags | ForEach-Object { docker push $_ }
