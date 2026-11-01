@@ -25,7 +25,9 @@ together to script clicks, moves and delays — no coding required.
 ## 🚧 Project status
 
 **ClicKit 1.0.0** — the first public release. Milestones **M0–M5** are complete
-and merged into `master`. The app follows the Windows theme by default
+and merged into `master`; **M6** (containerized DevOps) is in progress, and
+**M7–M11** (cloud service, observability, IaC, delivery, security/resilience)
+are planned and tracked in [`plans/README.md`](plans/README.md). The app follows the Windows theme by default
 (system / dark / light can be picked in Settings), all three global hotkeys
 (start, stop, coordinate picker) are configurable without a restart, and a
 rotated log is written to `%APPDATA%\ClicKit\logs\app.log`. Two modes are
@@ -70,8 +72,15 @@ want to automate a few clicks.
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
 | **M4** | Blockly visual editor with live execution | ✅ Done |
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
+| **M6** | DevOps: Docker test/build images, GHCR, dev releases | 🚧 In progress |
+| **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | 📋 Planned |
+| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
+| **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
+| **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
+| **M11** | Security & resilience: scanning, load, backups, chaos | 📋 Planned |
 
-Details: [`ROADMAP.md`](ROADMAP.md).
+Details: [`ROADMAP.md`](ROADMAP.md). Plans and task graphs:
+[`plans/README.md`](plans/README.md).
 
 ## 🚀 Getting started
 
@@ -194,6 +203,25 @@ python scripts/build_exe.py --zip
 python scripts/verify_release.py --tag v1.0.0 --smoke
 ```
 
+### DevOps / Docker (M6)
+
+The repository also contains reproducible development infrastructure:
+
+- `docker compose run --rm test` runs the complete Qt/WebEngine test suite in
+  a Linux/Xvfb container; the Windows test matrix remains the platform gate;
+- `docker/Dockerfile.build-win` pins the Windows Server Core + Python 3.11
+  build environment and produces the portable archive with `--zip`;
+- `Docker images` publishes `ghcr.io/akadaka1/clikit-test` and
+  `ghcr.io/akadaka1/clikit-build-win` on pushes to `master` (`<sha>` and
+  `latest`) or `dev` (`<sha>` and `dev`);
+- `Release` builds the tagged archive inside the Windows build container;
+- `Dev release` can be started manually for any ref (or on `dev`) and updates
+  the rolling draft GitHub Release `dev` with `--clobber`.
+
+The Windows-container jobs are intentionally separate from Linux test jobs:
+the application itself remains Windows-only, while Linux containers provide a
+fast, reproducible test environment.
+
 ## 🛠️ Tech stack
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
@@ -202,6 +230,7 @@ behind a pluggable `InputBackend` abstraction · PyInstaller for packaging.
 
 - Architecture and coding rules: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Work log: [`PROGRESS.md`](PROGRESS.md)
+- Milestone plans and task graphs: [`plans/README.md`](plans/README.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## ⚠️ Disclaimer
@@ -237,7 +266,9 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 ## 🚧 Статус проекта
 
 **ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M5** завершены и влиты
-в `master`. По умолчанию приложение следует теме Windows (в настройках можно
+в `master`; **M6** (контейнерный DevOps) в работе, **M7–M11** (облачный сервис,
+наблюдаемость, IaC, доставка, безопасность и устойчивость) запланированы и
+ведутся в [`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
 выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
 (старт, стоп, захват точки) переназначаются без перезапуска, а журнал
 с ротацией пишется в `%APPDATA%\ClicKit\logs\app.log`. Доступны два режима:
@@ -282,8 +313,15 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
+| **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | 🚧 В работе |
+| **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | 📋 Запланировано |
+| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
+| **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
+| **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
+| **M11** | Безопасность и устойчивость: сканирование, нагрузка, бэкапы, chaos | 📋 Запланировано |
 
-Подробнее: [`ROADMAP.md`](ROADMAP.md).
+Подробнее: [`ROADMAP.md`](ROADMAP.md). Планы и графы задач:
+[`plans/README.md`](plans/README.md).
 
 ## 🚀 Быстрый старт
 
@@ -410,6 +448,24 @@ python scripts/build_exe.py --zip
 python scripts/verify_release.py --tag v1.0.0 --smoke
 ```
 
+### DevOps / Docker (M6)
+
+Репозиторий содержит воспроизводимую инфраструктуру разработки:
+
+- `docker compose run --rm test` запускает полный набор тестов Qt/WebEngine в
+  Linux-контейнере с Xvfb; матрица Windows остаётся платформенным гейтом;
+- `docker/Dockerfile.build-win` фиксирует Windows Server Core + Python 3.11 и
+  собирает переносимый архив через `--zip`;
+- `Docker images` публикует `ghcr.io/akadaka1/clikit-test` и
+  `ghcr.io/akadaka1/clikit-build-win`: для `master` используются `<sha>` и
+  `latest`, для `dev` — `<sha>` и `dev`;
+- `Release` собирает архив из Windows-контейнера;
+- `Dev release` запускается вручную для любого ref (или по push в `dev`) и
+  обновляет rolling draft-релиз GitHub `dev` через `--clobber`.
+
+Windows-контейнеры намеренно отделены от Linux-тестов: само приложение остаётся
+Windows-only, а Linux-контейнер даёт быстрый воспроизводимый тестовый прогон.
+
 ## 🛠️ Технологии
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
@@ -418,6 +474,7 @@ Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
 
 - Архитектура и правила кодинга: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Журнал работ: [`PROGRESS.md`](PROGRESS.md)
+- Планы вех и графы задач: [`plans/README.md`](plans/README.md)
 - История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## ⚠️ Дисклеймер

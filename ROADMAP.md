@@ -1,7 +1,8 @@
 # ROADMAP.md — Дорожная карта ClicKit
 
 Концептуальный план от пустого репозитория до упакованного приложения
-с визуальным блочным программированием. Детали реализации каждого модуля
+с визуальным блочным программированием, а затем — до сервисного слоя
+и его эксплуатации (M6–M11). Детали реализации каждого модуля
 уточняются перед стартом соответствующей вехи (не раньше).
 
 ---
@@ -97,9 +98,75 @@
 минуты из-за распаковки QtWebEngine), NOTICE рядом; осталось проверить
 на чистой Windows.
 
+## M6 — DevOps: Docker + тестовые релизы
+**Цель:** воспроизводимая контейнерная инфраструктура вокруг Windows-only продукта.
+- `docker/Dockerfile.test` (Linux-тесты в Xvfb), `docker/Dockerfile.build-win`
+  (образ сборки `.exe`), `.dockerignore`, `docker-compose.yml`.
+- Публикация образов в GHCR, job `tests-docker` в CI, dev-релизы.
+- План: [`plans/M6-docker.md`](plans/M6-docker.md).
+
+**Статус: ✅ выполнен (2026-11-01)** — T0.1, T1.1, T1.2, T2.1, T3.1,
+T3.2, T4.1, T5.1 и T6.1 реализованы; 274 теста зелёные в Linux-контейнере,
+CI проверяет Docker-тесты, GHCR публикуется отдельным workflow, релизы
+собираются в Windows-контейнере, а draft `dev` обновляется rolling-механизмом.
+
+## M7 — ClicKit Cloud: сервис сценариев
+**Цель:** настоящий HTTP-сервис для публикации/скачивания сценариев и
+приёма crash-отчётов — объект эксплуатации, а не только desktop-приложение.
+- FastAPI + PostgreSQL + Alembic, `/healthz`, `/readyz`, `/version`, `/v1/scenarios`.
+- Валидация IR тем же `core.ir.schema`; Docker multi-stage, non-root, compose.
+- CLI-клиент с таймаутами/retry; тесты и job `service-tests`.
+- План: [`plans/M7-cloud-service.md`](plans/M7-cloud-service.md).
+
+**Статус: 📋 запланировано.** Не дублирует M6: публикация образа — M10,
+облако — M9, наблюдаемость — M8.
+
+## M8 — Наблюдаемость и SLO
+**Цель:** полный контур «лог → метрика → алерт → runbook → SLO → постмортем».
+- JSON-логи с `request_id`, Prometheus-метрики, OTel-трейсы в Tempo.
+- Prometheus + Grafana + Loki + Tempo + Alertmanager в compose; дашборды как код.
+- SLO 99.5%, error budget, burn-rate алерты, runbook, реальный постмортем.
+- План: [`plans/M8-observability.md`](plans/M8-observability.md).
+
+**Статус: 📋 запланировано.** Зависит от M7.
+
+## M9 — Инфраструктура как код
+**Цель:** воспроизводимое облако и кластер: `terraform apply` с нуля,
+`terraform destroy` без «сирот», публичный HTTPS.
+- Terraform: сеть, VM, статический IP, DNS, security groups, remote state.
+- k3s + ingress-nginx + cert-manager; Helm-чарт с probes, HPA, PDB,
+  NetworkPolicy и non-root.
+- Проверки `terraform fmt/validate`, `tflint`, `trivy config`, `helm lint`.
+- План: [`plans/M9-infrastructure.md`](plans/M9-infrastructure.md).
+
+**Статус: 📋 запланировано.** Зависит от M7 и M6 T3.2 (GHCR).
+
+## M10 — Непрерывная доставка
+**Цель:** merge → staging автоматически, production с approval, откат при
+провале smoke-тестов.
+- Публикация образа по digest, `helm upgrade --atomic`, smoke из 6 проверок.
+- GitHub Environments, откат `helm rollback`, DORA-метрики за 30 дней.
+- План: [`plans/M10-delivery.md`](plans/M10-delivery.md).
+
+**Статус: 📋 запланировано.** Зависит от M9; не дублирует M6 T5.1
+(там — draft-релиз desktop, здесь — деплой сервиса).
+
+## M11 — Безопасность и устойчивость
+**Цель:** проверить сервис на прочность и недоверие.
+- Dependabot, pip-audit, Trivy, CodeQL, gitleaks, SBOM и cosign.
+- k6-нагрузка, capacity-документ, бэкап/восстановление, chaos-эксперименты,
+  учебный инцидент и blameless-постмортем.
+- План: [`plans/M11-security-resilience.md`](plans/M11-security-resilience.md).
+
+**Статус: 📋 запланировано.** Зависит от M10; не блокирует M7–M9.
+
 ---
 
 ## Идеи на потом (backlog, вне roadmap)
+
+> Сервисный слой и эксплуатация — это M7–M11 выше. Ниже — продуктовые идеи,
+> не входящие в текущие вехи.
+
 - «Фоновые клики» без захвата курсора: `PostMessage` `WM_LBUTTON*` в выбранное
   окно — спайк после M2 (работает не во всех приложениях; второй независимый
   курсор в Windows невозможен, см. `AI_CONTEXT.md` ADR №12).

@@ -1,0 +1,109 @@
+# Тестовый rolling-релиз desktop-приложения.
+# Ветка dev не обязательна: workflow_dispatch позволяет проверить любой ref,
+# а draft-релиз с тегом dev обновляется без накопления дубликатов (ADR №35).
+name: Dev release
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Ветка или ref для сборки"
+        required: false
+        default: master
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+  QTWEBENGINE_DISABLE_SANDBOX: "1"
+  QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
+
+jobs:
+  ci:
+    name: Полный CI
+    uses: ./.github/workflows/ci.yml
+
+  dev-build:
+    name: Сборка draft-релиза dev
+    needs: ci
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Определить ref
+        id: ref
+        shell: pwsh
+        env:
+          INPUT_BRANCH: ${{ inputs.branch }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          $ref = $env:INPUT_BRANCH
+          if ([string]::IsNullOrWhiteSpace($ref)) { $ref = $env:EVENT_REF }
+          "ref=$ref" >> $env:GITHUB_OUTPUT
+          Write-Host "Ref для dev-сборки: $ref"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Установить зависимости
+        run: python -m pip install -r requirements.txt -r requirements-build.txt
+      - name: Собрать архив
+        run: python scripts/build_exe.py --zip
+      - name: Проверить артефакты и запуск
+        run: python scripts/verify_release.py --smoke --timeout 180
+      - name: Подготовить заметки
+        shell: pwsh
+        run: |
+          $commit = git rev-parse HEAD
+          $date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'")
+          @("ClicKit dev build", "", "Commit: $commit", "Built: $date") |
+            Set-Content -Path dev-release-notes.md -Encoding utf8
+      - name: Опубликовать или обновить draft-релиз
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          $files = @(
+            "dist/ClicKit-win64.zip",
+            "dist/NOTICE.txt",
+            "dist/SHA256SUMS.txt"
+          )
+          gh release view dev --repo $env:REPO *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Обновляю существующий draft-релиз dev"
+            gh release upload dev @files --clobber --repo $env:REPO
+            gh release edit dev --draft --title "ClicKit dev build" `
+              --notes-file dev-release-notes.md --repo $env:REPO
+          } else {
+            Write-Host "Создаю draft-релиз dev"
+            $commit = git rev-parse HEAD
+            gh release create dev @files --draft --title "ClicKit dev build" `
+              --notes-file dev-release-notes.md --target $commit --repo $env:REPO
+          }
+      - name: Сохранить артефакты workflow
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClicKit-dev-build
+          path: |
+            dist/ClicKit-win64.zip
+            dist/NOTICE.txt
+            dist/SHA256SUMS.txt
+          if-no-files-found: ignore
+          retention-days: 7

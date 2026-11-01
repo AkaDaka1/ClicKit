@@ -17,7 +17,7 @@
 | 2026-10-23 | Первый коммит в git (ветка `master`): документационный каркас проекта — 5 файлов | ✅ Готово |
 | 2026-10-23 | Творческий этап: выбрано название продукта — **ClicKit** (проверено на GitHub: крупных тёзок нет); создан двуязычный `README.md` (EN + RU) со статусом, фичами, roadmap и дисклеймером; подготовлены описание и topics для GitHub-репозитория; `AI_CONTEXT.md` обновлён (название, ADR №5) | ✅ Готово |
 | 2026-10-23 | Выбрана лицензия **MIT** (правообладатель: Danil Momot); создан файл `LICENSE` в корне; секции «License/Лицензия» в `README.md` заменены с «to be decided» на ссылку на MIT; `AI_CONTEXT.md` обновлён (ADR №6, `LICENSE` в структуре репозитория) | ✅ Готово |
-| 2026-10-23 | Создана директория `plans/` для рабочих планов (gitignored); план M0 зафиксирован в `plans/M0-skeleton.md`; `.gitignore` дополнен, шапка исправлена AutoClicker → ClicKit | ✅ Готово |
+| 2026-10-23 | Создана директория `plans/` для рабочих планов (тогда gitignored; с 2026-11-01 — публичная часть репозитория); план M0 зафиксирован в `plans/M0-skeleton.md`; `.gitignore` дополнен, шапка исправлена AutoClicker → ClicKit | ✅ Готово |
 | 2026-10-23 | **M0 завершён:** структура каталогов (`app/`, `core/`, `gui/`, `bridge/`, `resources/`, `tests/`), `requirements.txt` (PySide6>=6.7, pyautogui>=0.9, pynput>=1.7 + ruff/pytest), `pyproject.toml` (ruff: py311, line-length 88, E/F/W/I/UP/B), точка входа `python -m app` → пустое окно «ClicKit» 1024×680; секция «Команды» в `AGENTS.md` заполнена; проверено: `ruff check` — 0 ошибок, `python -m app` — окно открывается | ✅ Готово |
 | 2026-10-24 | Процессы: зафиксировано правило планов вех — подробный план каждого этапа (M0, M1, ...) создаётся в `plans/` по запросу пользователя, перед работой по пункту читать план (`AGENTS.md`, секция «Планы вех»); ADR №7 — единый бэкенд отправки pyautogui (pynput — только глобальные слушатели), `pynput_backend.py` исключён из `AI_CONTEXT.md` §3.2; в §3.2 добавлены `plans/` и `scripts/`; подробный план M1 согласован и создан — `plans/M1-core-engine.md` (реализация — в новой сессии) | ✅ Готово |
 | 2026-10-24 | **M1 реализован** в ветке `feat/m1-core-engine` (7 коммитов): `core/input/backend.py` (ABC `InputBackend`, `Button`, фабрика `create_backend`), `core/input/pyautogui_backend.py` (`PyAutoguiBackend`, FAILSAFE=True, PAUSE=0), `core/executor.py` (`Executor` в `threading.Thread` + `threading.Event`, прерываемый интервал, `on_step`), `core/hotkeys.py` (`HotkeyManager` на `pynput.GlobalHotKeys`), `tests/test_executor.py` (5 тестов с `MockBackend`), `scripts/demo_click.py`; `ruff check`/`format` — чисто, `pytest` — 5 passed | ✅ Готово |
@@ -42,13 +42,18 @@
 | 2026-10-31 | **T3.1 (M6) выполнена — Windows-образ сборки:** `docker/Dockerfile.build-win` (servercore:ltsc2022 + Python 3.11.9 из NuGet flat-container, зависимости отдельным слоем, явный `COPY` исходников, ENTRYPOINT `python scripts/build_exe.py`) и `.dockerignore`. Образ `clikit-build-win:local` — 5.94 ГБ, сборка ~25 мин (pip через прокси контейнера). `docker run --rm -v "<копия репозитория>:C:/work" clikit-build-win:local --zip` → `ClicKit-win64.zip` 230.6 МБ (3286 записей, Blockly в `_internal/resources/`) + `SHA256SUMS.txt`; артефакт прошёл на хосте `python scripts/verify_release.py --dist … --smoke`. Особенности Windows-контейнеров (в §9 плана): legacy-билдер без BuildKit (`.dockerignore` обязателен), `WORKDIR C:\work` → «invalid absolute path» (пишем `C:/work`, монтируем `-v "<путь>:C:/work"`), `www.nuget.org` не резолвится в контейнере (качаем с `api.nuget.org`), VC++ redist не нужен (PySide6 несёт `msvcp140`/`vcruntime140`). Движок возвращён на Linux | ✅ Готово |
 | 2026-11-01 | **T1.2 (M6) — зелёные тесты в контейнере:** `docker/Dockerfile.test` — полный apt-список (xvfb+xauth, libtk8.6, libegl1/gles2, drm/gbm, pango/atk/at-spi, libxcb-*), ENTRYPOINT `xvfb-run --auto-servernum python -m pytest` (pynput/pyautogui требуют `DISPLAY`). 274 passed за ~8 с, но exit 134 — «Fatal Python error: bool_dealloc» при финализации (PySide6 + QtWebEngine, живые потоки Chromium); закрытие окон + `gc` недостаточно. Решение: `tests/conftest.py` — хуки `pytest_sessionfinish` (Linux + загружен `PySide6.QtWebEngineCore`: closeAllWindows + gc) и `pytest_unconfigure` (`os._exit(exitstatus)`, JUnit и сводка уже записаны). Финальная проверка: 274 passed, exit 0, `junit.xml` — `tests="274" failures="0"`; на хосте (Windows) `pytest -q` и `ruff` тоже зелёно. Commit `5ed9d93` | ✅ Готово |
 | 2026-11-01 | **T2.1 (M6) — job `tests-docker` в `ci.yml`:** прежний job был нерабочим (`docker build` без `-t` — образ без тега, а `docker run clikit-test:local` на чистом раннере его не найдёт; ENTRYPOINT конфликтовал с `python -m pytest`). Исправлено: сборка `-t clikit-test:ci` из контекста PR, `--init`, env Qt/WebEngine, bind mount `reports/`, `--junitxml`, артефакт `junit-docker` при падении. Локально та же команда — 274 passed, exit 0. Чекпоинт: **PR #2 — все job зелёные** (lint, tests 3.11–3.13, tests-docker 68 c; run 41317645348). Commit `e5225d4` | ✅ Готово |
+| 2026-11-01 | Созданы планы **M7–M11** (`plans/M7-cloud-service.md`, `M8-observability.md`, `M9-infrastructure.md`, `M10-delivery.md`, `M11-security-resilience.md`) и индекс `plans/README.md`: цель и критерий готовности, параметры, модули, ADR №36–50, граф задач T0.1–T5.1, волны, риски, журналы. M6 не переделывается: T3.2/T4.1/T5.1/T6.1 остаются в M6, новые вехи их не дублируют | ✅ Готово |
+| 2026-11-01 | `plans/` исключён из `.gitignore` — планы вех теперь публичная часть репозитория; обновлены `AI_CONTEXT.md` (§3.2, §3.3, §4, §5, журнал), `ROADMAP.md` (M6–M11), `AGENTS.md` (публичные планы), `PROGRESS.md`, шапка `plans/M6-docker.md`; добавлен индекс `plans/README.md` | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
-- **Этап:** **M5 завершён и влит в `master`** (PR #1) — осталось опубликовать
-  релиз **1.0.0** с готовыми артефактами.
+- **Этап:** **M6 завершён** (Docker + тестовые релизы); **M7–M11 запланированы**
+  (сервис, наблюдаемость, IaC, CD, безопасность). Внешний smoke-чекпоинт
+  GHCR/Actions требует запуска workflow в GitHub и не выполняется локально без
+  `gh`/токена. Релиз **1.0.0** опубликован
+  2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
 - **M1:** завершён и влит в `master` — движок кликов, глобальные хоткеи, консольное демо.
 - **M2:** завершён и влит в `master` — главное окно с двумя режимами, «Простой режим»
@@ -75,7 +80,7 @@
 - **Название продукта:** **ClicKit** — «click it» + «kit» (конструктор); решение зафиксировано в `AI_CONTEXT.md` §3.3 (ADR №5).
 - **Организационное:** папка переименована в `ClicKit`, GitHub-remote `origin` → `github.com/AkaDaka1/ClicKit` подключён.
 - **CI/CD:** GitHub Actions — `ci.yml` (ruff + тесты 3.11–3.13, сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release); ADR №30–32, схема в `AI_CONTEXT.md` §3.4.
-- **M6 (Docker + тестовые релизы):** план согласован 2026-10-31 — `plans/M6-docker.md`
+- **M6 (Docker + тестовые релизы):** план выполнен 2026-10-31/2026-11-01 — `plans/M6-docker.md`
   с графом задач T0.1–T6.1 (волны: T0.1 → T1.1∥T3.1 → T1.2 → T2.1∥T3.2 →
   T4.1∥T5.1 → T6.1); ADR №33–35; задачи выполняются по отдельности в разных
   сессиях по ID (практика зафиксирована в `AGENTS.md`). Запущено задач: 6 —
@@ -86,32 +91,40 @@
   релизный zip в Windows-контейнере); **T1.2 ✅** (274 теста зелёны в контейнере:
   `xvfb-run` + apt-пакеты Qt/WebEngine, обход падения PySide6 на финализации);
   **T2.1 ✅** (job `tests-docker` в `ci.yml`; PR #2 — lint + tests 3.11–3.13 +
-  tests-docker зелёные). Остались открытыми: T3.2, T4.1, T5.1, T6.1.
+  tests-docker зелёные); **T3.2 ✅** (`docker.yml`, GHCR), **T4.1 ✅**
+  (контейнерная сборка в `release.yml`), **T5.1 ✅** (`dev-release.yml`) и
+  **T6.1 ✅** (документация). Фактический удалённый прогон этих workflow нужно
+  выполнить в GitHub Actions.
+- **M7–M11 (планы созданы 2026-11-01):** **M7** — ClicKit Cloud (FastAPI +
+  PostgreSQL + Docker, `/v1/scenarios`); **M8** — метрики/логи/трейсы,
+  Grafana/Loki/Tempo, алерты, SLO 99.5%; **M9** — Terraform + облако + k3s +
+  Helm + HTTPS; **M10** — CD staging/prod, откат, DORA; **M11** — сканирование,
+  SBOM, нагрузка, бэкапы, chaos. Планы публичны: `plans/README.md`.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
-- **Ближайшая веха:** публикация релиза **1.0.0** на GitHub (zip onedir +
-  `ClicKit.exe` + NOTICE + SHA256SUMS).
+- **Ближайшая веха:** завершить **M6** (T3.2 → T4.1 ∥ T5.1 → T6.1),
+  затем начать **M7** с T0.1 (контракт API) и T1.1 (скелет сервиса).
 
 ## Следующие шаги (по порядку)
 
-1. **Релиз 1.0.0:** тег `v1.0.0` уже в `origin`, поэтому запустить
-   **Actions → Release → Run workflow** с `tag = v1.0.0` (или снять/поставить
-   галочку «publish» для сухого прогона): workflow прогонит CI, соберёт
-   `ClicKit-win64.zip`, проверит суммы и опубликует GitHub Release с
-   `ClicKit-win64.zip`, `NOTICE.txt`, `SHA256SUMS.txt`; текст — из `CHANGELOG.md`.
-2. **Защита `master`** (Settings → Branches): обязательные проверки `lint` и
-   `tests`, запрет прямого push, обязательный PR, удаление ветки после merge.
-3. **Финальный смоук на чистой Windows** (если не входил в приёмку M5):
-   распаковать zip, запустить оба режима и редактор Blockly.
-4. **M6 — Docker + тестовые релизы** (план `plans/M6-docker.md`): задачи
-   выполняются по отдельности в разных сессиях по ID («выполни T1.1» и т.д.,
-   параллельные волны T1.1∥T3.1, T2.1∥T3.2, T4.1∥T5.1). Закрыты **T0.1**,
-   **T1.1**, **T3.1** (образ сборки `.exe`), **T1.2** (274 теста зелёны в
-   контейнере) и **T2.1** (job `tests-docker`, PR #2 зелёный); следующая —
-   **T3.2** (публикация образов в GHCR). Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
-5. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
-   и матрица совместимости приложений.
-6. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,
-   пикер координат прямо в поле блока, библиотека шаблонов, локализация RU+EN.
+1. **Проверить M6 в GitHub:** запустить `Docker images`, dry-run `Release` с
+   `publish=false` и `Dev release` с `branch=master`; убедиться в тегах GHCR и
+   rolling draft-релизе `dev`.
+2. **Защита `master`** (Settings → Branches): обязательные проверки `lint`,
+   `tests` и `tests-docker`, запрет прямого push, обязательный PR, удаление
+   ветки после merge; почистить влитые `feat/*`-ветки.
+4. **M7 — ClicKit Cloud** (`plans/M7-cloud-service.md`): T0.1 контракт →
+   T1.1 скелет → T1.2 БД → T2.1/T2.2 CRUD и crash-отчёты → Docker/compose →
+   клиент → тесты/CI → docs. T5.1 ждёт коммита M6 T2.1, если `ci.yml` занят.
+5. **M8 — наблюдаемость** (`plans/M8-observability.md`): после M7; сначала
+   JSON-логи и `/metrics`, затем Grafana/Loki/Tempo, алерты, SLO и runbook.
+6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,
+   `plans/M10-delivery.md`): после M7 и M6 T3.2; Terraform → k3s/Helm/TLS →
+   CD staging/prod с откатом и DORA.
+7. **M11 — безопасность и устойчивость** (`plans/M11-security-resilience.md`):
+   после M10; сканирование/SBOM, нагрузка, бэкапы, chaos, учебный инцидент.
+8. **Продуктовый backlog (после M5):** условия `if`/`while` с чтением экрана,
+   `recorder.py`, пикер координат в блоке, библиотека шаблонов, локализация
+   RU+EN; спайк `PostMessage` — опционально.
 
 ### Материалы для GitHub-репозитория (About)
 
