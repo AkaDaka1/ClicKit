@@ -27,13 +27,16 @@
 - [x] CI на PR: `lint` + `tests` (Windows 3.11–3.13) + `tests-docker` (Linux) — зелёно
       (PR #2, run 41317645348).
 - [x] Push в `master` → `ghcr.io/akadaka1/clikit-test` и
-      `ghcr.io/akadaka1/clikit-build-win` с тегами `latest` и `<sha>`.
+      `ghcr.io/akadaka1/clikit-build-win` с тегами `latest` и `<sha>`
+      (run 41336011415: Linux 1m43s, Windows 9m39s — оба job зелёные).
 - [x] Dry-run `release.yml` (`workflow_dispatch`, publish=false) — сборка
       текущего `master` в контейнере, проверка версии переданного тега и смоук
-      зелёные, артефакты сохранены.
+      зелёные, артефакты сохранены (run 41337101336: сборка релиза 8m21s,
+      публикация пропущена).
 - [x] Ручной запуск `dev-release.yml` (branch=master) → draft GitHub Release
       «dev» с `ClicKit-win64.zip` + `SHA256SUMS.txt` + `NOTICE.txt`; повторный
-      запуск обновляет (clobber), а не дублирует.
+      запуск обновляет (clobber), а не дублирует (runs 41337281967 и
+      41338058699; релиз `dev` один, `isDraft=true`).
 - [x] Документация: ADR №33–35 в `AI_CONTEXT.md` §3.3, §2/§3.2, секция
       «DevOps / Docker» в `README.md`, запись в `PROGRESS.md`.
 
@@ -146,9 +149,9 @@
 | T1.2 | **Гейт-спайк:** довести тесты в контейнере до зелёного (системные библиотеки, Xvfb, QtWebEngine) | T1.1 | 272+ тестов зелёно в контейнере; commit `fix: зелёные тесты в docker-контейнере` | ✅ (2026-11-01: `Dockerfile.test` — полный список apt-пакетов Qt/WebEngine/X11/XCB, ENTRYPOINT `xvfb-run --auto-servernum python -m pytest` (pynput/pyautogui требуют `DISPLAY` даже при offscreen); в `tests/conftest.py` — `pytest_sessionfinish` + `pytest_unconfigure` на Linux закрывают QtWebEngine и выходят через `os._exit`, иначе PySide6 падает на финализации (`bool_dealloc`) при зелёных тестах. Итог: 274 passed, exit 0, JUnit пишется; commit `5ed9d93`) |
 | T2.1 | `ci.yml`: job `tests-docker` | T1.2 | CI на PR зелёный (lint + tests + tests-docker); commit `feat: ci-job автотестов в контейнере` | ✅ (2026-11-01: job `tests-docker` — сборка с тегом `clikit-test:ci` из контекста PR, `docker run --init` с env Qt/WebEngine, `mkdir -p reports` + монтирование, `--junitxml` и артефакт `junit-docker` при падении; **PR #2 — все job зелёные:** lint, tests 3.11/3.12/3.13, tests-docker (68 c), [run 41317645348](https://github.com/AkaDaka1/ClicKit/actions/runs/41317645348); commit `e5225d4`) |
 | T3.1 | `docker/Dockerfile.build-win`; локальная сборка (Windows containers, Docker Desktop) | T0.1 | `docker run ... build_exe.py --zip` собирает zip; commit `feat: windows-образ сборки` | ✅ (2026-10-31: образ 5.94 ГБ собран, `docker run --zip` собрал `ClicKit-win64.zip` 230.6 МБ; артефакт прошёл `verify_release.py --smoke` на хосте; попутно создан `.dockerignore`) |
- | T3.2 | `.github/workflows/docker.yml` → GHCR | T1.2, T3.1 | Push в master → оба образа в GHCR (`latest` + `<sha>`); commit `feat: публикация образов в GHCR` | ✅ (2026-11-01: добавлен параллельный Linux/Windows workflow с `docker/login-action`, `docker/metadata-action` и `docker/build-push-action`; для `master` публикуются SHA + `latest`, для `dev` — SHA + `dev`) |
- | T4.1 | `release.yml`: сборка релиза через `docker build` + `docker run` образа сборки | T3.2 | Dry-run `release.yml` (workflow_dispatch, publish=false): CI → сборка в контейнере → смоук → артефакты, всё зелёное; commit `feat: сборка релиза в контейнере` | ✅ (2026-11-01: job `build` собирает `docker/Dockerfile.build-win`, запускает `build_exe.py --zip` с bind mount, затем выполняет host smoke; ручной dry-run собирает текущий `master`, но сверяет версию указанного тега — старый `v1.0.0` не содержит `docker/`; публикация отключается через `publish=false`) |
- | T5.1 | `.github/workflows/dev-release.yml` + rolling draft Release «dev» | T3.2 | Ручной запуск (branch=master) → draft-релиз «dev» с артефактами; второй запуск обновляет через clobber; commit `feat: тестовые релизы (dev)` | ✅ (2026-11-01: workflow вызывает полный CI, собирает и проверяет архив, создаёт или обновляет draft `dev` с `--clobber`; ref выбирается input `branch` или push в `dev`; job публикации явно получает `contents: write`) |
+ | T3.2 | `.github/workflows/docker.yml` → GHCR | T1.2, T3.1 | Push в master → оба образа в GHCR (`latest` + `<sha>`); commit `feat: публикация образов в GHCR` | ✅ (2026-11-01: run [41336011415](https://github.com/AkaDaka1/ClicKit/actions/runs/41336011415) — `clikit-test` (1m43s) и `clikit-build-win` (9m39s) опубликованы с SHA-тегом и `latest`; Windows job использует legacy-совместимые `docker build`/`docker push`, потому что Buildx на Windows runner недоступен) |
+ | T4.1 | `release.yml`: сборка релиза через `docker build` + `docker run` образа сборки | T3.2 | Dry-run `release.yml` (workflow_dispatch, publish=false): CI → сборка в контейнере → смоук → артефакты, всё зелёное; commit `feat: сборка релиза в контейнере` | ✅ (2026-11-01: run [41337101336](https://github.com/AkaDaka1/ClicKit/actions/runs/41337101336) — полный CI + сборка в `clikit-build` 8m21s, smoke и артефакты зелёные, публикация пропущена; ручной dry-run собирает текущий `master`, но сверяет версию указанного тега — старый `v1.0.0` не содержит `docker/`) |
+ | T5.1 | `.github/workflows/dev-release.yml` + rolling draft Release «dev» | T3.2 | Ручной запуск (branch=master) → draft-релиз «dev» с артефактами; второй запуск обновляет через clobber; commit `feat: тестовые релизы (dev)` | ✅ (2026-11-01: runs [41337281967](https://github.com/AkaDaka1/ClicKit/actions/runs/41337281967) и 41338058699 — draft-релиз `dev` с `ClicKit-win64.zip` (223.4 МБ), `NOTICE.txt`, `SHA256SUMS.txt`; повторный запуск обновляет тот же релиз через `--clobber`; job публикации получает `contents: write` — без него GitHub API отвечал 403) |
  | T6.1 | Документация: ADR-формулировки в `AI_CONTEXT.md`, §2/§3.2, README «DevOps / Docker», `PROGRESS.md`, `.gitignore` (если появились артефакты) | T2.1, T3.2, T4.1, T5.1 | Документация совпадает с реализацией; commit `docs: docker и dev-релизы в документации` | ✅ (2026-11-01: README, ROADMAP, AI_CONTEXT и PROGRESS синхронизированы; новые артефакты `reports/`, `dist/`, `build/` уже покрыты `.gitignore`) |
 
 ### Параллелизм (волны)
@@ -204,10 +207,10 @@
 | 2026-10-31 | T1.1 | Созданы `docker/Dockerfile.test` (python:3.11-slim, apt-пакеты Qt/WebEngine/Xvfb, pip из `requirements.txt`, `ENTRYPOINT python -m pytest`), `.dockerignore` (VCS, кэши, dist/build/reports, plans, docker/) и `docker-compose.yml` (сервис `test`, env `QT_QPA_PLATFORM=offscreen`, `QTWEBENGINE_DISABLE_SANDBOX=1`, `QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu`, `init: true`). Образ `clikit-test:local` собран (контент 421 MB). Первая сборка падала дважды: `evdev` (зависимость pynput на Linux) требует сборки из исходников — добавлены временные `gcc`+`libc6-dev`+`linux-libc-dev` (ставятся и удаляются в том же слое, что pip). `docker compose run --rm test` стартует: pytest собирает тесты, 12 ошибок сбора из-за нехватки `libEGL.so.1` и переменной `DISPLAY` — это ожидаемый вход в гейт T1.2 (зелёные тесты не требовались). Попутно: Docker Desktop оказался переключён на Windows-контейнеры — `docker context use desktop-linux` вернул Linux-движок; один pull `python:3.11-slim` повторили из-за `EOF`; после проверки Docker Desktop снова оказался на Windows-контейнерах — перед запуском нужно проверять `docker context ls` (см. §9) | `feat: docker-среда для автотестов` (3877f33; закоммичено по решению пользователя до T1.2 — зелёный прогон остаётся в T1.2) |
 | 2026-11-01 | T1.2 | `docker/Dockerfile.test`: apt-список доведён до Qt/WebEngine — добавлены `xauth`, `libtk8.6`, `libegl1`/`libgles2`, `libdrm2`/`libgbm1`/`libxshmfence1`, `libpango-1.0-0`/ATK/AT-SPI, `libcups2`, `libnspr4`, полный набор `libxcb-*`; ENTRYPOINT заменён на `xvfb-run --auto-servernum python -m pytest` — pynput/pyautogui требуют `DISPLAY` даже при `QT_QPA_PLATFORM=offscreen` (иначе 6 ошибок сбора: `failed to acquire X connection`, `KeyError: 'DISPLAY'`). Первый полный прогон: 274 passed за ~8 с, но exit 134 — «Fatal Python error: bool_dealloc» при финализации интерпретатора (PySide6 + QtWebEngine, живые потоки Chromium); закрытие окон и `gc.collect()` в `pytest_sessionfinish` проблемы не решают. Итог: в `tests/conftest.py` два хука — `pytest_sessionfinish` (только Linux и если загружен `PySide6.QtWebEngineCore`: `closeAllWindows`, `DeferredDelete`, `gc`) и `pytest_unconfigure` (`os._exit(exitstatus)` — JUnit и сводка к этому моменту записаны). Финальная проверка: `docker run … clikit-test:local -q --junitxml=reports/junit.xml` → 274 passed, exit 0, `reports/junit.xml` — `tests="274" failures="0"`; на хосте (Windows) `pytest -q` → 274 passed, `ruff check`/`format --check` чисто | `fix: зелёные тесты в docker-контейнере` (5ed9d93) |
 | 2026-11-01 | T2.1 | Job `tests-docker` в `ci.yml` переписан: было `docker build -f docker/Dockerfile.test .` без `-t` (образ остаётся безымянным) + `docker run … clikit-test:local python -m pytest -q` (на чистом раннере образа нет, а ENTRYPOINT дал бы двойной `python -m pytest`) — job упал бы на первом же PR. Стало: сборка `-t clikit-test:ci` из контекста PR, `mkdir -p reports`, `docker run --rm --init` с env Qt/WebEngine (`offscreen`, sandbox off, `--disable-gpu`), bind mount `${{ github.workspace }}/reports:/work/reports` и аргументы `-q --junitxml=reports/junit.xml`; при падении — артефакт `junit-docker` (7 дней). Локально та же команда: 274 passed, exit 0; JUnit пишется. Чекпоинт: PR #2 — все job зелёные (lint, tests 3.11/3.12/3.13, tests-docker 68 c), run 41317645348 | `feat: ci-job автотестов в контейнере` (e5225d4) |
- | 2026-11-01 | T3.2 | Добавлен `.github/workflows/docker.yml`: два независимых job на `ubuntu-latest`/`windows-latest`, вход в GHCR через `GITHUB_TOKEN`, публикация `ghcr.io/akadaka1/clikit-test` и `ghcr.io/akadaka1/clikit-build-win` с SHA-тегом и `latest`/`dev` по ветке | рабочая копия |
- | 2026-11-01 | T4.1 | `release.yml` переведён на сборку из `docker/Dockerfile.build-win` через `docker build` + bind-mounted `docker run`; host runner сохраняет smoke-проверку и артефакты, `publish=false` сохраняет dry-run | рабочая копия |
- | 2026-11-01 | T5.1 | Добавлен `.github/workflows/dev-release.yml`: полный reusable CI, ручной ref, сборка/смоук и rolling draft `dev` через `gh release upload --clobber` | рабочая копия |
- | 2026-11-01 | T6.1 | README дополнен разделом DevOps/Docker, план и статусные документы синхронизированы с тремя workflow; локально проверен `git diff --check` | рабочая копия |
+ | 2026-11-01 | T3.2 | `.github/workflows/docker.yml`: два независимых job (`ubuntu-latest`/`windows-latest`), `docker/login-action` + `docker/metadata-action`, публикация `ghcr.io/akadaka1/clikit-test` и `ghcr.io/akadaka1/clikit-build-win` (SHA + `latest` для master, SHA + `dev` для dev). Первый прогон упал: `docker/build-push-action` требует Buildx, которого нет в Windows engine → Windows job переведён на `docker build`/`docker push`. Чекпоинт: run 41336011415 — Linux 1m43s, Windows 9m39s, оба зелёные | `feat: finish M6 Docker workflows` (90813df), `fix: support legacy Windows Docker publishing` (6d717b1) |
+ | 2026-11-01 | T4.1 | `release.yml`: job `build` собирает `docker/Dockerfile.build-win` и запускает `build_exe.py --zip` с bind mount, smoke — на хосте; `permissions` публикации не менялись. Dry-run с тегом `v1.0.0` сначала падал: старый тег создан до M6 и не содержит `docker/` → для `workflow_dispatch` checkout переключён на `master` при сверке версии с указанным тегом. Чекпоинт: run 41337101336 — сборка 8m21s, smoke и артефакты зелёные, publish пропущен | `fix: build manual release from current master` (59b61c0) |
+ | 2026-11-01 | T5.1 | `.github/workflows/dev-release.yml`: reusable CI, input `branch`, сборка/смоук и rolling draft `dev` (`gh release upload --clobber`). Первый прогон собрал и проверил архив, но публикация упала `HTTP 403` — job не имел `contents: write`; добавлено явное разрешение. Чекпоинт: runs 41337281967 (создание) и 41338058699 (обновление) — draft `dev` с zip 223.4 МБ, NOTICE, SHA256SUMS | `fix: grant dev release write permission` (9a72d08) |
+ | 2026-11-01 | T6.1 | README дополнен разделом DevOps/Docker (EN+RU), план и статусные документы синхронизированы с тремя workflow, `plans/` отформатирован `ruff format` (публичные fenced-блоки), локально проверены `ruff check`, `ruff format --check`, `git diff --check` | `docs: M6 в документации` |
 
 ## 8. Список коммитов (итог вехи)
 
@@ -215,10 +218,11 @@
 2. `fix: зелёные тесты в docker-контейнере` (T1.2 — 5ed9d93)
 3. `feat: ci-job автотестов в контейнере` (T2.1 — e5225d4)
 4. `feat: windows-образ сборки` (T3.1 — eed9e5c)
-5. `feat: публикация образов в GHCR` (T3.2)
-6. `feat: сборка релиза в контейнере` (T4.1)
-7. `feat: тестовые релизы (dev)` (T5.1)
-8. `docs: docker и dev-релизы в документации` (T6.1)
+5. `feat: finish M6 Docker workflows` (T3.2/T4.1/T5.1 — 90813df)
+6. `fix: support legacy Windows Docker publishing` (T3.2 — 6d717b1)
+7. `fix: build manual release from current master` (T4.1 — 59b61c0)
+8. `fix: grant dev release write permission` (T5.1 — 9a72d08)
+9. `docs: M6 в документации` (T6.1)
 
 ## 9. Риски и меры
 
@@ -244,8 +248,9 @@
 - [x] Локально: `docker build -f docker/Dockerfile.build-win` + `docker run` →
       zip собирается (Windows-контейнеры).
 - [x] PR-прогон: три зелёных job (lint, tests, tests-docker).
-- [ ] `master`: два образа в GHCR с `latest` + `<sha>`.
-- [ ] Dry-run release: артефакты релиза собрана в контейнере.
-- [ ] Draft-релиз «dev» существует и обновляется повторным запуском.
-- [ ] Документация и ADR актуальны; `ruff check` + `ruff format --check` +
-      `pytest` зелёные на `master`.
+- [x] `master`: два образа в GHCR с `latest` + `<sha>` (run 41336011415).
+- [x] Dry-run release: артефакты релиза собраны в контейнере (run 41337101336).
+- [x] Draft-релиз «dev» существует и обновляется повторным запуском
+      (runs 41337281967 → 41338058699; один релиз, ассеты обновлены).
+- [x] Документация и ADR актуальны; `ruff check` + `ruff format --check` +
+      `pytest` зелёные на `master` (CI на 9a72d08/59b61c0 — зелёные).

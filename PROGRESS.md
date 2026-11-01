@@ -44,15 +44,15 @@
 | 2026-11-01 | **T2.1 (M6) — job `tests-docker` в `ci.yml`:** прежний job был нерабочим (`docker build` без `-t` — образ без тега, а `docker run clikit-test:local` на чистом раннере его не найдёт; ENTRYPOINT конфликтовал с `python -m pytest`). Исправлено: сборка `-t clikit-test:ci` из контекста PR, `--init`, env Qt/WebEngine, bind mount `reports/`, `--junitxml`, артефакт `junit-docker` при падении. Локально та же команда — 274 passed, exit 0. Чекпоинт: **PR #2 — все job зелёные** (lint, tests 3.11–3.13, tests-docker 68 c; run 41317645348). Commit `e5225d4` | ✅ Готово |
 | 2026-11-01 | Созданы планы **M7–M11** (`plans/M7-cloud-service.md`, `M8-observability.md`, `M9-infrastructure.md`, `M10-delivery.md`, `M11-security-resilience.md`) и индекс `plans/README.md`: цель и критерий готовности, параметры, модули, ADR №36–50, граф задач T0.1–T5.1, волны, риски, журналы. M6 не переделывается: T3.2/T4.1/T5.1/T6.1 остаются в M6, новые вехи их не дублируют | ✅ Готово |
 | 2026-11-01 | `plans/` исключён из `.gitignore` — планы вех теперь публичная часть репозитория; обновлены `AI_CONTEXT.md` (§3.2, §3.3, §4, §5, журнал), `ROADMAP.md` (M6–M11), `AGENTS.md` (публичные планы), `PROGRESS.md`, шапка `plans/M6-docker.md`; добавлен индекс `plans/README.md` | ✅ Готово |
+| 2026-11-01 | **M6 закрыт по чекпоинтам (T3.2, T4.1, T5.1, T6.1):** `docker.yml` публикует в GHCR `clikit-test` и `clikit-build-win` (run 41336011415 — Linux 1m43s, Windows 9m39s); `release.yml` собирает релиз в Windows-контейнере (dry-run 41337101336 — сборка 8m21s, smoke и артефакты зелёные, publish пропущен); `dev-release.yml` создаёт и обновляет draft-релиз `dev` (runs 41337281967 → 41338058699, один релиз, ассеты обновлены через `--clobber`). Найдено и исправлено: Windows runner без Buildx (legacy `docker build`/`docker push`), старый тег `v1.0.0` без `docker/` (dry-run собирает `master`), `HTTP 403` при публикации (`contents: write` на job). Локально: `ruff check`, `ruff format --check` — чисто; CI на `9a72d08` — зелёный | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
-- **Этап:** **M6 завершён** (Docker + тестовые релизы); **M7–M11 запланированы**
-  (сервис, наблюдаемость, IaC, CD, безопасность). Внешний smoke-чекпоинт
-  GHCR/Actions требует запуска workflow в GitHub и не выполняется локально без
-  `gh`/токена. Релиз **1.0.0** опубликован
+- **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
+  подтверждены реальными прогонами GitHub Actions; **M7–M11 запланированы**
+  (сервис, наблюдаемость, IaC, CD, безопасность). Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
 - **M1:** завершён и влит в `master` — движок кликов, глобальные хоткеи, консольное демо.
@@ -91,10 +91,10 @@
   релизный zip в Windows-контейнере); **T1.2 ✅** (274 теста зелёны в контейнере:
   `xvfb-run` + apt-пакеты Qt/WebEngine, обход падения PySide6 на финализации);
   **T2.1 ✅** (job `tests-docker` в `ci.yml`; PR #2 — lint + tests 3.11–3.13 +
-  tests-docker зелёные); **T3.2 ✅** (`docker.yml`, GHCR), **T4.1 ✅**
-  (контейнерная сборка в `release.yml`), **T5.1 ✅** (`dev-release.yml`) и
-  **T6.1 ✅** (документация). Фактический удалённый прогон этих workflow нужно
-  выполнить в GitHub Actions.
+  tests-docker зелёные); **T3.2 ✅** (`docker.yml` → GHCR, run 41336011415),
+  **T4.1 ✅** (контейнерная сборка `release.yml`, dry-run 41337101336),
+  **T5.1 ✅** (`dev-release.yml`, runs 41337281967 → 41338058699) и **T6.1 ✅**
+  (документация). Все чекпоинты подтверждены прогонами на GitHub.
 - **M7–M11 (планы созданы 2026-11-01):** **M7** — ClicKit Cloud (FastAPI +
   PostgreSQL + Docker, `/v1/scenarios`); **M8** — метрики/логи/трейсы,
   Grafana/Loki/Tempo, алерты, SLO 99.5%; **M9** — Terraform + облако + k3s +
@@ -106,9 +106,8 @@
 
 ## Следующие шаги (по порядку)
 
-1. **Проверить M6 в GitHub:** запустить `Docker images`, dry-run `Release` с
-   `publish=false` и `Dev release` с `branch=master`; убедиться в тегах GHCR и
-   rolling draft-релизе `dev`.
+1. **M6 выполнен** — все чекпоинты (T0.1–T6.1) подтверждены прогонами
+   GitHub Actions; повторный запуск `Dev release` обновляет draft `dev`.
 2. **Защита `master`** (Settings → Branches): обязательные проверки `lint`,
    `tests` и `tests-docker`, запрет прямого push, обязательный PR, удаление
    ветки после merge; почистить влитые `feat/*`-ветки.

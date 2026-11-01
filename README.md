@@ -24,10 +24,10 @@ together to script clicks, moves and delays — no coding required.
 
 ## 🚧 Project status
 
-**ClicKit 1.0.0** — the first public release. Milestones **M0–M5** are complete
-and merged into `master`; **M6** (containerized DevOps) is in progress, and
-**M7–M11** (cloud service, observability, IaC, delivery, security/resilience)
-are planned and tracked in [`plans/README.md`](plans/README.md). The app follows the Windows theme by default
+**ClicKit 1.0.0** — the first public release. Milestones **M0–M6** are complete
+and merged into `master`; **M7–M11** (cloud service, observability, IaC, delivery,
+security/resilience) are planned and tracked in
+[`plans/README.md`](plans/README.md). The app follows the Windows theme by default
 (system / dark / light can be picked in Settings), all three global hotkeys
 (start, stop, coordinate picker) are configurable without a restart, and a
 rotated log is written to `%APPDATA%\ClicKit\logs\app.log`. Two modes are
@@ -72,7 +72,7 @@ want to automate a few clicks.
 | **M3** | Scenario model (IR): schema, interpreter, save / load | ✅ Done |
 | **M4** | Blockly visual editor with live execution | ✅ Done |
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
-| **M6** | DevOps: Docker test/build images, GHCR, dev releases | 🚧 In progress |
+| **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
 | **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | 📋 Planned |
 | **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
@@ -265,10 +265,10 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M5** завершены и влиты
-в `master`; **M6** (контейнерный DevOps) в работе, **M7–M11** (облачный сервис,
-наблюдаемость, IaC, доставка, безопасность и устойчивость) запланированы и
-ведутся в [`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
+**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M6** завершены и влиты
+в `master`; **M7–M11** (облачный сервис, наблюдаемость, IaC, доставка,
+безопасность и устойчивость) запланированы и ведутся в
+[`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
 выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
 (старт, стоп, захват точки) переназначаются без перезапуска, а журнал
 с ротацией пишется в `%APPDATA%\ClicKit\logs\app.log`. Доступны два режима:
@@ -313,7 +313,7 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 | **M3** | Модель сценариев (IR): схема, интерпретатор, сохранение / загрузка | ✅ Готово |
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
-| **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | 🚧 В работе |
+| **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
 | **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | 📋 Запланировано |
 | **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |

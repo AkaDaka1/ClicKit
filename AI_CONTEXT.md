@@ -428,12 +428,26 @@ PR / push в master ──► ci.yml ──► lint ─────────�
                                         ├─► tests-docker (Linux-контейнер)
                                         └─► package (--zip + smoke, только master)
 
+push в master/dev ──► docker.yml ──► build-test (Linux)  ──► GHCR: <sha> + latest/dev
+                                  └─► build-win (Windows) ──► GHCR: <sha> + latest/dev
+
 push тега v* / ручной запуск ──► release.yml ──► ci.yml (полный)
-                                        └─► build: verify tag → build --zip
-                                                 → verify artifacts/smoke
+                                        └─► build: verify tag → docker build (build-win)
+                                                 → docker run --zip → verify/smoke
                                                  → upload release-assets
                                             └─► publish: gh release create/upload
+
+push в dev / ручной запуск ──► dev-release.yml ──► ci.yml (полный)
+                                        └─► dev-build: build --zip → verify/smoke
+                                                 → gh release create/upload dev --clobber
 ```
+
+Особенности (M6): ручной dry-run `release.yml` (`workflow_dispatch`,
+`publish=false`) собирает текущий `master`, но сверяет версию с переданным
+тегом — исторические теги до M6 не содержат `docker/`. Windows-образ
+публикуется legacy-командами `docker build`/`docker push` (Buildx на Windows
+runner недоступен), Linux-образ — через `docker/build-push-action`. Job
+публикации `dev` требует явного `contents: write`.
 
 Правила и локальные аналоги:
 
@@ -551,5 +565,15 @@ Windows-образ сборки в GHCR, тестовые релизы «dev»; 
 собирает релизный `ClicKit-win64.zip` в Windows-контейнере (`docker run -v … --zip`,
 артефакт прошёл `verify_release.py --smoke`), в ADR №34 добавлены детали
 Windows-образа, §3.2 — `docker/` и `.dockerignore`).*
+
+*Последнее обновление: 2026-11-01 (**M6 завершён** — все чекпоинты T0.1–T6.1
+подтверждены прогонами GitHub Actions: `docker.yml` публикует `clikit-test`
+и `clikit-build-win` в GHCR (run 41336011415), `release.yml` собирает релиз
+в Windows-контейнере (dry-run 41337101336), `dev-release.yml` создаёт и
+обновляет rolling draft-релиз `dev` (runs 41337281967 → 41338058699, один
+релиз с обновлёнными ассетами). §3.4 — схема CI/CD с `docker.yml` и
+`dev-release.yml`, особенности Windows-контейнеров и `contents: write`;
+`README.md`, `ROADMAP.md`, `PROGRESS.md` и `plans/M6-docker.md` отражают
+фактическое состояние.)*
 
 *Последнее обновление: 2026-10-29 (M5 завершён и влит в `master` через PR #1: системная/тёмная/светлая темы для GUI и Blockly, диалог настроек с записью хоткеев и перезагрузкой слушателя, журнал в `%APPDATA%` с UTF-8 и excepthook, PyInstaller onedir+onefile с иконкой и NOTICE; **CI/CD на GitHub Actions:** `ci.yml` (lint + тесты 3.11–3.13 + сборка архива на `master`), `release.yml` (тег `v*` → CI → сборка → GitHub Release), `scripts/verify_release.py`, `scripts/release_notes.py`, версия `pyproject.toml` синхронизирована с `APP_VERSION`; §2 — стек, §3.2 — `.github/workflows/`, §3.3 — ADR №30–32, §3.4 — схема CI/CD, §4 — правила версии и CI, §5 — глоссарий.)*
