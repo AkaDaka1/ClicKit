@@ -81,6 +81,25 @@ jobs:
       - name: Подготовить заметки релиза
         run: python scripts/release_notes.py --output release-notes.md --prerelease-flag prerelease.txt
 
+      # Служба Docker на windows-latest иногда не поднята к началу job —
+      # ждём движок, чтобы релиз не падал из-за состояния раннера.
+      - name: Подготовить Docker Engine
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            docker version *> $null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Docker Engine готов (попытка $attempt)"
+              docker info --format '{{.OSType}}'
+              exit 0
+            }
+            Write-Host "Docker Engine не отвечает (попытка $attempt) — стартую службу"
+            Start-Service docker -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 10
+          }
+          docker version
+          throw "Docker Engine недоступен после 6 попыток"
+
       - name: Собрать Windows-образ окружения
         run: docker build -f docker/Dockerfile.build-win -t clikit-build:rel .
 

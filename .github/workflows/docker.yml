@@ -53,6 +53,25 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      # На windows-latest служба Docker периодически ещё не поднята к началу
+      # job (npipe://./pipe/docker_engine отсутствует). Ждём движок и при
+      # необходимости стартуем службу, иначе сборка падает без нашей ошибки.
+      - name: Подготовить Docker Engine
+        shell: pwsh
+        run: |
+          for ($attempt = 1; $attempt -le 6; $attempt++) {
+            docker version *> $null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Docker Engine готов (попытка $attempt)"
+              docker info --format '{{.OSType}}'
+              exit 0
+            }
+            Write-Host "Docker Engine не отвечает (попытка $attempt) — стартую службу"
+            Start-Service docker -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 10
+          }
+          docker version
+          throw "Docker Engine недоступен после 6 попыток"
       - name: Войти в GHCR
         uses: docker/login-action@v3
         with:
