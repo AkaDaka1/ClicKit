@@ -41,7 +41,7 @@
 | 2026-10-31 | **T1.1 (M6) выполнена — Docker-среда тестов собрана:** `docker/Dockerfile.test` (python:3.11-slim + apt-пакеты Qt/WebEngine/Xvfb, pip из `requirements.txt`, ENTRYPOINT `python -m pytest`), `.dockerignore`, `docker-compose.yml` (сервис `test`, offscreen-переменные Qt, `init: true`). Образ `clikit-test:local` — 421 MB; `docker compose run test` стартует и собирает тесты. Первая сборка падала на `evdev` (pynput на Linux): добавлены временные `gcc`+`libc6-dev`+`linux-libc-dev` — ставятся и удаляются в том же слое. Ожидаемые 12 ошибок сбора (`libEGL.so.1`, `DISPLAY`) — вход в гейт T1.2; закоммичено (`3877f33`, `feat: docker-среда для автотестов`) — по решению пользователя до T1.2. Попутно: Docker Desktop был на Windows-контейнерах — `docker context use desktop-linux` вернул Linux-движок; pull `python:3.11-slim` повторили после `EOF` | ✅ Готово |
 | 2026-10-31 | **T3.1 (M6) выполнена — Windows-образ сборки:** `docker/Dockerfile.build-win` (servercore:ltsc2022 + Python 3.11.9 из NuGet flat-container, зависимости отдельным слоем, явный `COPY` исходников, ENTRYPOINT `python scripts/build_exe.py`) и `.dockerignore`. Образ `clikit-build-win:local` — 5.94 ГБ, сборка ~25 мин (pip через прокси контейнера). `docker run --rm -v "<копия репозитория>:C:/work" clikit-build-win:local --zip` → `ClicKit-win64.zip` 230.6 МБ (3286 записей, Blockly в `_internal/resources/`) + `SHA256SUMS.txt`; артефакт прошёл на хосте `python scripts/verify_release.py --dist … --smoke`. Особенности Windows-контейнеров (в §9 плана): legacy-билдер без BuildKit (`.dockerignore` обязателен), `WORKDIR C:\work` → «invalid absolute path» (пишем `C:/work`, монтируем `-v "<путь>:C:/work"`), `www.nuget.org` не резолвится в контейнере (качаем с `api.nuget.org`), VC++ redist не нужен (PySide6 несёт `msvcp140`/`vcruntime140`). Движок возвращён на Linux | ✅ Готово |
 | 2026-11-01 | **T1.2 (M6) — зелёные тесты в контейнере:** `docker/Dockerfile.test` — полный apt-список (xvfb+xauth, libtk8.6, libegl1/gles2, drm/gbm, pango/atk/at-spi, libxcb-*), ENTRYPOINT `xvfb-run --auto-servernum python -m pytest` (pynput/pyautogui требуют `DISPLAY`). 274 passed за ~8 с, но exit 134 — «Fatal Python error: bool_dealloc» при финализации (PySide6 + QtWebEngine, живые потоки Chromium); закрытие окон + `gc` недостаточно. Решение: `tests/conftest.py` — хуки `pytest_sessionfinish` (Linux + загружен `PySide6.QtWebEngineCore`: closeAllWindows + gc) и `pytest_unconfigure` (`os._exit(exitstatus)`, JUnit и сводка уже записаны). Финальная проверка: 274 passed, exit 0, `junit.xml` — `tests="274" failures="0"`; на хосте (Windows) `pytest -q` и `ruff` тоже зелёно. Commit `5ed9d93` | ✅ Готово |
-| 2026-11-01 | **T2.1 (M6) — job `tests-docker` в `ci.yml`:** прежний job был нерабочим (`docker build` без `-t` — образ без тега, а `docker run clikit-test:local` на чистом раннере его не найдёт; ENTRYPOINT конфликтовал с `python -m pytest`). Исправлено: сборка `-t clikit-test:ci` из контекста PR, `--init`, env Qt/WebEngine, bind mount `reports/`, `--junitxml`, артефакт `junit-docker` при падении. Локально та же команда — 274 passed, exit 0. **Ждёт зелёного PR-прогона** (нужен push и PR — `gh` на машине не установлен). Commit `e5225d4` | 🔄 Ждёт PR |
+| 2026-11-01 | **T2.1 (M6) — job `tests-docker` в `ci.yml`:** прежний job был нерабочим (`docker build` без `-t` — образ без тега, а `docker run clikit-test:local` на чистом раннере его не найдёт; ENTRYPOINT конфликтовал с `python -m pytest`). Исправлено: сборка `-t clikit-test:ci` из контекста PR, `--init`, env Qt/WebEngine, bind mount `reports/`, `--junitxml`, артефакт `junit-docker` при падении. Локально та же команда — 274 passed, exit 0. Чекпоинт: **PR #2 — все job зелёные** (lint, tests 3.11–3.13, tests-docker 68 c; run 41317645348). Commit `e5225d4` | ✅ Готово |
 
 ---
 
@@ -85,9 +85,8 @@
   `docker-compose.yml`); **T3.1 ✅** (образ `clikit-build-win:local` собирает
   релизный zip в Windows-контейнере); **T1.2 ✅** (274 теста зелёны в контейнере:
   `xvfb-run` + apt-пакеты Qt/WebEngine, обход падения PySide6 на финализации);
-  **T2.1 🔄** (job `tests-docker` в `ci.yml` исправлен и проверен локально —
-  ждёт зелёного прогона на PR). Остались открытыми: T2.1 (PR-прогон), T3.2,
-  T4.1, T5.1, T6.1.
+  **T2.1 ✅** (job `tests-docker` в `ci.yml`; PR #2 — lint + tests 3.11–3.13 +
+  tests-docker зелёные). Остались открытыми: T3.2, T4.1, T5.1, T6.1.
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
 - **Ближайшая веха:** публикация релиза **1.0.0** на GitHub (zip onedir +
   `ClicKit.exe` + NOTICE + SHA256SUMS).
@@ -106,9 +105,9 @@
 4. **M6 — Docker + тестовые релизы** (план `plans/M6-docker.md`): задачи
    выполняются по отдельности в разных сессиях по ID («выполни T1.1» и т.д.,
    параллельные волны T1.1∥T3.1, T2.1∥T3.2, T4.1∥T5.1). Закрыты **T0.1**,
-   **T1.1**, **T3.1** (образ сборки `.exe`) и **T1.2** (274 теста зелёны в
-   контейнере); **T2.1** — job `tests-docker` готов, нужен push ветки и
-   зелёный PR-прогон (дальше — T3.2). Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
+   **T1.1**, **T3.1** (образ сборки `.exe`), **T1.2** (274 теста зелёны в
+   контейнере) и **T2.1** (job `tests-docker`, PR #2 зелёный); следующая —
+   **T3.2** (публикация образов в GHCR). Dry-run релиза 1.0.0 (пункт 1) — до T4.1.
 5. **Спайк (опционально):** фоновые клики `PostMessage` в выбранное окно — прототип
    и матрица совместимости приложений.
 6. **После M5:** условия `if`/`while` с чтением экрана, `recorder.py`,

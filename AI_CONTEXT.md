@@ -452,7 +452,7 @@ push тега v* / ручной запуск ──► release.yml ──► ci.
 
 ---
 
-*Последнее обновление: 2026-11-01 (M6: **T1.2 выполнена** — 274 теста зелёны в Linux-контейнере: `xvfb-run` (pynput/pyautogui требуют `DISPLAY`), полный apt-список Qt/WebEngine, обход падения PySide6 на финализации через `os._exit` в `tests/conftest.py`; **T2.1** — job `tests-docker` в `ci.yml` исправлен (образ `clikit-test:ci` из контекста PR, JUnit в `reports/` + артефакт при падении), локально проверен, ждёт зелёного PR-прогона; §3.3 — ADR №33 дополнен деталями Linux-прогона, §3.4 — схема CI с `tests-docker`.)*
+*Последнее обновление: 2026-11-01 (M6: **T1.2 выполнена** — 274 теста зелёны в Linux-контейнере: `xvfb-run` (pynput/pyautogui требуют `DISPLAY`), полный apt-список Qt/WebEngine, обход падения PySide6 на финализации через `os._exit` в `tests/conftest.py`; **T2.1 выполнена** — job `tests-docker` в `ci.yml` (образ `clikit-test:ci` из контекста PR, JUnit в `reports/` + артефакт при падении), PR #2: lint + tests 3.11–3.13 + tests-docker зелёные; §3.3 — ADR №33 дополнен деталями Linux-прогона, §3.4 — схема CI с `tests-docker`.)*
 
 *Последнее обновление: 2026-10-31 (план M6 «DevOps: Docker + тестовые
 релизы» создан и согласован — `plans/M6-docker.md` с графом задач T0.1–T6.1;
