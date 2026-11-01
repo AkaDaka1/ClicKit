@@ -327,7 +327,14 @@ ClicKit/
      Qt) гоняет полный прогон `pytest` в Linux-контейнере: локально
      `docker compose run test` и в CI (job `tests-docker` в `ci.yml`).
      Linux-тесты **дополняют** Windows-матрицу 3.11–3.13, а не заменяют
-     её — целевая платформа остаётся Windows.
+     её — целевая платформа остаётся Windows. Особенности Linux-прогона
+     (T1.2): pytest запускается через `xvfb-run` — `pynput`/`pyautogui`
+     требуют `DISPLAY` даже при `QT_QPA_PLATFORM=offscreen`; после
+     тестов QtWebEngine `tests/conftest.py` завершает процесс через
+     `os._exit`, иначе PySide6 падает на финализации интерпретатора
+     (`bool_dealloc`) при зелёных тестах. В CI образ собирается из
+     контекста PR (тег `clikit-test:ci`), JUnit пишется в смонтированный
+     `reports/` и выгружается артефактом при падении.
  34. **Окружение сборки — Windows-образ в GHCR** (2026-10-31, план M6):
      `docker/Dockerfile.build-win` (servercore ltsc2022 + Python 3.11 +
      PyInstaller + зависимости) фиксирует окружение сборки `.exe`;
@@ -359,8 +366,9 @@ ClicKit/
 ### 3.4. CI/CD
 
 ```
-PR / push в master ──► ci.yml ──► lint ─┐
-                                        ├─► tests (3.11, 3.12, 3.13)
+PR / push в master ──► ci.yml ──► lint ───────────────┐
+                                        ├─► tests (3.11, 3.12, 3.13; Windows)
+                                        ├─► tests-docker (Linux-контейнер)
                                         └─► package (--zip + smoke, только master)
 
 push тега v* / ручной запуск ──► release.yml ──► ci.yml (полный)
@@ -376,7 +384,7 @@ push тега v* / ручной запуск ──► release.yml ──► ci.
   branch protection, обязательные проверки `lint` и `tests`, удаление ветки
   после merge).
 - Локальная проверка того же, что в CI: `ruff check .`, `ruff format --check .`,
-  `python -m pytest`.
+  `python -m pytest`, `docker compose run --rm test` (Linux-контейнер, ADR №33).
 - Локальная проверка релиза перед тегом:
   `python scripts/build_exe.py --zip` и
   `python scripts/verify_release.py --tag v<версия> --smoke`.
@@ -443,6 +451,8 @@ push тега v* / ручной запуск ──► release.yml ──► ci.
   `%APPDATA%`; успех — строка о запуске в журнале приложения.
 
 ---
+
+*Последнее обновление: 2026-11-01 (M6: **T1.2 выполнена** — 274 теста зелёны в Linux-контейнере: `xvfb-run` (pynput/pyautogui требуют `DISPLAY`), полный apt-список Qt/WebEngine, обход падения PySide6 на финализации через `os._exit` в `tests/conftest.py`; **T2.1** — job `tests-docker` в `ci.yml` исправлен (образ `clikit-test:ci` из контекста PR, JUnit в `reports/` + артефакт при падении), локально проверен, ждёт зелёного PR-прогона; §3.3 — ADR №33 дополнен деталями Linux-прогона, §3.4 — схема CI с `tests-docker`.)*
 
 *Последнее обновление: 2026-10-31 (план M6 «DevOps: Docker + тестовые
 релизы» создан и согласован — `plans/M6-docker.md` с графом задач T0.1–T6.1;
