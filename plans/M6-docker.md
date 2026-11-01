@@ -28,8 +28,9 @@
       (PR #2, run 41317645348).
 - [x] Push в `master` → `ghcr.io/akadaka1/clikit-test` и
       `ghcr.io/akadaka1/clikit-build-win` с тегами `latest` и `<sha>`.
-- [x] Dry-run `release.yml` (`workflow_dispatch`, publish=false) — сборка в
-      контейнере и смоук зелёные, артефакты сохранены.
+- [x] Dry-run `release.yml` (`workflow_dispatch`, publish=false) — сборка
+      текущего `master` в контейнере, проверка версии переданного тега и смоук
+      зелёные, артефакты сохранены.
 - [x] Ручной запуск `dev-release.yml` (branch=master) → draft GitHub Release
       «dev» с `ClicKit-win64.zip` + `SHA256SUMS.txt` + `NOTICE.txt`; повторный
       запуск обновляет (clobber), а не дублирует.
@@ -146,7 +147,7 @@
 | T2.1 | `ci.yml`: job `tests-docker` | T1.2 | CI на PR зелёный (lint + tests + tests-docker); commit `feat: ci-job автотестов в контейнере` | ✅ (2026-11-01: job `tests-docker` — сборка с тегом `clikit-test:ci` из контекста PR, `docker run --init` с env Qt/WebEngine, `mkdir -p reports` + монтирование, `--junitxml` и артефакт `junit-docker` при падении; **PR #2 — все job зелёные:** lint, tests 3.11/3.12/3.13, tests-docker (68 c), [run 41317645348](https://github.com/AkaDaka1/ClicKit/actions/runs/41317645348); commit `e5225d4`) |
 | T3.1 | `docker/Dockerfile.build-win`; локальная сборка (Windows containers, Docker Desktop) | T0.1 | `docker run ... build_exe.py --zip` собирает zip; commit `feat: windows-образ сборки` | ✅ (2026-10-31: образ 5.94 ГБ собран, `docker run --zip` собрал `ClicKit-win64.zip` 230.6 МБ; артефакт прошёл `verify_release.py --smoke` на хосте; попутно создан `.dockerignore`) |
  | T3.2 | `.github/workflows/docker.yml` → GHCR | T1.2, T3.1 | Push в master → оба образа в GHCR (`latest` + `<sha>`); commit `feat: публикация образов в GHCR` | ✅ (2026-11-01: добавлен параллельный Linux/Windows workflow с `docker/login-action`, `docker/metadata-action` и `docker/build-push-action`; для `master` публикуются SHA + `latest`, для `dev` — SHA + `dev`) |
- | T4.1 | `release.yml`: сборка релиза через `docker build` + `docker run` образа сборки | T3.2 | Dry-run `release.yml` (workflow_dispatch, publish=false): CI → сборка в контейнере → смоук → артефакты, всё зелёное; commit `feat: сборка релиза в контейнере` | ✅ (2026-11-01: job `build` собирает `docker/Dockerfile.build-win`, запускает `build_exe.py --zip` с bind mount, затем выполняет host smoke; публикация отключается через `publish=false`) |
+ | T4.1 | `release.yml`: сборка релиза через `docker build` + `docker run` образа сборки | T3.2 | Dry-run `release.yml` (workflow_dispatch, publish=false): CI → сборка в контейнере → смоук → артефакты, всё зелёное; commit `feat: сборка релиза в контейнере` | ✅ (2026-11-01: job `build` собирает `docker/Dockerfile.build-win`, запускает `build_exe.py --zip` с bind mount, затем выполняет host smoke; ручной dry-run собирает текущий `master`, но сверяет версию указанного тега — старый `v1.0.0` не содержит `docker/`; публикация отключается через `publish=false`) |
  | T5.1 | `.github/workflows/dev-release.yml` + rolling draft Release «dev» | T3.2 | Ручной запуск (branch=master) → draft-релиз «dev» с артефактами; второй запуск обновляет через clobber; commit `feat: тестовые релизы (dev)` | ✅ (2026-11-01: workflow вызывает полный CI, собирает и проверяет архив, создаёт или обновляет draft `dev` с `--clobber`; ref выбирается input `branch` или push в `dev`) |
  | T6.1 | Документация: ADR-формулировки в `AI_CONTEXT.md`, §2/§3.2, README «DevOps / Docker», `PROGRESS.md`, `.gitignore` (если появились артефакты) | T2.1, T3.2, T4.1, T5.1 | Документация совпадает с реализацией; commit `docs: docker и dev-релизы в документации` | ✅ (2026-11-01: README, ROADMAP, AI_CONTEXT и PROGRESS синхронизированы; новые артефакты `reports/`, `dist/`, `build/` уже покрыты `.gitignore`) |
 

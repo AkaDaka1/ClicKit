@@ -61,7 +61,11 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          # Старый dry-run v1.0.0 был создан до M6 и не содержит docker/.
+          # Ручная проверка собирает текущий master, но ниже всё равно сверяет
+          # его версию с переданным тегом. Push настоящего релизного тега
+          # собирается из самого тега.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'master' || github.ref }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
