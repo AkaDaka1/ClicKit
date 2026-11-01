@@ -53,8 +53,9 @@ class InputBackend(ABC):
         """Переместить курсор в точку. `duration` — секунды, 0 — мгновенно."""
 
     @abstractmethod
-    def drag_to(self, x: int, y: int, duration: float = 0.5,
-                button: Button = Button.LEFT) -> None:
+    def drag_to(
+        self, x: int, y: int, duration: float = 0.5, button: Button = Button.LEFT
+    ) -> None:
         """Перетащить курсор в точку, удерживая `button`."""
 
     @abstractmethod
@@ -62,8 +63,7 @@ class InputBackend(ABC):
         """Нажать комбинацию клавиш, формат pyautogui: 'ctrl+s', 'f1', 'a'."""
 
     @abstractmethod
-    def scroll(self, amount: int, x: int | None = None,
-               y: int | None = None) -> None:
+    def scroll(self, amount: int, x: int | None = None, y: int | None = None) -> None:
         """Колесо мыши: `amount > 0` — вверх, `amount < 0` — вниз."""
 ```
 
@@ -101,18 +101,23 @@ class Command:
     x: int | None = None
     y: int | None = None
     button: Button = Button.LEFT
-    duration: float = 0.0   # для move
-    seconds: float = 0.0    # для pause
+    duration: float = 0.0  # для move
+    seconds: float = 0.0  # для pause
 
 
 class Executor:
     """Исполняет список команд в daemon-потоке, потокобезопасный стоп."""
 
-    def __init__(self, backend: InputBackend, commands: Sequence[Command],
-                 interval: float = 0.0, repeats: int | None = None,
-                 on_step: Callable[[int], None] | None = None) -> None: ...
-    def start(self) -> None: ...      # no-op, если уже работает
-    def stop(self) -> None: ...       # установить флаг остановки
+    def __init__(
+        self,
+        backend: InputBackend,
+        commands: Sequence[Command],
+        interval: float = 0.0,
+        repeats: int | None = None,
+        on_step: Callable[[int], None] | None = None,
+    ) -> None: ...
+    def start(self) -> None: ...  # no-op, если уже работает
+    def stop(self) -> None: ...  # установить флаг остановки
     @property
     def is_running(self) -> bool: ...
 ```
@@ -135,8 +140,8 @@ class HotkeyManager:
     """Регистрация глобальных хоткеев и управление слушателем."""
 
     def register(self, spec: str, callback: Callable[[], None]) -> None: ...
-    def start(self) -> None: ...      # идемпотентно
-    def stop(self) -> None: ...       # идемпотентно
+    def start(self) -> None: ...  # идемпотентно
+    def stop(self) -> None: ...  # идемпотентно
 ```
 
 - Внутри — `pynput.keyboard.GlobalHotKeys` (ведёт свой daemon-поток).

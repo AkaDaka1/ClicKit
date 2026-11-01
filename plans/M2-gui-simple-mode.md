@@ -54,17 +54,17 @@ class Settings:
 
     x: int = 0
     y: int = 0
-    button: str = "left"                 # left|right|middle
-    interval_ms: int = 100               # 1..3_600_000
-    repeats: int = 100                   # 1..1_000_000_000
+    button: str = "left"  # left|right|middle
+    interval_ms: int = 100  # 1..3_600_000
+    repeats: int = 100  # 1..1_000_000_000
     infinite: bool = False
     hotkey_start: str = "<f5>"
     hotkey_stop: str = "<f6>"
     hotkey_pick: str = "<f8>"
-    close_action_running: str = "ask"    # ask|tray|quit
-    close_action_idle: str = "ask"       # ask|tray|quit
+    close_action_running: str = "ask"  # ask|tray|quit
+    close_action_idle: str = "ask"  # ask|tray|quit
 
-    def normalized(self) -> "Settings": ...   # clamp + откат невалидных значений
+    def normalized(self) -> "Settings": ...  # clamp + откат невалидных значений
 
 
 class SettingsStore:
@@ -72,8 +72,8 @@ class SettingsStore:
 
     def __init__(self, path: Path | None = None) -> None: ...
     @staticmethod
-    def default_path() -> Path: ...      # %APPDATA%\ClicKit\settings.json
-    def load(self) -> Settings: ...      # ошибки → дефолты + logger.warning
+    def default_path() -> Path: ...  # %APPDATA%\ClicKit\settings.json
+    def load(self) -> Settings: ...  # ошибки → дефолты + logger.warning
     def save(self, settings: Settings) -> None: ...  # mkdir + tmp + replace
 ```
 
@@ -113,9 +113,10 @@ Executor(..., on_step=None, on_finish: Callable[[StopReason, str], None] | None 
 class ExecutorAdapter(QObject):
     started = Signal()
     stopped = Signal()
-    step = Signal(int)                 # выполнено кликов
-    finished = Signal(str, str)        # reason.value, detail
+    step = Signal(int)  # выполнено кликов
+    finished = Signal(str, str)  # reason.value, detail
     error = Signal(str)
+
     def start(self, config: SimpleRunConfig) -> None: ...
     def stop(self) -> None: ...
     @property
@@ -136,6 +137,7 @@ class HotkeyBridge(QObject):
     start_requested = Signal()
     stop_requested = Signal()
     pick_requested = Signal()
+
     def start(self) -> None: ...
     def stop(self) -> None: ...
 ```
@@ -147,9 +149,10 @@ class HotkeyBridge(QObject):
 
 ```python
 class CoordinatePicker(QObject):
-    captured = Signal(int, int)        # x, y в GUI-потоке
-    failed = Signal(str)               # сбой чтения позиции
-    def capture(self) -> bool: ...     # снять позицию курсора
+    captured = Signal(int, int)  # x, y в GUI-потоке
+    failed = Signal(str)  # сбой чтения позиции
+
+    def capture(self) -> bool: ...  # снять позицию курсора
 ```
 
 - Реализовано проще, чем планировалось: `F8` сразу снимает позицию курсора
@@ -170,7 +173,7 @@ class SimpleRunConfig:
     y: int
     button: Button
     interval_ms: int
-    repeats: int | None        # None — бесконечно
+    repeats: int | None  # None — бесконечно
 
     def commands(self) -> list[Command]: ...
     def interval_seconds(self) -> float: ...

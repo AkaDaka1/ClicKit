@@ -94,6 +94,7 @@ known-first-party = ["app", "core", "gui", "bridge"]
 **`app/__main__.py`:**
 ```python
 """Точка входа ClicKit: python -m app."""
+
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -116,6 +117,7 @@ if __name__ == "__main__":
 **`app/application.py`:**
 ```python
 """Сборка QApplication и главного окна."""
+
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -135,6 +137,7 @@ def run() -> int:
 **`gui/main_window.py`:**
 ```python
 """Главное окно ClicKit."""
+
 from PySide6.QtWidgets import QMainWindow
 
 

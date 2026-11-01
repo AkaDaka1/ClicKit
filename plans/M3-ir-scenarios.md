@@ -90,11 +90,14 @@ class StopReason(Enum):
     FAILSAFE = "failsafe"
     ERROR = "error"
 
+
 class ThreadedWorker(ABC):
-    def __init__(self, on_finish: Callable[[StopReason, str], None] | None = None) -> None: ...
+    def __init__(
+        self, on_finish: Callable[[StopReason, str], None] | None = None
+    ) -> None: ...
     @property
     def is_running(self) -> bool: ...
-    def start(self) -> None: ...          # no-op, если уже работает
+    def start(self) -> None: ...  # no-op, если уже работает
     def stop(self) -> None: ...
     def join(self, timeout: float | None = None) -> bool: ...
     @abstractmethod
@@ -120,35 +123,65 @@ MAX_NODES = 10_000
 MAX_DEPTH = 32
 MAX_ISSUES = 50
 
-class Node: ...                      # базовый dataclass: id: str | None = None
-class ClickNode(Node): ...           # x, y, button; double: bool? — нет, отдельный класс
+
+class Node: ...  # базовый dataclass: id: str | None = None
+
+
+class ClickNode(Node): ...  # x, y, button; double: bool? — нет, отдельный класс
+
+
 class DoubleClickNode(Node): ...
+
+
 class MoveNode(Node): ...
+
+
 class DragNode(Node): ...
+
+
 class DelayNode(Node): ...
+
+
 class KeyNode(Node): ...
+
+
 class ScrollNode(Node): ...
-class LoopNode(Node): ...            # times: int | None, children: tuple[Node, ...]
+
+
+class LoopNode(Node): ...  # times: int | None, children: tuple[Node, ...]
+
+
 class SequenceNode(Node): ...
-class IfNode(Node): ...              # зарезервирован, интерпретатор откажет
+
+
+class IfNode(Node): ...  # зарезервирован, интерпретатор откажет
+
 
 @dataclass(frozen=True)
 class Scenario:
     nodes: tuple[Node, ...]
     name: str = ""
     version: int = SCENARIO_VERSION
+
     def to_mapping(self) -> dict[str, Any]: ...
+
 
 @dataclass(frozen=True)
 class ValidationIssue:
     path: str
     message: str
 
+
 class ScenarioValidationError(ValueError):
     issues: tuple[ValidationIssue, ...]
 
-def scenario_from_mapping(data: Any) -> Scenario: ...   # собирает все ошибки, потом бросает
-def scenario_from_json(text: str) -> Scenario: ...      # JSONDecodeError → ValidationIssue("$", ...)
+
+def scenario_from_mapping(
+    data: Any,
+) -> Scenario: ...  # собирает все ошибки, потом бросает
+def scenario_from_json(
+    text: str,
+) -> Scenario: ...  # JSONDecodeError → ValidationIssue("$", ...)
 ```
 
 - Сбор ошибок: парсер идёт по дереву, копит `ValidationIssue` с путями,
@@ -161,7 +194,8 @@ def scenario_from_json(text: str) -> Scenario: ...      # JSONDecodeError → Va
 
 ```python
 class ScenarioRuntimeError(RuntimeError):
-    path: str        # где именно упало/не поддерживается
+    path: str  # где именно упало/не поддерживается
+
 
 class Interpreter:
     def __init__(
@@ -174,7 +208,7 @@ class Interpreter:
         dry_run: bool = False,
     ) -> None: ...
     def stop(self) -> None: ...
-    def run(self) -> int: ...            # число выполненных действий
+    def run(self) -> int: ...  # число выполненных действий
 ```
 
 - `run()`: рекурсивный обход; `on_node(node, path)` перед каждым узлом
@@ -213,12 +247,18 @@ class ScenarioRunner(ThreadedWorker):
 ```python
 SCENARIO_SUFFIX = ".acl.json"
 
+
 class ScenarioFileError(Exception):
     """Файл сценария не найден/не читается/не записывается."""
 
-def load_scenario(path: Path) -> Scenario: ...   # OSError → ScenarioFileError; JSON → schema
-def save_scenario(scenario: Scenario, path: Path) -> Path: ...  # атомарно, UTF-8, indent=2
-def default_scenarios_dir() -> Path: ...         # %APPDATA%\ClicKit\scenarios
+
+def load_scenario(
+    path: Path,
+) -> Scenario: ...  # OSError → ScenarioFileError; JSON → schema
+def save_scenario(
+    scenario: Scenario, path: Path
+) -> Path: ...  # атомарно, UTF-8, indent=2
+def default_scenarios_dir() -> Path: ...  # %APPDATA%\ClicKit\scenarios
 ```
 
 - Атомарная запись: `path.with_name(path.name + ".tmp")` + `os.replace`

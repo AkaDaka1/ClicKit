@@ -47,17 +47,20 @@
 ThemeMode = Literal["system", "dark", "light"]
 ALLOWED_THEMES: tuple[str, ...] = ("system", "dark", "light")
 
+
 def resolve_theme(mode: str, system_is_dark: bool) -> Literal["dark", "light"]: ...
-def stylesheet_for(theme: Literal["dark", "light"]) -> str: ...   # читает .qss
+def stylesheet_for(theme: Literal["dark", "light"]) -> str: ...  # читает .qss
+
 
 class ThemeManager(QObject):
-    changed = Signal(str)          # разрешённая тема: "dark" | "light"
+    changed = Signal(str)  # разрешённая тема: "dark" | "light"
+
     def __init__(self, mode: str, parent: QObject | None = None) -> None: ...
     @property
     def mode(self) -> str: ...
     @property
     def effective(self) -> str: ...
-    def apply(self, app: QApplication) -> None: ...   # setStyleSheet + сигнал
+    def apply(self, app: QApplication) -> None: ...  # setStyleSheet + сигнал
     def set_mode(self, mode: str) -> None: ...
 ```
 

@@ -129,15 +129,16 @@
 ```python
 @dataclass(frozen=True)
 class BlocklyIssue:
-    block_id: str | None      # None — ошибка не привязана к блоку
+    block_id: str | None  # None — ошибка не привязана к блоку
     message: str
+
 
 class BlocklyTranslationError(ValueError):
     issues: tuple[BlocklyIssue, ...]
 
-def workspace_to_scenario(
-    workspace: Mapping[str, Any], name: str = ""
-) -> Scenario: ...
+
+def workspace_to_scenario(workspace: Mapping[str, Any], name: str = "") -> Scenario: ...
+
 
 def scenario_to_workspace(scenario: Scenario) -> dict[str, Any]: ...
 ```
@@ -159,6 +160,7 @@ def scenario_to_workspace(scenario: Scenario) -> dict[str, Any]: ...
 class ScenarioDocument:
     scenario: Scenario
     workspace: dict[str, Any] | None
+
 
 def load_document(path: str | Path) -> ScenarioDocument: ...
 def save_document(
@@ -190,11 +192,13 @@ def resolve_workspace(document: ScenarioDocument) -> tuple[dict[str, Any], bool]
 ```python
 class ScenarioAdapter(QObject):
     started = Signal()
-    step = Signal(int)            # выполнено действий
-    node_started = Signal(str)    # id блока ("" если id нет)
-    finished = Signal(str, str)   # StopReason.value, detail
+    step = Signal(int)  # выполнено действий
+    node_started = Signal(str)  # id блока ("" если id нет)
+    finished = Signal(str, str)  # StopReason.value, detail
 
-    def __init__(self, backend: InputBackend, parent: QObject | None = None) -> None: ...
+    def __init__(
+        self, backend: InputBackend, parent: QObject | None = None
+    ) -> None: ...
     @property
     def is_running(self) -> bool: ...
     def start(self, scenario: Scenario) -> bool: ...
@@ -211,13 +215,13 @@ class ScenarioAdapter(QObject):
 ```python
 class ScenarioBridge(QObject):
     # Python → JS
-    scenario_loaded = Signal(str, str)   # name, workspace JSON
+    scenario_loaded = Signal(str, str)  # name, workspace JSON
     node_started = Signal(str)
     step_done = Signal(int)
-    run_finished = Signal(str, str)      # reason, понятное сообщение
-    issues_found = Signal(str)           # JSON: [{"block_id": str|None, "message": str}]
-    status_changed = Signal(str, bool)   # текст, ошибка?
-    document_saved = Signal(str, str)    # path, name
+    run_finished = Signal(str, str)  # reason, понятное сообщение
+    issues_found = Signal(str)  # JSON: [{"block_id": str|None, "message": str}]
+    status_changed = Signal(str, bool)  # текст, ошибка?
+    document_saved = Signal(str, str)  # path, name
     running_changed = Signal(bool)
 
     def __init__(
@@ -265,7 +269,9 @@ class EditorView(QWidget):
     status_message = Signal(str, bool)
     running_changed = Signal(bool)
 
-    def __init__(self, backend: InputBackend, parent: QWidget | None = None) -> None: ...
+    def __init__(
+        self, backend: InputBackend, parent: QWidget | None = None
+    ) -> None: ...
     def request_run(self) -> None: ...
     def request_stop(self) -> None: ...
     @property
