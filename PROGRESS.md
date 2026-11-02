@@ -46,6 +46,7 @@
 | 2026-11-01 | `plans/` исключён из `.gitignore` — планы вех теперь публичная часть репозитория; обновлены `AI_CONTEXT.md` (§3.2, §3.3, §4, §5, журнал), `ROADMAP.md` (M6–M11), `AGENTS.md` (публичные планы), `PROGRESS.md`, шапка `plans/M6-docker.md`; добавлен индекс `plans/README.md` | ✅ Готово |
 | 2026-11-01 | **M6 закрыт по чекпоинтам (T3.2, T4.1, T5.1, T6.1):** `docker.yml` публикует в GHCR `clikit-test` и `clikit-build-win` (run 41336011415 — Linux 1m43s, Windows 9m39s); `release.yml` собирает релиз в Windows-контейнере (dry-run 41337101336 — сборка 8m21s, smoke и артефакты зелёные, publish пропущен); `dev-release.yml` создаёт и обновляет draft-релиз `dev` (runs 41337281967 → 41338058699, один релиз, ассеты обновлены через `--clobber`). Найдено и исправлено: Windows runner без Buildx (legacy `docker build`/`docker push`), старый тег `v1.0.0` без `docker/` (dry-run собирает `master`), `HTTP 403` при публикации (`contents: write` на job). Локально: `ruff check`, `ruff format --check` — чисто; CI на `9a72d08` — зелёный | ✅ Готово |
 | 2026-11-02 | **T0.1 (M7) — контракт ClicKit Cloud:** создан `docs/api.md` — общие соглашения (UTC, UUIDv4, `/v1`, OpenAPI), авторизация (`X-API-Key`, отдельный admin-ключ на удаление, fail-closed без ключа), общие заголовки (`X-Request-ID`, `Idempotency-Key`, `ETag`/`If-None-Match`), ошибки RFC 7807 с URN-типами (401/403/404/409/413/415/422/500/503), 9 эндпоинтов с телами и ответами, валидация IR только через `core.ir.schema` (нормализованный IR в БД, `editor.workspace` не публикуется), лимиты (1 МБ тело, 10 000 узлов, глубина 32, 50 ошибок), идемпотентность 24 ч с хэшем тела и гонкой через unique-индекс, схема PostgreSQL 16, env-конфигурация, контракт `cloud/client.py` (retry только 5xx/таймауты, jitter) и CLI с кодами выхода. План M7 §5.3/5.4 уточнён, T0.1 отмечена ✅, журнал задачи заполнен. Код не писался (по чекпоинту задачи) | ✅ Готово |
+| 2026-11-02 | **T1.1 (M7) — скелет ClicKit Cloud:** `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`; `requirements-service.txt` (FastAPI/uvicorn/SQLAlchemy/Alembic/psycopg/httpx + тесты). Настройки — только env, читаются в `lifespan` (импорт без секретов), проверка при старте: без `CLICKIT_API_KEY` процесс завершается `ServiceConfigError` (fail-closed). Эндпоинты: `/healthz` (200 без БД), `/version` (версия, git sha из env, `ir_format_version` из `core.ir.nodes`), `/metrics` (заготовка Prometheus `clikit_build_info`, экранирование меток). Проверено вживую: `uvicorn service.app.main:app --port 8010` → 200/200/200 и `/openapi.json` 200; запуск без ключа — `Application startup failed`. Тесты `tests/service/` (15: конфиг + API), всего **289 passed**; `ruff` чисто | ✅ Готово |
 
 ---
 
@@ -105,11 +106,14 @@
   **T0.1 ✅** (2026-11-02): контракт API `docs/api.md` — авторизация
   write/admin-ключами и fail-closed, RFC 7807 с URN-типами, 9 эндпоинтов,
   лимиты, идемпотентность 24 ч, схема PostgreSQL 16, env-конфигурация,
-  контракт клиента и CLI. Следующая — T1.1 (скелет сервиса).
-- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3.
+  контракт клиента и CLI. **T1.1 ✅** (2026-11-02): скелет сервиса
+  (`service/app/`), `/healthz`, `/version`, `/metrics`-заготовка, настройки
+  из env с проверкой при старте; `uvicorn service.app.main:app` отвечает 200.
+  Следующая — T1.2 (БД, модели, Alembic, `/readyz`).
+- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1 (SQLAlchemy/Alembic/psycopg — в `requirements-service.txt`, ставятся в T1.2).
 - **Ближайшая веха:** **M7 — ClicKit Cloud**: T0.1 ✅ (контракт `docs/api.md`),
-  следующая задача — **T1.1** (скелет сервиса: FastAPI, config, `/healthz`,
-  `/version`).
+  T1.1 ✅ (скелет сервиса), следующая задача — **T1.2** (БД, модели, Alembic,
+  `/readyz`; Postgres в Docker).
 
 ## Следующие шаги (по порядку)
 

@@ -19,7 +19,7 @@
 | M4 | [M4-blockly-editor.md](M4-blockly-editor.md) | Визуальный редактор Blockly | ✅ |
 | M5 | [M5-polish-packaging.md](M5-polish-packaging.md) | Темы, настройки, журналы, упаковка | ✅ |
 | M6 | [M6-docker.md](M6-docker.md) | Docker-среда тестов, образ сборки, GHCR, dev-релизы | ✅ |
-| M7 | [M7-cloud-service.md](M7-cloud-service.md) | ClicKit Cloud: HTTP-сервис сценариев, БД, Docker | 🔄 в работе (T0.1 ✅) |
+| M7 | [M7-cloud-service.md](M7-cloud-service.md) | ClicKit Cloud: HTTP-сервис сценариев, БД, Docker | 🔄 в работе (T0.1 ✅, T1.1 ✅) |
 | M8 | [M8-observability.md](M8-observability.md) | Метрики, логи, трейсы, дашборды, алерты, SLO | 📋 запланировано |
 | M9 | [M9-infrastructure.md](M9-infrastructure.md) | Terraform, облако, k3s, Helm, HTTPS | 📋 запланировано |
 | M10 | [M10-delivery.md](M10-delivery.md) | CD в staging/prod, откат, DORA-метрики | 📋 запланировано |

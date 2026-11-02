@@ -146,11 +146,15 @@ ClicKit/
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
+├── service/               # ClicKit Cloud (M7): app/, migrations/
+│   └── app/               # main, config, version, schemas, api/v1/
+├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
 └── tests/
 ```
 
-Каталоги `service/`, `observability/`, `infra/`, `deploy/`, `docs/sre/`
-появятся в M7–M11; их интерфейсы и критерии готовности зафиксированы в
+Каталог `service/` создан в M7 (T1.1), `cloud/` появится в T4.2. Каталоги
+`observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
+интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
 структура выше — фактическая; плановые каталоги не считаются реализованными.
 
@@ -418,6 +422,16 @@ ClicKit/
      а не оценки «на глаз».
  50. **Восстановление проверяется, а не предполагается** (2026-11-01,
      план M11): бэкап без drill — надежда; RTO/RPO фиксируются по факту.
+ 51. **Конфигурация сервиса — env с проверкой на старте** (2026-11-02,
+     M7 T1.1): `service/app/config.py` читает только переменные окружения
+     (секретов в коде нет), проверяет длины ключей, положительность лимитов
+     и известность уровня журнала; без `CLICKIT_API_KEY` (≥ 16 символов)
+     сервис не стартует (fail-closed), а не работает «наполовину открытым».
+     Настройки читаются в `lifespan`, а не при импорте модуля, поэтому
+     `import service.app.main`, OpenAPI и тесты не требуют секретов; тесты
+     подменяют настройки явным `Settings`. Версия сервиса — отдельная
+     (`service/app/version.py`), git sha и время сборки — из env, чтобы один
+     образ сообщал свой коммит.
 
 ---
 
@@ -543,6 +557,15 @@ runner недоступен), Linux-образ — через `docker/build-push
   сертификат) для проверки алертов и runbook.
 
 ---
+
+*Последнее обновление: 2026-11-02 (**M7 T1.1 выполнен** — скелет ClicKit
+Cloud: `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`
+(`/healthz`, `/version`, `/metrics`-заготовка), `requirements-service.txt`;
+настройки только из env и проверяются в `lifespan` (без `CLICKIT_API_KEY`
+сервис не стартует — fail-closed), версия сервиса отдельная, git sha из env;
+проверено `uvicorn service.app.main:app` → 200, 15 новых тестов (всего 289),
+`ruff` чист; §3.2 — `service/` и `cloud/`, §3.3 — ADR №51, §4 — правило
+контракта API.)*
 
 *Последнее обновление: 2026-11-02 (M7 в работе: **T0.1 выполнен** — создан
 `docs/api.md`, контракт ClicKit Cloud v1.0: авторизация write/admin-ключами

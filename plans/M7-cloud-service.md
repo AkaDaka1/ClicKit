@@ -1,6 +1,6 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
-> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, 2026-11-02).
+> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, 2026-11-02).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -107,12 +107,13 @@ service/
 ├── app/
 │   ├── main.py           # FastAPI, middleware, роутеры
 │   ├── config.py         # env-настройки, без секретов в коде
+│   ├── version.py        # SERVICE_NAME / SERVICE_VERSION (сборка — из env)
 │   ├── db.py             # engine, session, healthcheck
 │   ├── models.py         # SQLAlchemy-модели
 │   ├── schemas.py        # Pydantic-схемы запросов/ответов
 │   ├── security.py       # API-ключ, сравнение за постоянное время
 │   ├── errors.py         # problem+json, обработчики
-│   └── api/v1/           # health.py, scenarios.py, crash_reports.py
+│   └── api/v1/           # health.py (системные), scenarios.py, crash_reports.py
 ├── migrations/           # Alembic
 cloud/
 ├── __init__.py
@@ -176,7 +177,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | ID | Задача | Зависимости | Чекпоинт (done = …) | Статус |
 |---|---|---|---|---|
 | T0.1 | Контракт API и ADR: эндпоинты, коды, лимиты, схема БД | — | `docs/api.md` и этот план согласованы; код не пишется | ✅ |
-| T1.1 | Скелет сервиса: FastAPI, config, `/healthz`, `/version` | T0.1 | `uvicorn service.app.main:app` отвечает 200; `ruff` чист | ⬜ |
+| T1.1 | Скелет сервиса: FastAPI, config, `/healthz`, `/version` | T0.1 | `uvicorn service.app.main:app` отвечает 200; `ruff` чист | ✅ |
 | T1.2 | БД, модели, Alembic, `/readyz` | T1.1 | Postgres поднят, миграции применяются, 200/503 проверены | ⬜ |
 | T2.1 | CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ | T1.2 | Тесты 201/200/404/409/413/422; дубль по ключу не создаётся | ⬜ |
 | T2.2 | Приём crash-отчётов и правила ретеншна | T1.2 | 202, валидация, нет PII; ретеншн описан | ⬜ |
@@ -240,7 +241,8 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | Дата | Задача | Результат | Commit |
 |---|---|---|---|
 | 2026-11-01 | — | План создан, границы с M6 зафиксированы | — |
-| 2026-11-02 | T0.1 | Контракт API создан — `docs/api.md` (общие соглашения, авторизация по ключам write/admin и fail-closed, `X-Request-ID`/`Idempotency-Key`/`ETag`, RFC 7807 с URN-типами, 9 эндпоинтов с примерами, правила валидации IR через `core.ir.schema`, лимиты, семантика идемпотентности на 24 ч, схема БД Postgres 16, env-конфигурация, интерфейс `cloud/client.py` и CLI с кодами выхода). План §5.3/5.4 уточнён под контракт (хэш тела идемпотентности, индексы, санитайзер traceback, 415). Код не писался | — |
+| 2026-11-02 | T0.1 | Контракт API создан — `docs/api.md` (общие соглашения, авторизация по ключам write/admin и fail-closed, `X-Request-ID`/`Idempotency-Key`/`ETag`, RFC 7807 с URN-типами, 9 эндпоинтов с примерами, правила валидации IR через `core.ir.schema`, лимиты, семантика идемпотентности на 24 ч, схема БД Postgres 16, env-конфигурация, интерфейс `cloud/client.py` и CLI с кодами выхода). План §5.3/5.4 уточнён под контракт (хэш тела идемпотентности, индексы, санитайзер traceback, 415). Код не писался | `b42d792` |
+| 2026-11-02 | T1.1 | Скелет сервиса: `service/app/{main,config,version,schemas}.py`, `api/v1/health.py` (`/healthz`, `/version`, `/metrics`), `requirements-service.txt`; настройки только из env, проверка при старте в `lifespan` (без `CLICKIT_API_KEY` процесс завершается с `ServiceConfigError` — fail-closed), `ir_format_version` берётся из `core.ir.nodes`. Проверено: `uvicorn service.app.main:app --port 8010` → `/healthz` 200, `/version` 200 (git sha из env), `/metrics` 200 `text/plain; version=0.0.4`, `/openapi.json` 200; запуск без ключа — `Application startup failed`. Тесты: 15 новых (`tests/service/`), всего 289 passed; `ruff check`/`format --check` чисто | — |
 
 ## 12. Вне вехи (сознательно)
 

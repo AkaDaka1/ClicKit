@@ -43,6 +43,8 @@
 ## Команды
 
 - Установка зависимостей: `pip install -r requirements.txt`
+- Сервис (M7): `pip install -r requirements-service.txt` и
+  `uvicorn service.app.main:app` (нужен `CLICKIT_API_KEY`, см. `docs/api.md` §9)
 - Сборка релиза: `pip install -r requirements-build.txt` и `python scripts/build_exe.py --both`
 - Запуск: `python -m app`
 - Проверки: `ruff check .` + `ruff format --check .` + `python -m pytest`
