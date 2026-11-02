@@ -14,14 +14,18 @@ from core.ir.nodes import SCENARIO_VERSION
 from service.app.config import ServiceConfigError, Settings
 
 pytest.importorskip("fastapi")
+pytest.importorskip("sqlalchemy")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
 from service.app.main import create_app  # noqa: E402
 from service.app.version import SERVICE_NAME, SERVICE_VERSION  # noqa: E402
+from tests.service.fakes import FakeDatabase  # noqa: E402
 
 #: Валидный ключ записи для тестов (≥ 16 символов).
 API_KEY = "test-key-0123456789"
+#: URL БД-заглушки: соединение в этих тестах не устанавливается.
+DB_URL = "postgresql+psycopg://clikit:clikit@localhost:5432/clikit"
 #: Коммит «сборки» в тестах.
 GIT_SHA = "abc1234"
 
@@ -29,7 +33,10 @@ GIT_SHA = "abc1234"
 @pytest.fixture()
 def client() -> Iterator[TestClient]:
     """Клиент приложения с явными настройками и запущенным lifespan."""
-    app = create_app(Settings(api_key=API_KEY, git_sha=GIT_SHA))
+    app = create_app(
+        Settings(api_key=API_KEY, db_url=DB_URL, git_sha=GIT_SHA),
+        database=FakeDatabase(),
+    )
     with TestClient(app) as test_client:
         yield test_client
 

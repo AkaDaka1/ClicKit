@@ -47,14 +47,16 @@
 | 2026-11-01 | **M6 закрыт по чекпоинтам (T3.2, T4.1, T5.1, T6.1):** `docker.yml` публикует в GHCR `clikit-test` и `clikit-build-win` (run 41336011415 — Linux 1m43s, Windows 9m39s); `release.yml` собирает релиз в Windows-контейнере (dry-run 41337101336 — сборка 8m21s, smoke и артефакты зелёные, publish пропущен); `dev-release.yml` создаёт и обновляет draft-релиз `dev` (runs 41337281967 → 41338058699, один релиз, ассеты обновлены через `--clobber`). Найдено и исправлено: Windows runner без Buildx (legacy `docker build`/`docker push`), старый тег `v1.0.0` без `docker/` (dry-run собирает `master`), `HTTP 403` при публикации (`contents: write` на job). Локально: `ruff check`, `ruff format --check` — чисто; CI на `9a72d08` — зелёный | ✅ Готово |
 | 2026-11-02 | **T0.1 (M7) — контракт ClicKit Cloud:** создан `docs/api.md` — общие соглашения (UTC, UUIDv4, `/v1`, OpenAPI), авторизация (`X-API-Key`, отдельный admin-ключ на удаление, fail-closed без ключа), общие заголовки (`X-Request-ID`, `Idempotency-Key`, `ETag`/`If-None-Match`), ошибки RFC 7807 с URN-типами (401/403/404/409/413/415/422/500/503), 9 эндпоинтов с телами и ответами, валидация IR только через `core.ir.schema` (нормализованный IR в БД, `editor.workspace` не публикуется), лимиты (1 МБ тело, 10 000 узлов, глубина 32, 50 ошибок), идемпотентность 24 ч с хэшем тела и гонкой через unique-индекс, схема PostgreSQL 16, env-конфигурация, контракт `cloud/client.py` (retry только 5xx/таймауты, jitter) и CLI с кодами выхода. План M7 §5.3/5.4 уточнён, T0.1 отмечена ✅, журнал задачи заполнен. Код не писался (по чекпоинту задачи) | ✅ Готово |
 | 2026-11-02 | **T1.1 (M7) — скелет ClicKit Cloud:** `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`; `requirements-service.txt` (FastAPI/uvicorn/SQLAlchemy/Alembic/psycopg/httpx + тесты). Настройки — только env, читаются в `lifespan` (импорт без секретов), проверка при старте: без `CLICKIT_API_KEY` процесс завершается `ServiceConfigError` (fail-closed). Эндпоинты: `/healthz` (200 без БД), `/version` (версия, git sha из env, `ir_format_version` из `core.ir.nodes`), `/metrics` (заготовка Prometheus `clikit_build_info`, экранирование меток). Проверено вживую: `uvicorn service.app.main:app --port 8010` → 200/200/200 и `/openapi.json` 200; запуск без ключа — `Application startup failed`. Тесты `tests/service/` (15: конфиг + API), всего **289 passed**; `ruff` чисто | ✅ Готово |
+| 2026-11-02 | **T1.2 (M7) — БД, модели, Alembic, `/readyz`:** `service/app/db.py` (`Database`: engine с таймаутом 5 с, `session`/`session_scope`, `check()` = `SELECT 1`, `dispose`), `service/app/models.py` (`scenarios` и `crash_reports` по `docs/api.md` §8: CHECK, `char(64)`, `jsonb`, `timestamptz`, индексы и unique по `idempotency_key`), Alembic (`service/alembic.ini`, `service/migrations/{env.py,script.py.mako,versions/0001_initial_schema.py}`, URL только из `CLICKIT_DB_URL`). `CLICKIT_DB_URL` стал обязательным (fail-closed); engine создаётся в `lifespan` и закрывается на остановке, `/readyz` — 200/503 без деталей ошибки, `/healthz` жив без БД. Проверено вживую на `postgres:16` (Docker, порт 55432): `alembic upgrade head` → `alembic_version=0001`, схема совпала с §8, `alembic check` без расхождений, `downgrade base`/`upgrade head` повторяются; `uvicorn` → `/readyz` 200, после `docker stop` — 503 при `/healthz` 200, после `docker start` — снова 200. Тесты: 35 в `tests/service/` (всего **309 passed**), `ruff check`/`format --check` чисто | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
 - **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
-  подтверждены реальными прогонами GitHub Actions; **M7 в работе** (T0.1 —
-  контракт API готов), M8–M11 запланированы. Релиз **1.0.0** опубликован
+  подтверждены реальными прогонами GitHub Actions; **M7 в работе** (T0.1–T1.2
+  готовы: контракт API, скелет сервиса, БД и миграции), M8–M11 запланированы.
+  Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
 - **M1:** завершён и влит в `master` — движок кликов, глобальные хоткеи, консольное демо.
@@ -109,11 +111,15 @@
   контракт клиента и CLI. **T1.1 ✅** (2026-11-02): скелет сервиса
   (`service/app/`), `/healthz`, `/version`, `/metrics`-заготовка, настройки
   из env с проверкой при старте; `uvicorn service.app.main:app` отвечает 200.
-  Следующая — T1.2 (БД, модели, Alembic, `/readyz`).
-- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1 (SQLAlchemy/Alembic/psycopg — в `requirements-service.txt`, ставятся в T1.2).
+  **T1.2 ✅** (2026-11-02): `service/app/db.py` и `models.py`, Alembic
+  (`service/alembic.ini`, `service/migrations/versions/0001_initial_schema.py`),
+  обязательный `CLICKIT_DB_URL`, `/readyz` 200/503; миграции проверены на
+  `postgres:16` в Docker. Следующая — T2.1 (CRUD сценариев и идемпотентность)
+  параллельно с T2.2 (crash-отчёты).
+- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2).
 - **Ближайшая веха:** **M7 — ClicKit Cloud**: T0.1 ✅ (контракт `docs/api.md`),
-  T1.1 ✅ (скелет сервиса), следующая задача — **T1.2** (БД, модели, Alembic,
-  `/readyz`; Postgres в Docker).
+  T1.1 ✅ (скелет сервиса), T1.2 ✅ (БД, модели, Alembic, `/readyz`), следующая
+  задача — **T2.1** (CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ).
 
 ## Следующие шаги (по порядку)
 
@@ -122,9 +128,11 @@
 2. **Защита `master`** (Settings → Branches): обязательные проверки `lint`,
    `tests` и `tests-docker`, запрет прямого push, обязательный PR, удаление
    ветки после merge; почистить влитые `feat/*`-ветки.
-4. **M7 — ClicKit Cloud** (`plans/M7-cloud-service.md`): T0.1 контракт →
-   T1.1 скелет → T1.2 БД → T2.1/T2.2 CRUD и crash-отчёты → Docker/compose →
-   клиент → тесты/CI → docs. T5.1 ждёт коммита M6 T2.1, если `ci.yml` занят.
+4. **M7 — ClicKit Cloud** (`plans/M7-cloud-service.md`): T0.1 контракт ✅ →
+   T1.1 скелет ✅ → T1.2 БД ✅ → T2.1/T2.2 CRUD и crash-отчёты → Docker/compose →
+   клиент → тесты/CI → docs. Для локальной проверки БД: `postgres:16` в Docker
+   и `alembic -c service/alembic.ini upgrade head` при заданном
+   `CLICKIT_DB_URL`. T5.1 ждёт коммита M6 T2.1, если `ci.yml` занят.
 5. **M8 — наблюдаемость** (`plans/M8-observability.md`): после M7; сначала
    JSON-логи и `/metrics`, затем Grafana/Loki/Tempo, алерты, SLO и runbook.
 6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,

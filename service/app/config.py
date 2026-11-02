@@ -44,8 +44,8 @@ class Settings:
 
         Raises:
             ServiceConfigError: ключ записи не задан или короче
-                `MIN_API_KEY_LENGTH`, либо числовые/строковые значения
-                выходят за допустимые границы.
+                `MIN_API_KEY_LENGTH`, не задан URL БД, либо числовые/строковые
+                значения выходят за допустимые границы.
         """
         if not self.api_key:
             raise ServiceConfigError(
@@ -62,6 +62,7 @@ class Settings:
             raise ServiceConfigError(
                 f"CLICKIT_ADMIN_API_KEY короче {MIN_API_KEY_LENGTH} символов"
             )
+        self.require_db_url()
         if self.max_body_bytes <= 0:
             raise ServiceConfigError("CLICKIT_MAX_BODY_BYTES должен быть больше нуля")
         if self.idempotency_ttl_hours <= 0:
@@ -73,6 +74,22 @@ class Settings:
             raise ServiceConfigError(
                 f"CLICKIT_LOG_LEVEL должен быть одним из: {allowed}"
             )
+
+    def require_db_url(self) -> str:
+        """Вернуть URL БД, который гарантированно задан.
+
+        Returns:
+            SQLAlchemy URL PostgreSQL из `CLICKIT_DB_URL`.
+
+        Raises:
+            ServiceConfigError: переменная не задана — сервису некуда писать
+                сценарии, поэтому старт запрещён (fail-closed).
+        """
+        if not self.db_url:
+            raise ServiceConfigError(
+                "CLICKIT_DB_URL не задан: сервис не стартует (fail-closed)"
+            )
+        return self.db_url
 
 
 def load_settings(env: Mapping[str, str] | None = None) -> Settings:

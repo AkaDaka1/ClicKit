@@ -1,6 +1,6 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
-> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, 2026-11-02).
+> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅, 2026-11-02).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -178,7 +178,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 |---|---|---|---|---|
 | T0.1 | Контракт API и ADR: эндпоинты, коды, лимиты, схема БД | — | `docs/api.md` и этот план согласованы; код не пишется | ✅ |
 | T1.1 | Скелет сервиса: FastAPI, config, `/healthz`, `/version` | T0.1 | `uvicorn service.app.main:app` отвечает 200; `ruff` чист | ✅ |
-| T1.2 | БД, модели, Alembic, `/readyz` | T1.1 | Postgres поднят, миграции применяются, 200/503 проверены | ⬜ |
+| T1.2 | БД, модели, Alembic, `/readyz` | T1.1 | Postgres поднят, миграции применяются, 200/503 проверены | ✅ |
 | T2.1 | CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ | T1.2 | Тесты 201/200/404/409/413/422; дубль по ключу не создаётся | ⬜ |
 | T2.2 | Приём crash-отчётов и правила ретеншна | T1.2 | 202, валидация, нет PII; ретеншн описан | ⬜ |
 | T3.1 | API-ключ, problem+json, `request_id` | T2.1 | 401/403, единый формат ошибок, заголовок `X-Request-ID` | ⬜ |
@@ -243,6 +243,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | 2026-11-01 | — | План создан, границы с M6 зафиксированы | — |
 | 2026-11-02 | T0.1 | Контракт API создан — `docs/api.md` (общие соглашения, авторизация по ключам write/admin и fail-closed, `X-Request-ID`/`Idempotency-Key`/`ETag`, RFC 7807 с URN-типами, 9 эндпоинтов с примерами, правила валидации IR через `core.ir.schema`, лимиты, семантика идемпотентности на 24 ч, схема БД Postgres 16, env-конфигурация, интерфейс `cloud/client.py` и CLI с кодами выхода). План §5.3/5.4 уточнён под контракт (хэш тела идемпотентности, индексы, санитайзер traceback, 415). Код не писался | `b42d792` |
 | 2026-11-02 | T1.1 | Скелет сервиса: `service/app/{main,config,version,schemas}.py`, `api/v1/health.py` (`/healthz`, `/version`, `/metrics`), `requirements-service.txt`; настройки только из env, проверка при старте в `lifespan` (без `CLICKIT_API_KEY` процесс завершается с `ServiceConfigError` — fail-closed), `ir_format_version` берётся из `core.ir.nodes`. Проверено: `uvicorn service.app.main:app --port 8010` → `/healthz` 200, `/version` 200 (git sha из env), `/metrics` 200 `text/plain; version=0.0.4`, `/openapi.json` 200; запуск без ключа — `Application startup failed`. Тесты: 15 новых (`tests/service/`), всего 289 passed; `ruff check`/`format --check` чисто | — |
+| 2026-11-02 | T1.2 | БД и миграции: `service/app/db.py` (`Database`: engine, `session`/`session_scope`, `check()` = `SELECT 1`, `dispose`, таймаут соединения 5 с), `service/app/models.py` (`scenarios`, `crash_reports` по `docs/api.md` §8, CHECK/индексы, `ux_scenarios_idempotency_key`), Alembic (`service/alembic.ini`, `service/migrations/env.py` + `versions/0001_initial_schema.py`, URL только из `CLICKIT_DB_URL`); `CLICKIT_DB_URL` стал обязательным (fail-closed), engine живёт в `lifespan`; `/readyz` — 200 `{"status":"ready","checks":{"database":"ok"}}` / 503 `unavailable` без деталей. Проверено на `postgres:16` в Docker (порт 55432): `upgrade head` → таблицы и `alembic_version=0001`, `alembic check` — без расхождений, `downgrade base`/`upgrade head` повторяются, живой `uvicorn` отдаёт 200, при остановленной БД — 503 при `/healthz` 200, после старта БД — снова 200. Тесты: 35 в `tests/service/` (всего **309 passed**), `ruff check`/`format --check` чисто | — |
 
 ## 12. Вне вехи (сознательно)
 

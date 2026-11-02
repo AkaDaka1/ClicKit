@@ -146,13 +146,15 @@ ClicKit/
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
-├── service/               # ClicKit Cloud (M7): app/, migrations/
-│   └── app/               # main, config, version, schemas, api/v1/
+├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
+│   ├── app/               # main, config, db, models, schemas, version, api/v1/
+│   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
 └── tests/
 ```
 
-Каталог `service/` создан в M7 (T1.1), `cloud/` появится в T4.2. Каталоги
+Каталог `service/` создан в M7 (T1.1: скелет, T1.2: БД и миграции),
+`cloud/` появится в T4.2. Каталоги
 `observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
 интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
@@ -432,6 +434,16 @@ ClicKit/
      подменяют настройки явным `Settings`. Версия сервиса — отдельная
      (`service/app/version.py`), git sha и время сборки — из env, чтобы один
      образ сообщал свой коммит.
+  52. **Схема БД — только Alembic; readiness отдельно от liveness**
+     (2026-11-02, M7 T1.2): PostgreSQL-схема применяется исключительно
+     миграциями `service/migrations` (модели `service/app/models.py` — источник
+     metadata для autogenerate), сервис не вызывает `create_all` и не меняет
+     схему молча. `CLICKIT_DB_URL` обязателен (fail-closed), engine создаётся
+     в `lifespan` и закрывается на остановке, но соединение при старте не
+     устанавливается: `/healthz` остаётся живым без БД, а `/readyz` выполняет
+     `SELECT 1` с таймаутом 5 с и отвечает 503 без деталей ошибки (они только
+     в журнале). Уникальный индекс по `idempotency_key` допускает NULL — это
+     основа идемпотентности T2.1, а не отдельная «таблица ключей».
 
 ---
 

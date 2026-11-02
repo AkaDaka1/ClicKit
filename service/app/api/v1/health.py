@@ -1,16 +1,23 @@
-"""Системные эндпоинты ClicKit Cloud: liveness, версия и заготовка метрик.
+"""Системные эндпоинты ClicKit Cloud: liveness, readiness, версия и метрики.
 
-`/readyz` (проверка БД) появится в T1.2 вместе с подключением к PostgreSQL.
+`/healthz` не трогает БД (иначе упавшая база «убивала» бы живой процесс),
+`/readyz` проверяет `SELECT 1` и отвечает 503 при недоступной БД — см.
+`docs/api.md` §5.1–5.2.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import PlainTextResponse
 
 from core.ir.nodes import SCENARIO_VERSION
 from service.app.config import Settings
-from service.app.schemas import HealthResponse, VersionResponse
+from service.app.schemas import (
+    HealthResponse,
+    ReadinessChecks,
+    ReadinessResponse,
+    VersionResponse,
+)
 from service.app.version import SERVICE_NAME, SERVICE_VERSION
 
 router = APIRouter(tags=["system"])
@@ -25,6 +32,30 @@ router = APIRouter(tags=["system"])
 def healthz() -> HealthResponse:
     """Сообщить, что процесс жив (БД не проверяется)."""
     return HealthResponse(status="ok", service=SERVICE_NAME, version=SERVICE_VERSION)
+
+
+@router.get(
+    "/readyz",
+    response_model=ReadinessResponse,
+    summary="Readiness-проверка с БД",
+    description="Выполняет `SELECT 1`; 503 при недоступной БД (docs/api.md §5.2).",
+    responses={
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": ReadinessResponse,
+            "description": "БД недоступна",
+        }
+    },
+)
+def readyz(request: Request, response: Response) -> ReadinessResponse:
+    """Проверить готовность принимать запросы (доступность БД)."""
+    database = getattr(request.app.state, "database", None)
+    ready = database is not None and database.check()
+    if not ready:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return ReadinessResponse(
+        status="ready" if ready else "unavailable",
+        checks=ReadinessChecks(database="ok" if ready else "error"),
+    )
 
 
 @router.get(
