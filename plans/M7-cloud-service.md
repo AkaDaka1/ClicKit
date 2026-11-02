@@ -1,6 +1,6 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
-> План создан 2026-11-01. Статус: 📋 запланировано.
+> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, 2026-11-02).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -128,19 +128,30 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 
 ### 5.3. Модель данных
 
-- `scenarios`: `id uuid pk`, `name text`, `description text null`,
-  `ir jsonb`, `sha256 char(64)`, `idempotency_key text null unique`,
-  `created_at timestamptz`, `updated_at timestamptz`; индекс по `sha256`.
-- `crash_reports`: `id uuid pk`, `app_version text`, `os text`,
-  `error_hash char(64)`, `traceback text null` (обрезается до 16 КБ),
-  `created_at timestamptz`; без имён пользователей, путей и IP.
+Уточнена в T0.1; нормативная схема — `docs/api.md` §8.
+
+- `scenarios`: `id uuid pk`, `name text` (1–200), `description text`
+  (≤ 2000, `''`), `ir jsonb` (нормализованный IR), `sha256 char(64)`,
+  `idempotency_key text null` + `idempotency_body char(64) null`
+  (уникальный индекс допускает много NULL — Postgres), `created_at`,
+  `updated_at` `timestamptz`; индексы по `sha256`, `idempotency_key`
+  (unique) и `created_at DESC`.
+- `crash_reports`: `id uuid pk`, `app_version text` (1–64), `os text`
+  (≤ 64, `''`), `error_hash char(64)`, `traceback text null` (санитайзер
+  домашних путей + обрезка до 16 КБ), `created_at timestamptz`; без имён
+  пользователей, путей и IP; индекс по `created_at`.
 - Ретеншн crash-отчётов — 30 дней (документируется; очистка — cron/M11).
+- `sha256` сценария и `ETag` — хэш канонического JSON
+  `Scenario.to_mapping()` (`sort_keys`, `ensure_ascii=False`,
+  `separators=(",", ":")`), поэтому скачивание детерминировано.
 
 ### 5.4. Ошибки и лимиты
 
-- 401 — нет/неверный `X-API-Key`; 403 — ключ не даёт прав на удаление.
+- 401 — нет/неверный `X-API-Key`; 403 — ключ не даёт прав на удаление
+  (`CLICKIT_ADMIN_API_KEY` задан, а передан только write-ключ).
 - 404 — сценарий не найден; 409 — конфликт `Idempotency-Key` с другим телом.
-- 413 — тело больше 1 МБ; 422 — схема/IR невалидны, список путей в `errors`.
+- 413 — тело больше 1 МБ; 415 — `Content-Type` не JSON; 422 — схема/IR
+  невалидны, список путей в `errors`.
 - 429 — зарезервировано под rate limit (реализация — M11).
 - Все 4xx/5xx — `application/problem+json` с `type`, `title`, `status`,
   `detail`, `instance`, `request_id`.
@@ -164,7 +175,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 
 | ID | Задача | Зависимости | Чекпоинт (done = …) | Статус |
 |---|---|---|---|---|
-| T0.1 | Контракт API и ADR: эндпоинты, коды, лимиты, схема БД | — | `docs/api.md` и этот план согласованы; код не пишется | ⬜ |
+| T0.1 | Контракт API и ADR: эндпоинты, коды, лимиты, схема БД | — | `docs/api.md` и этот план согласованы; код не пишется | ✅ |
 | T1.1 | Скелет сервиса: FastAPI, config, `/healthz`, `/version` | T0.1 | `uvicorn service.app.main:app` отвечает 200; `ruff` чист | ⬜ |
 | T1.2 | БД, модели, Alembic, `/readyz` | T1.1 | Postgres поднят, миграции применяются, 200/503 проверены | ⬜ |
 | T2.1 | CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ | T1.2 | Тесты 201/200/404/409/413/422; дубль по ключу не создаётся | ⬜ |
@@ -229,6 +240,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | Дата | Задача | Результат | Commit |
 |---|---|---|---|
 | 2026-11-01 | — | План создан, границы с M6 зафиксированы | — |
+| 2026-11-02 | T0.1 | Контракт API создан — `docs/api.md` (общие соглашения, авторизация по ключам write/admin и fail-closed, `X-Request-ID`/`Idempotency-Key`/`ETag`, RFC 7807 с URN-типами, 9 эндпоинтов с примерами, правила валидации IR через `core.ir.schema`, лимиты, семантика идемпотентности на 24 ч, схема БД Postgres 16, env-конфигурация, интерфейс `cloud/client.py` и CLI с кодами выхода). План §5.3/5.4 уточнён под контракт (хэш тела идемпотентности, индексы, санитайзер traceback, 415). Код не писался | — |
 
 ## 12. Вне вехи (сознательно)
 
