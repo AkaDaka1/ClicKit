@@ -147,7 +147,11 @@ ClicKit/
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
-│   ├── app/               # main, config, db, models, schemas, version, api/v1/
+│   ├── app/               # main, config, db, models, schemas, version, errors,
+│   │                      # middleware (лимит тела), scenario_service (домен
+│   │                      # сценариев), repository (SQL-доступ), crash_service
+│   │                      # (домен crash-отчётов), api/ (deps.py + v1/: health,
+│   │                      # scenarios, crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
 └── tests/
@@ -444,6 +448,21 @@ ClicKit/
      `SELECT 1` с таймаутом 5 с и отвечает 503 без деталей ошибки (они только
      в журнале). Уникальный индекс по `idempotency_key` допускает NULL — это
      основа идемпотентности T2.1, а не отдельная «таблица ключей».
+  53. **Домен отдельно от SQL; лимит тела — общий middleware** (2026-11-04,
+     M7 T2.1/T2.2): бизнес-правила сервиса разложены по чистым модулям
+     (`scenario_service.py` — хэши/валидация/решения по `Idempotency-Key`,
+     `crash_service.py` — санитайзер PII и валидация отчётов), а SQLAlchemy
+     живёт только в `repository.py` и `api/deps.py`: доменные правила
+     тестируются без БД, SQL — на реальном PostgreSQL. Хэш сценария `sha256` —
+     от канонического JSON (`sort_keys`, `ensure_ascii=False`,
+     `separators=(",",":")`) по нормализованному IR (`Scenario.to_mapping()`),
+     поэтому ETag и дедупликация не зависят от порядка ключей. Лимит тела
+     1 МБ реализован как `BodySizeLimitMiddleware` (Content-Length + потоковое
+     чтение с потолком), а не внутри маршрутов: один предел действует и для
+     сценариев, и для crash-отчётов до разбора JSON. Ошибки — RFC 7807
+     (`errors.py`: URN-каталог, `application/problem+json`, `request_id`);
+     санитайзер traceback заменяет домашние каталоги на `<пользователь>` и
+     обрезает текст до 16 КБ, тело отчёта не логируется (приватность).
 
 ---
 
@@ -569,6 +588,16 @@ runner недоступен), Linux-образ — через `docker/build-push
   сертификат) для проверки алертов и runbook.
 
 ---
+
+*Последнее обновление: 2026-11-04 (**M7 T2.1 и T2.2 выполнены** — CRUD
+сценариев и приём crash-отчётов в ClicKit Cloud: `service/app/` пополнен
+модулями `scenario_service.py`, `repository.py`, `crash_service.py`,
+`errors.py`, `middleware.py`, `api/deps.py`, `api/v1/{scenarios,crash_reports}.py`;
+идемпотентность `Idempotency-Key` 24 ч, ETag/If-None-Match, problem+json
+(RFC 7807), `BodySizeLimitMiddleware` (1 МБ до разбора), санитайзер PII
+в traceback; §3.2 — состав `service/app/`, §3.3 — ADR №52–53. Тесты: 136
+service (SQLite + PostgreSQL 16), всего 410 passed. Ранее, 2026-11-02:
+**T1.2 выполнен** — БД/модели/Alembic, `/readyz` 200/503, ADR №52.)*
 
 *Последнее обновление: 2026-11-02 (**M7 T1.1 выполнен** — скелет ClicKit
 Cloud: `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`
