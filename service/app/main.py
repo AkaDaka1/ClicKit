@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from service.app.api.v1 import health, scenarios
+from service.app.api.v1 import crash_reports, health, scenarios
 from service.app.config import Settings, load_settings
 from service.app.db import Database, DatabaseProtocol
 from service.app.errors import ApiError, api_error_handler
@@ -71,6 +71,7 @@ def create_app(
     app.add_exception_handler(ApiError, api_error_handler)
     app.include_router(health.router)
     app.include_router(scenarios.router)
+    app.include_router(crash_reports.router)
     return app
 
 

@@ -85,3 +85,10 @@ class ProblemDetails(BaseModel):
     errors: list[ProblemDetailError] | None = Field(
         default=None, description="Ошибки валидации (только для 422)"
     )
+
+
+class CrashReceipt(BaseModel):
+    """Ответ 202 на приём crash-отчёта (`docs/api.md` §5.9)."""
+
+    id: str = Field(description="UUIDv4 сохранённого отчёта")
+    received_at: str = Field(description="Время приёма (RFC 3339, UTC)")
