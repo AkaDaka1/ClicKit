@@ -145,11 +145,22 @@ ClicKit/
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
+├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
+├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
+│   ├── app/               # main, config, db, models, schemas, version, errors,
+│   │                      # middleware (лимит тела), scenario_service (домен
+│   │                      # сценариев), repository (SQL-доступ), crash_service
+│   │                      # (домен crash-отчётов), api/ (deps.py + v1/: health,
+│   │                      # scenarios, crash_reports)
+│   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
+├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
 └── tests/
 ```
 
-Каталоги `service/`, `observability/`, `infra/`, `deploy/`, `docs/sre/`
-появятся в M7–M11; их интерфейсы и критерии готовности зафиксированы в
+Каталог `service/` создан в M7 (T1.1: скелет, T1.2: БД и миграции),
+`cloud/` появится в T4.2. Каталоги
+`observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
+интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
 структура выше — фактическая; плановые каталоги не считаются реализованными.
 
@@ -417,6 +428,41 @@ ClicKit/
      а не оценки «на глаз».
  50. **Восстановление проверяется, а не предполагается** (2026-11-01,
      план M11): бэкап без drill — надежда; RTO/RPO фиксируются по факту.
+ 51. **Конфигурация сервиса — env с проверкой на старте** (2026-11-02,
+     M7 T1.1): `service/app/config.py` читает только переменные окружения
+     (секретов в коде нет), проверяет длины ключей, положительность лимитов
+     и известность уровня журнала; без `CLICKIT_API_KEY` (≥ 16 символов)
+     сервис не стартует (fail-closed), а не работает «наполовину открытым».
+     Настройки читаются в `lifespan`, а не при импорте модуля, поэтому
+     `import service.app.main`, OpenAPI и тесты не требуют секретов; тесты
+     подменяют настройки явным `Settings`. Версия сервиса — отдельная
+     (`service/app/version.py`), git sha и время сборки — из env, чтобы один
+     образ сообщал свой коммит.
+  52. **Схема БД — только Alembic; readiness отдельно от liveness**
+     (2026-11-02, M7 T1.2): PostgreSQL-схема применяется исключительно
+     миграциями `service/migrations` (модели `service/app/models.py` — источник
+     metadata для autogenerate), сервис не вызывает `create_all` и не меняет
+     схему молча. `CLICKIT_DB_URL` обязателен (fail-closed), engine создаётся
+     в `lifespan` и закрывается на остановке, но соединение при старте не
+     устанавливается: `/healthz` остаётся живым без БД, а `/readyz` выполняет
+     `SELECT 1` с таймаутом 5 с и отвечает 503 без деталей ошибки (они только
+     в журнале). Уникальный индекс по `idempotency_key` допускает NULL — это
+     основа идемпотентности T2.1, а не отдельная «таблица ключей».
+  53. **Домен отдельно от SQL; лимит тела — общий middleware** (2026-11-04,
+     M7 T2.1/T2.2): бизнес-правила сервиса разложены по чистым модулям
+     (`scenario_service.py` — хэши/валидация/решения по `Idempotency-Key`,
+     `crash_service.py` — санитайзер PII и валидация отчётов), а SQLAlchemy
+     живёт только в `repository.py` и `api/deps.py`: доменные правила
+     тестируются без БД, SQL — на реальном PostgreSQL. Хэш сценария `sha256` —
+     от канонического JSON (`sort_keys`, `ensure_ascii=False`,
+     `separators=(",",":")`) по нормализованному IR (`Scenario.to_mapping()`),
+     поэтому ETag и дедупликация не зависят от порядка ключей. Лимит тела
+     1 МБ реализован как `BodySizeLimitMiddleware` (Content-Length + потоковое
+     чтение с потолком), а не внутри маршрутов: один предел действует и для
+     сценариев, и для crash-отчётов до разбора JSON. Ошибки — RFC 7807
+     (`errors.py`: URN-каталог, `application/problem+json`, `request_id`);
+     санитайзер traceback заменяет домашние каталоги на `<пользователь>` и
+     обрезает текст до 16 КБ, тело отчёта не логируется (приватность).
 
 ---
 
@@ -500,6 +546,9 @@ runner недоступен), Linux-образ — через `docker/build-push
   FastAPI и `httpx`; сервис может использовать только чистую доменную логику
   `core.ir`. Секреты — через env/GitHub Environments, в Git только
   `.env.example` без значений.
+- **Контракт API — `docs/api.md`:** эндпоинты, коды ошибок, лимиты и схема БД
+  меняются в документе и в плане M7 до кода; сервис и клиент обязаны
+  соответствовать контракту (расхождение — баг, а не «особенность»).
 - **Вендоренные файлы Blockly не редактируются:** `blockly_compressed.js`,
   `blocks_compressed.js`, `msg/`, `media/` обновляются только через
   `python scripts/vendor_blockly.py` (версия pinned). Наши файлы страницы
@@ -540,7 +589,31 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-01 (планы **M7–M11** созданы и согласованы:
+*Последнее обновление: 2026-11-04 (**M7 T2.1 и T2.2 выполнены** — CRUD
+сценариев и приём crash-отчётов в ClicKit Cloud: `service/app/` пополнен
+модулями `scenario_service.py`, `repository.py`, `crash_service.py`,
+`errors.py`, `middleware.py`, `api/deps.py`, `api/v1/{scenarios,crash_reports}.py`;
+идемпотентность `Idempotency-Key` 24 ч, ETag/If-None-Match, problem+json
+(RFC 7807), `BodySizeLimitMiddleware` (1 МБ до разбора), санитайзер PII
+в traceback; §3.2 — состав `service/app/`, §3.3 — ADR №52–53. Тесты: 136
+service (SQLite + PostgreSQL 16), всего 410 passed. Ранее, 2026-11-02:
+**T1.2 выполнен** — БД/модели/Alembic, `/readyz` 200/503, ADR №52.)*
+
+*Последнее обновление: 2026-11-02 (**M7 T1.1 выполнен** — скелет ClicKit
+Cloud: `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`
+(`/healthz`, `/version`, `/metrics`-заготовка), `requirements-service.txt`;
+настройки только из env и проверяются в `lifespan` (без `CLICKIT_API_KEY`
+сервис не стартует — fail-closed), версия сервиса отдельная, git sha из env;
+проверено `uvicorn service.app.main:app` → 200, 15 новых тестов (всего 289),
+`ruff` чист; §3.2 — `service/` и `cloud/`, §3.3 — ADR №51, §4 — правило
+контракта API.)*
+
+*Последнее обновление: 2026-11-02 (M7 в работе: **T0.1 выполнен** — создан
+`docs/api.md`, контракт ClicKit Cloud v1.0: авторизация write/admin-ключами
+и fail-closed, RFC 7807 с URN-типами ошибок, 9 эндпоинтов, лимиты, семантика
+`Idempotency-Key` на 24 ч, схема PostgreSQL 16, env-конфигурация, контракт
+клиента `cloud/client.py` и CLI; план M7 §5.3/5.4 уточнён, §3.2 дополнен
+каталогом `docs/`. Ранее, 2026-11-01: планы **M7–M11** созданы и согласованы —
 `plans/M7-cloud-service.md` (сервис сценариев, PostgreSQL, Docker),
 `plans/M8-observability.md` (метрики/логи/трейсы, дашборды, алерты, SLO),
 `plans/M9-infrastructure.md` (Terraform, облако, k3s, Helm, HTTPS),
@@ -548,8 +621,8 @@ runner недоступен), Linux-образ — через `docker/build-push
 `plans/M11-security-resilience.md` (сканирование, SBOM, нагрузка, бэкапы,
 chaos); `plans/` исключён из `.gitignore` и теперь публичен, добавлен индекс
 `plans/README.md`; §3.2 — плановые каталоги, §3.3 — ADR №36–50, §4 — правила
-публичных планов и сервисного слоя, §5 — глоссарий SRE; M6 остаётся в работе
-(T3.2, T4.1, T5.1, T6.1), новые вехи его не дублируют.)*
+публичных планов и сервисного слоя, §5 — глоссарий SRE; M6 закрыт по
+чекпоинтам (см. запись ниже), новые вехи его не дублируют.)*
 
 *Последнее обновление: 2026-11-01 (M6: **T1.2 выполнена** — 274 теста зелёны в Linux-контейнере: `xvfb-run` (pynput/pyautogui требуют `DISPLAY`), полный apt-список Qt/WebEngine, обход падения PySide6 на финализации через `os._exit` в `tests/conftest.py`; **T2.1 выполнена** — job `tests-docker` в `ci.yml` (образ `clikit-test:ci` из контекста PR, JUnit в `reports/` + артефакт при падении), PR #2: lint + tests 3.11–3.13 + tests-docker зелёные; §3.3 — ADR №33 дополнен деталями Linux-прогона, §3.4 — схема CI с `tests-docker`.)*
 

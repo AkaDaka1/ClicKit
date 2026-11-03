@@ -11,7 +11,7 @@ line-length = 88
 select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "core", "gui", "bridge"]
+known-first-party = ["app", "core", "gui", "bridge", "service", "cloud"]
 
 [tool.pytest.ini_options]
 # Корень проекта в sys.path: тесты импортируют `app`, `core`, `gui`, `tests.*`.
