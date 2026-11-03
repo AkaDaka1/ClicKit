@@ -1,6 +1,7 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
-> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅, 2026-11-02).
+> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅,
+> T2.1 ✅ — 2026-11-03).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -111,9 +112,14 @@ service/
 │   ├── db.py             # engine, session, healthcheck
 │   ├── models.py         # SQLAlchemy-модели
 │   ├── schemas.py        # Pydantic-схемы запросов/ответов
-│   ├── security.py       # API-ключ, сравнение за постоянное время
+│   ├── scenario_service.py # домен сценариев: хэши, валидация, идемпотентность
+│   ├── repository.py     # SqlScenarioRepository (доступ к таблице scenarios)
+│   ├── middleware.py     # BodySizeLimitMiddleware (общий лимит тела)
+│   ├── security.py       # API-ключ, сравнение за постоянное время (T3.1)
 │   ├── errors.py         # problem+json, обработчики
-│   └── api/v1/           # health.py (системные), scenarios.py, crash_reports.py
+│   └── api/
+│       ├── deps.py       # зависимости маршрутов: сессия БД, UUID, RFC 3339
+│       └── v1/           # health.py (системные), scenarios.py, crash_reports.py
 ├── migrations/           # Alembic
 cloud/
 ├── __init__.py
@@ -124,8 +130,13 @@ requirements-service.txt
 docs/api.md
 docs/cloud.md
 scripts/cloud_publish.py
-tests/service/            # API, БД, клиент, идемпотентность
+tests/service/            # API, БД, клиент, идемпотентность (+ conftest.py: БД на тест)
 ```
+
+Разделение `scenario_service.py` (чистая доменная логика) и `repository.py`
+(SQLAlchemy) добавлено в T2.1: бизнес-правила идемпотентности проверяются
+без БД, а SQL — на реальной PostgreSQL. `middleware.py` вынесен отдельно,
+чтобы лимит тела был общим для всех эндпоинтов, а не только для сценариев.
 
 ### 5.3. Модель данных
 
@@ -188,6 +199,15 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ⬜ |
 | T6.1 | Документация: README, `docs/cloud.md`, `docs/api.md`, ADR | T5.1 | Инструкции воспроизводятся с чистой машины; ADR в §3.3 | ⬜ |
 
+**Уточнение по T3.1 (2026-11-03).** Часть формата ошибок уже реализована в
+T2.1: `service/app/errors.py` отдаёт `application/problem+json` со всеми
+полями RFC 7807 (включая `request_id` и список `errors` с путями), а
+`X-Request-ID` возвращается на ошибках. В T3.1 остаётся: проверка
+`X-API-Key` (401/403, `security.py`, write/admin-ключи), валидация и эхо
+**входящего** `X-Request-ID` на всех ответах (в т. ч. успешных), единые
+обработчики `RequestValidationError`/`HTTPException`/500 и корреляция
+`request_id` в журнале.
+
 ### Параллелизм (волны)
 
 ```
@@ -243,7 +263,8 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | 2026-11-01 | — | План создан, границы с M6 зафиксированы | — |
 | 2026-11-02 | T0.1 | Контракт API создан — `docs/api.md` (общие соглашения, авторизация по ключам write/admin и fail-closed, `X-Request-ID`/`Idempotency-Key`/`ETag`, RFC 7807 с URN-типами, 9 эндпоинтов с примерами, правила валидации IR через `core.ir.schema`, лимиты, семантика идемпотентности на 24 ч, схема БД Postgres 16, env-конфигурация, интерфейс `cloud/client.py` и CLI с кодами выхода). План §5.3/5.4 уточнён под контракт (хэш тела идемпотентности, индексы, санитайзер traceback, 415). Код не писался | `b42d792` |
 | 2026-11-02 | T1.1 | Скелет сервиса: `service/app/{main,config,version,schemas}.py`, `api/v1/health.py` (`/healthz`, `/version`, `/metrics`), `requirements-service.txt`; настройки только из env, проверка при старте в `lifespan` (без `CLICKIT_API_KEY` процесс завершается с `ServiceConfigError` — fail-closed), `ir_format_version` берётся из `core.ir.nodes`. Проверено: `uvicorn service.app.main:app --port 8010` → `/healthz` 200, `/version` 200 (git sha из env), `/metrics` 200 `text/plain; version=0.0.4`, `/openapi.json` 200; запуск без ключа — `Application startup failed`. Тесты: 15 новых (`tests/service/`), всего 289 passed; `ruff check`/`format --check` чисто | — |
-| 2026-11-03 | T2.1 | CRUD сценариев: `service/app/{scenario_service,repository,errors,middleware}.py`, `api/v1/scenarios.py`, `api/deps.py`; `POST /v1/scenarios` (201 с `Idempotency-Key`, replay, 409, 413, 415, 422), `GET /v1/scenarios/{id}` (200 с `ETag`, 304 weak/strong), `GET /v1/scenarios` (пагинация, `created_at DESC`), `DELETE` (204/404); `BodySizeLimitMiddleware` (общий слой до разбора, `CLICKIT_MAX_BODY_BYTES`); `ScenarioRepository` с обработкой `IntegrityError` (гонка); валидация IR через `core.ir.schema` (ADR №37). Проверено: живой `uvicorn` + PostgreSQL 16 (Alembic-миграция `0001`), все эндпоинты, ETag, replay, конфликт, лимиты, problem+json. Тесты: 113 service (SQLite + PostgreSQL 16), всего **387 passed**; `ruff` чисто. Commit `0c4d8f1` | `0c4d8f1` |
+| 2026-11-02 | T1.2 | БД и миграции: `service/app/db.py` (`Database`: engine, `session`/`session_scope`, `check()` = `SELECT 1`, `dispose`, таймаут соединения 5 с), `service/app/models.py` (`scenarios`, `crash_reports` по `docs/api.md` §8, CHECK/индексы, `ux_scenarios_idempotency_key`), Alembic (`service/alembic.ini`, `service/migrations/env.py` + `versions/0001_initial_schema.py`, URL только из `CLICKIT_DB_URL`); `CLICKIT_DB_URL` стал обязательным (fail-closed), engine живёт в `lifespan`; `/readyz` — 200 `{"status":"ready","checks":{"database":"ok"}}` / 503 `unavailable` без деталей. Проверено на `postgres:16` в Docker (порт 55432): `upgrade head` → таблицы и `alembic_version=0001`, `alembic check` — без расхождений, `downgrade base`/`upgrade head` повторяются, живой `uvicorn` отдаёт 200, при остановленной БД — 503 при `/healthz` 200, после старта БД — снова 200. Тесты: 35 в `tests/service/` (всего **309 passed**), `ruff check`/`format --check` чисто | — |
+| 2026-11-03 | T2.1 | CRUD сценариев: `service/app/{scenario_service,repository,errors,middleware}.py`, `api/v1/scenarios.py`, `api/deps.py`; `POST /v1/scenarios` (201 с `Idempotency-Key`, replay, 409, 413, 415, 422), `GET /v1/scenarios/{id}` (200 с `ETag`, 304 weak/strong), `GET /v1/scenarios` (пагинация, `created_at DESC`), `DELETE` (204/404); `BodySizeLimitMiddleware` (общий слой до разбора, `CLICKIT_MAX_BODY_BYTES`); `ScenarioRepository` с обработкой `IntegrityError` (гонка); валидация IR через `core.ir.schema` (ADR №37). Проверено: живой `uvicorn` + PostgreSQL 16 (Alembic-миграция `0001`), все эндпоинты, ETag, replay, конфликт, лимиты, problem+json. Тесты: 113 service (SQLite + PostgreSQL 16), всего **387 passed**; `ruff` чисто. Commit `83f9585` | `83f9585` |
 
 ## 12. Вне вехи (сознательно)
 

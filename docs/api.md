@@ -192,7 +192,7 @@ clikit_build_info{version="0.1.0",git_sha="unknown"} 1
 {"version": 1, "name": "demo", "nodes": [{"type": "click", "x": 100, "y": 200}]}
 ```
 
-Заголовки: `ETag: "<sha256>"`, `Content-Disposition: attachment; filename="<name>.acl.json"` (имя очищается от управляющих символов). При `If-None-Match` с совпадающим `ETag` → **304** без тела.
+Заголовки: `ETag: "<sha256>"`, `Content-Disposition: attachment; filename="<name>.acl.json"` (имя очищается от управляющих символов). При `If-None-Match` с совпадающим `ETag` → **304** без тела. Сравнение для `GET` — слабое по RFC 9110: совпадают и `W/"<sha256>"`, и `*`; список тегов разделяется запятыми.
 
 Возможные ошибки: 404, 422 (невалидный UUID в пути).
 
@@ -446,10 +446,10 @@ curl -s localhost:8000/readyz
 curl -s localhost:8000/version
 curl -s -X POST localhost:8000/v1/scenarios \
   -H "Content-Type: application/json" -H "X-API-Key: $CLICKIT_API_KEY" \
-  -H "Idempotency-Key: demo-1" -d @scenario.json            # 201
+  -H "Idempotency-Key: demo-key-1" -d @scenario.json        # 201
 curl -s -X POST localhost:8000/v1/scenarios \
   -H "Content-Type: application/json" -H "X-API-Key: $CLICKIT_API_KEY" \
-  -H "Idempotency-Key: demo-1" -d @scenario.json            # 201 + Idempotent-Replay: true
+  -H "Idempotency-Key: demo-key-1" -d @scenario.json        # 201 + Idempotent-Replay: true
 curl -s localhost:8000/v1/scenarios/<id>                    # 200, ETag
 curl -s "localhost:8000/v1/scenarios?limit=20&offset=0"     # 200
 curl -s -X DELETE localhost:8000/v1/scenarios/<id> \
