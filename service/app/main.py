@@ -14,9 +14,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from service.app.api.v1 import health
+from service.app.api.v1 import health, scenarios
 from service.app.config import Settings, load_settings
 from service.app.db import Database, DatabaseProtocol
+from service.app.errors import ApiError, api_error_handler
+from service.app.middleware import BodySizeLimitMiddleware
 from service.app.version import SERVICE_NAME, SERVICE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -65,7 +67,10 @@ def create_app(
         description="HTTP-сервис публикации сценариев ClicKit и crash-отчётов.",
         lifespan=lifespan,
     )
+    app.add_middleware(BodySizeLimitMiddleware)
+    app.add_exception_handler(ApiError, api_error_handler)
     app.include_router(health.router)
+    app.include_router(scenarios.router)
     return app
 
 
