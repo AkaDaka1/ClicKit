@@ -148,10 +148,12 @@ ClicKit/
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
-│   │                      # middleware (лимит тела), scenario_service (домен
-│   │                      # сценариев), repository (SQL-доступ), crash_service
-│   │                      # (домен crash-отчётов), api/ (deps.py + v1/: health,
-│   │                      # scenarios, crash_reports)
+│   │                      # middleware (лимит тела), request_id (X-Request-ID
+│   │                      # и журнальный контекст), security (роли ключей),
+│   │                      # scenario_service (домен сценариев), repository
+│   │                      # (SQL-доступ), crash_service (домен crash-отчётов),
+│   │                      # api/ (deps.py + v1/: health, scenarios,
+│   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
 └── tests/
@@ -463,6 +465,19 @@ ClicKit/
      (`errors.py`: URN-каталог, `application/problem+json`, `request_id`);
      санитайзер traceback заменяет домашние каталоги на `<пользователь>` и
      обрезает текст до 16 КБ, тело отчёта не логируется (приватность).
+  54. **Ключи по ролям и `request_id` на всех ответах** (2026-11-04,
+      M7 T3.1): `security.py` — чистые функции ролей, ключ сравнивается
+      `hmac.compare_digest` и никогда не попадает в ответ/журнал; write-ключ
+      (`CLICKIT_API_KEY`) публикует, admin-ключ (`CLICKIT_ADMIN_API_KEY`)
+      удаляет, при заданном admin-ключе write-ключ на `DELETE` получает 403,
+      admin-ключ на `POST` — тоже 403 (роли разделены, а не иерархичны).
+      `request_id.py` — `RequestContextMiddleware` валидирует входящий
+      `X-Request-ID` (32–64 символа `[A-Za-z0-9._-]`), иначе генерирует UUID4,
+      возвращает заголовок на **всех** ответах (включая 413 лимита тела) и
+      кладёт идентификатор в `ContextVar` для журнала. Обработчики
+      `RequestValidationError`, `HTTPException` и `Exception` дают единый
+      problem+json (400/405 добавлены в каталог URN); 500 не раскрывает
+      деталей, traceback — только в журнале с `request_id`.
 
 ---
 
@@ -589,15 +604,22 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-04 (**M7 T2.1 и T2.2 выполнены** — CRUD
+*Последнее обновление: 2026-11-04 (**M7 T3.1 выполнена** — API-ключи по
+ролям, единый problem+json и `X-Request-ID` на всех ответах:
+`service/app/security.py` (write/admin, `hmac.compare_digest`, 401/403),
+`service/app/request_id.py` (`RequestContextMiddleware`, валидация входящего
+идентификатора, журнальный `ContextVar`), обработчики
+`RequestValidationError`/`HTTPException`/`Exception` в `errors.py`, deps
+`require_write_key`/`require_delete_key`; тесты `test_auth.py` и
+`test_request_id.py` (26), service — 162, всего 436 passed; §3.2 — состав
+`service/app/`, §3.3 — ADR №54. Ранее, 2026-11-04: **T2.1 и T2.2 выполнены** —
+CRUD
 сценариев и приём crash-отчётов в ClicKit Cloud: `service/app/` пополнен
 модулями `scenario_service.py`, `repository.py`, `crash_service.py`,
 `errors.py`, `middleware.py`, `api/deps.py`, `api/v1/{scenarios,crash_reports}.py`;
 идемпотентность `Idempotency-Key` 24 ч, ETag/If-None-Match, problem+json
 (RFC 7807), `BodySizeLimitMiddleware` (1 МБ до разбора), санитайзер PII
-в traceback; §3.2 — состав `service/app/`, §3.3 — ADR №52–53. Тесты: 136
-service (SQLite + PostgreSQL 16), всего 410 passed. Ранее, 2026-11-02:
-**T1.2 выполнен** — БД/модели/Alembic, `/readyz` 200/503, ADR №52.)*
+в traceback; §3.2 — состав `service/app/`, §3.3 — ADR №52–53.)*
 
 *Последнее обновление: 2026-11-02 (**M7 T1.1 выполнен** — скелет ClicKit
 Cloud: `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`
