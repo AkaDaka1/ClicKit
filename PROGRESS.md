@@ -52,15 +52,17 @@
 | 2026-11-04 | **T2.2 (M7) выполнена — приём crash-отчётов:** `service/app/crash_service.py` (валидация `app_version` 1–64 / `os` ≤64 / `error_hash` ровно 64 hex с нормализацией в lowercase; санитайзер PII: домашние каталоги `C:\Users\*`, `/home/*`, `/Users/*` → `<пользователь>`; обрезка traceback до 16 384 символов), `service/app/api/v1/crash_reports.py` (`POST /v1/crash-reports` — 202 `{id, received_at}`, публичный эндпоинт без `X-API-Key`; ошибки 415/422 в problem+json со списком `errors`; тело отчёта не логируется), схема `CrashReceipt` в `schemas.py`, роутер зарегистрирован в `main.py`; лимит тела 1 МБ наследуется от общего `BodySizeLimitMiddleware` (T2.1). Ретеншн 30 дней документирован в `docs/api.md` §5.9 (фоновый очиститель — M8/M11). Тесты: 23 новых (`tests/service/test_crash_reports_api.py`: приём, санитайзер для Windows/Unix/macOS, обрезка, валидация, 415/413/422, OpenAPI), всего 136 service и **410 passed** полным прогоном; `ruff check`/`format --check` чисто. Commit `000be31` | ✅ Готово |
 | 2026-11-04 | Уборка после параллельных сессий T2.1/T2.2: удалены worktree `ClicKit-t22`, локальная ветка `feat/m7-t22-crash-reports` (`9dcef38`, альтернативная реализация T2.2, не влита) и stash с устаревшим T2.1; почищены кэши `__pycache__`/`.pytest_cache`/`.ruff_cache`; исправлена ссылка на тесты в `crash_service.py` (`test_crash_reports_api.py`). master = `origin/master`, 136 service-тестов и `ruff` зелёные | ✅ Готово |
 | 2026-11-04 | **T3.1 (M7) выполнена — API-ключи и корреляция запросов:** `service/app/security.py` (роли `write`/`admin`, `hmac.compare_digest`, 401 без/с неверным ключом, 403 при недостаточной роли; роли не иерархичны: admin-ключ не публикует, write-ключ не удаляет при заданном `CLICKIT_ADMIN_API_KEY`), `service/app/request_id.py` (`RequestContextMiddleware`: валидный входящий `X-Request-ID` (32–64, `[A-Za-z0-9._-]`) пробрасывается, иначе UUID4; заголовок на всех ответах, включая 413; `ContextVar` + `RequestIdFilter` для журнала), единые обработчики `RequestValidationError`/`HTTPException`/`Exception` в `errors.py` (URN 400/405; 500 без деталей, traceback только в журнале с `request_id`), deps `require_write_key`/`require_delete_key` и схема `ApiKey` в OpenAPI; `BodySizeLimitMiddleware` берёт id из scope. Проверено: 401/403/201/204, эхо валидного и замена невалидного id, 404/405/422/413/500 в problem+json, ключ отсутствует в ответах и журнале. Тесты: 26 новых (`test_auth.py`, `test_request_id.py`), service — 162, всего **436 passed**; `ruff check`/`format --check` чисто. Commit `105c9dc` | ✅ Готово |
+| 2026-11-04 | **T3.2 (M7) выполнена — Docker-образ сервиса:** `docker/Dockerfile.service` (multi-stage `builder` → `runtime`: venv с зависимостями, non-root `UID/GID 10001`, `HEALTHCHECK` раз в 10 с через `python -m service.app.healthcheck` только по `/healthz`, exec-форма uvicorn и `--timeout-graceful-shutdown 20`); `service/app/healthcheck.py` (короткая ошибка без traceback, URL из env); `requirements-service.txt` разделён на runtime и `requirements-service-test.txt` (pytest/coverage в образ не попадают), `.dockerignore` дополнен `.env*`/отчётами покрытия. Проверено вживую: образ `clikit-service:local` 332 МБ, контейнер healthy, `uid=10001`, `/healthz`/`/readyz`/`/version` 200, `POST`/`GET` сценария на PostgreSQL 16 (Alembic `0001`), `docker stop` → exit 0 и graceful shutdown. Тесты: 8 новых (`test_dockerfile.py`, `test_healthcheck.py`), всего **444 passed**; `ruff check`/`format --check` чисто. Commit `05a6624` | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
 - **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
-  подтверждены реальными прогонами GitHub Actions; **M7 в работе** (T0.1–T3.1
+  подтверждены реальными прогонами GitHub Actions; **M7 в работе** (T0.1–T3.2
   готовы: контракт API, скелет сервиса, БД и миграции, CRUD сценариев,
-  приём crash-отчётов, API-ключи и корреляция запросов), M8–M11 запланированы.
+  приём crash-отчётов, API-ключи и корреляция запросов, production-образ
+  сервиса), M8–M11 запланированы.
   Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
@@ -137,15 +139,20 @@
   401/403), `service/app/request_id.py` (`RequestContextMiddleware`,
   валидация и эхо `X-Request-ID` на всех ответах, `ContextVar` в журнале),
   единые problem+json-обработчики `RequestValidationError`/`HTTPException`/
-  `Exception`; 26 тестов, всего **436 passed**. Следующая — T3.2
-  (`Dockerfile.service`: multi-stage, non-root, healthcheck).
-- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2).
+  `Exception`; 26 тестов, всего **436 passed**.
+  **T3.2 ✅** (2026-11-04): production-образ — `docker/Dockerfile.service`
+  (multi-stage, non-root `10001`, `HEALTHCHECK` через
+  `service/app/healthcheck.py`), разделение runtime/тестовых зависимостей;
+  образ 332 МБ, healthy, graceful shutdown по SIGTERM; 8 тестов, всего
+  **444 passed**. Следующая — T4.1 (`docker-compose.cloud.yml`).
+- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2); тестовые зависимости сервиса вынесены в `requirements-service-test.txt` (T3.2).
 - **Ближайшая веха:** **M7 — ClicKit Cloud**: T0.1 ✅ (контракт `docs/api.md`),
   T1.1 ✅ (скелет сервиса), T1.2 ✅ (БД, модели, Alembic, `/readyz`),
   **T2.1 ✅** (CRUD сценариев, идемпотентность, лимит 1 МБ), **T2.2 ✅**
   (приём crash-отчётов, санитайзер PII), **T3.1 ✅** (API-ключи, единый
-  problem+json, `X-Request-ID` на всех ответах), следующая задача — **T3.2**
-  (Docker-образ сервиса: multi-stage, non-root, healthcheck).
+  problem+json, `X-Request-ID` на всех ответах), **T3.2 ✅** (Docker-образ
+  сервиса: multi-stage, non-root, healthcheck), следующая задача — **T4.1**
+  (`docker-compose.cloud.yml`: API + PostgreSQL + том).
 
 ## Следующие шаги (по порядку)
 
@@ -156,7 +163,7 @@
    ветки после merge; почистить влитые `feat/*`-ветки.
 4. **M7 — ClicKit Cloud** (`plans/M7-cloud-service.md`): T0.1 контракт ✅ →
    T1.1 скелет ✅ → T1.2 БД ✅ → T2.1/T2.2 CRUD и crash-отчёты ✅ →
-   T3.1 ключи и request_id ✅ → T3.2 Dockerfile → T4.1 compose → T4.2 клиент →
+   T3.1 ключи и request_id ✅ → T3.2 Dockerfile ✅ → T4.1 compose → T4.2 клиент →
    T5.1 тесты/CI → T6.1 docs. Для локальной проверки БД: `postgres:16` в Docker
    и `alembic -c service/alembic.ini upgrade head` при заданном
    `CLICKIT_DB_URL`. T5.1 ждёт коммита M6 T2.1, если `ci.yml` занят.

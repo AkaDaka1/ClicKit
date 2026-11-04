@@ -1,0 +1,10 @@
+# Тестовые зависимости ClicKit Cloud (M7, T5.1).
+# Установка: pip install -r requirements-service-test.txt
+# Файл подключает runtime-зависимости сервиса и добавляет инструменты тестов;
+# в production-образ (docker/Dockerfile.service) он не попадает.
+
+-r requirements-service.txt
+
+pytest>=8.0
+pytest-asyncio>=0.24
+pytest-cov>=5.0

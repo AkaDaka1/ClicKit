@@ -92,6 +92,8 @@ ClicKit/
 ├── README.md
 ├── requirements.txt
 ├── requirements-build.txt   # PyInstaller для сборки .exe (M5)
+├── requirements-service.txt       # runtime сервиса ClicKit Cloud (M7)
+├── requirements-service-test.txt  # тесты сервиса: pytest/coverage (M7)
 ├── app/                   # точка входа (python -m app)
 │   ├── __main__.py
 │   ├── application.py     # QApplication, тема, логирование, сборка зависимостей
@@ -141,7 +143,8 @@ ClicKit/
 │   ├── icons/             # app.svg + app.ico (сборка .exe)
 │   └── styles/            # dark.qss и light.qss
 ├── packaging/             # PyInstaller: ClicKit.spec, version_info.txt, NOTICE.txt
-├── docker/                # Dockerfile.test (Linux-тесты) и Dockerfile.build-win (M6)
+├── docker/                # Dockerfile.test (Linux-тесты), Dockerfile.build-win (M6),
+│                          # Dockerfile.service (production-образ ClicKit Cloud, M7 T3.2)
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
@@ -152,6 +155,7 @@ ClicKit/
 │   │                      # и журнальный контекст), security (роли ключей),
 │   │                      # scenario_service (домен сценариев), repository
 │   │                      # (SQL-доступ), crash_service (домен crash-отчётов),
+│   │                      # healthcheck (liveness для Docker HEALTHCHECK),
 │   │                      # api/ (deps.py + v1/: health, scenarios,
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
@@ -478,6 +482,17 @@ ClicKit/
       `RequestValidationError`, `HTTPException` и `Exception` дают единый
       problem+json (400/405 добавлены в каталог URN); 500 не раскрывает
       деталей, traceback — только в журнале с `request_id`.
+   55. **Production-образ сервиса — multi-stage, non-root, liveness**
+      (2026-11-04, M7 T3.2): `docker/Dockerfile.service` ставит зависимости
+      в venv на этапе `builder`, а `runtime` копирует только venv и код
+      (`service/` и `core/` — для валидации IR). Тестовые зависимости вынесены
+      в `requirements-service-test.txt` и в образ не попадают. Процесс
+      работает от `UID/GID 10001`; `HEALTHCHECK` раз в 10 с вызывает
+      `python -m service.app.healthcheck` и проверяет только `/healthz` без
+      БД: недоступность PostgreSQL — повод для `/readyz` 503, а не для
+      перезапуска контейнера. `ENTRYPOINT`/`CMD` в exec-форме, поэтому SIGTERM
+      получает uvicorn и завершается graceful (exit 0). Секреты — только env;
+      `.dockerignore` исключает `.env*`, кроме `.env.example`.
 
 ---
 
@@ -604,22 +619,21 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-04 (**M7 T3.1 выполнена** — API-ключи по
-ролям, единый problem+json и `X-Request-ID` на всех ответах:
-`service/app/security.py` (write/admin, `hmac.compare_digest`, 401/403),
-`service/app/request_id.py` (`RequestContextMiddleware`, валидация входящего
-идентификатора, журнальный `ContextVar`), обработчики
-`RequestValidationError`/`HTTPException`/`Exception` в `errors.py`, deps
-`require_write_key`/`require_delete_key`; тесты `test_auth.py` и
-`test_request_id.py` (26), service — 162, всего 436 passed; §3.2 — состав
-`service/app/`, §3.3 — ADR №54. Ранее, 2026-11-04: **T2.1 и T2.2 выполнены** —
-CRUD
-сценариев и приём crash-отчётов в ClicKit Cloud: `service/app/` пополнен
-модулями `scenario_service.py`, `repository.py`, `crash_service.py`,
-`errors.py`, `middleware.py`, `api/deps.py`, `api/v1/{scenarios,crash_reports}.py`;
-идемпотентность `Idempotency-Key` 24 ч, ETag/If-None-Match, problem+json
-(RFC 7807), `BodySizeLimitMiddleware` (1 МБ до разбора), санитайзер PII
-в traceback; §3.2 — состав `service/app/`, §3.3 — ADR №52–53.)*
+*Последнее обновление: 2026-11-04 (**M7 T3.2 выполнена** — production-образ
+ClicKit Cloud: `docker/Dockerfile.service` (multi-stage `builder` → `runtime`,
+non-root `UID/GID 10001`, `HEALTHCHECK` через `service/app/healthcheck.py`
+на `/healthz`, exec-форма uvicorn для SIGTERM, graceful shutdown 20 с),
+`requirements-service.txt` разделён на runtime и
+`requirements-service-test.txt`; образ `clikit-service:local` 332 МБ
+собирается, healthy, работает не от root, CRUD и миграции проверены на
+PostgreSQL 16 в контейнере; 8 новых тестов, всего 444 passed; §3.2 —
+Dockerfile.service и healthcheck, §3.3 — ADR №55. Ранее, 2026-11-04:
+**T3.1 выполнена** — API-ключи по ролям, единый problem+json и
+`X-Request-ID` на всех ответах (`security.py`, `request_id.py`, 26 тестов,
+436 passed, ADR №54); **T2.1 и T2.2** — CRUD сценариев и приём crash-отчётов
+(`scenario_service.py`, `repository.py`, `crash_service.py`, `errors.py`,
+`middleware.py`; идемпотентность 24 ч, ETag, лимит 1 МБ, санитайзер PII;
+ADR №52–53).)*
 
 *Последнее обновление: 2026-11-02 (**M7 T1.1 выполнен** — скелет ClicKit
 Cloud: `service/app/{main,config,version,schemas}.py` и `api/v1/health.py`

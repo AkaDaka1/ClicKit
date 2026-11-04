@@ -1,7 +1,7 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
 > План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅,
-> T2.1 ✅, T2.2 ✅, T3.1 ✅ — 2026-11-04).
+> T2.1 ✅, T2.2 ✅, T3.1 ✅, T3.2 ✅ — 2026-11-04).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -117,6 +117,7 @@ service/
 │   ├── crash_service.py  # домен crash-отчётов: санитайзер PII, валидация, обрезка
 │   ├── middleware.py     # BodySizeLimitMiddleware (общий лимит тела)
 │   ├── security.py       # API-ключ, сравнение за постоянное время (T3.1)
+│   ├── healthcheck.py    # liveness для Docker HEALTHCHECK (T3.2)
 │   ├── errors.py         # problem+json, обработчики
 │   └── api/
 │       ├── deps.py       # зависимости маршрутов: сессия БД, UUID, RFC 3339
@@ -127,7 +128,8 @@ cloud/
 └── client.py             # httpx-клиент: publish/download, retry, timeout
 docker/Dockerfile.service
 docker-compose.cloud.yml
-requirements-service.txt
+requirements-service.txt        # runtime-зависимости сервиса
+requirements-service-test.txt   # + pytest/coverage (T3.2, для T5.1)
 docs/api.md
 docs/cloud.md
 scripts/cloud_publish.py
@@ -194,7 +196,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | T2.1 | CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ | T1.2 | Тесты 201/200/404/409/413/422; дубль по ключу не создаётся | ✅ |
 | T2.2 | Приём crash-отчётов и правила ретеншна | T1.2 | 202, валидация, нет PII; ретеншн описан | ✅ |
 | T3.1 | API-ключ, problem+json, `request_id` | T2.1 | 401/403, единый формат ошибок, заголовок `X-Request-ID` | ✅ |
-| T3.2 | `Dockerfile.service`: multi-stage, non-root, healthcheck | T3.1 | Образ собирается, healthy, процесс не от root | ⬜ |
+| T3.2 | `Dockerfile.service`: multi-stage, non-root, healthcheck | T3.1 | Образ собирается, healthy, процесс не от root | ✅ |
 | T4.1 | `docker-compose.cloud.yml`: API + Postgres + том | T3.2 | `up -d` и `down`; данные переживают перезапуск | ⬜ |
 | T4.2 | Клиент `cloud/client.py` и `scripts/cloud_publish.py` | T4.1 | Публикация и скачивание против compose; retry/timeout покрыты mock-тестами | ⬜ |
 | T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ⬜ |
@@ -242,7 +244,8 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 - [ ] API отвечает по контракту; OpenAPI открывается и совпадает с `docs/api.md`.
 - [ ] Невалидный сценарий отклоняется с 422 и путями ошибок, а не 500.
 - [ ] Секреты не в репозитории: только `.env.example` и переменные окружения.
-- [ ] Контейнер non-root, healthcheck, корректно завершается по SIGTERM.
+- [x] Контейнер non-root, healthcheck, корректно завершается по SIGTERM.
+  (✅ T3.2: `clikit-service:local`, uid 10001, HEALTHCHECK healthy, `docker stop` → exit 0.)
 - [ ] Тесты сервиса зелёные локально и в CI; `ruff` чистый.
 - [ ] README объясняет, зачем сервису нужен ClicKit, и как его запустить.
 - [ ] Изменения не затронули поведение desktop-приложения и `core/` без сети.
@@ -268,6 +271,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | 2026-11-03 | T2.1 | CRUD сценариев: `service/app/{scenario_service,repository,errors,middleware}.py`, `api/v1/scenarios.py`, `api/deps.py`; `POST /v1/scenarios` (201 с `Idempotency-Key`, replay, 409, 413, 415, 422), `GET /v1/scenarios/{id}` (200 с `ETag`, 304 weak/strong), `GET /v1/scenarios` (пагинация, `created_at DESC`), `DELETE` (204/404); `BodySizeLimitMiddleware` (общий слой до разбора, `CLICKIT_MAX_BODY_BYTES`); `ScenarioRepository` с обработкой `IntegrityError` (гонка); валидация IR через `core.ir.schema` (ADR №37). Проверено: живой `uvicorn` + PostgreSQL 16 (Alembic-миграция `0001`), все эндпоинты, ETag, replay, конфликт, лимиты, problem+json. Тесты: 113 service (SQLite + PostgreSQL 16), всего **387 passed**; `ruff` чисто. Commit `83f9585` | `83f9585` |
 | 2026-11-04 | T2.2 | Приём crash-отчётов: `service/app/crash_service.py` (валидация `app_version` 1–64 / `os` ≤64 / `error_hash` 64 hex с нормализацией, санитайзер домашних путей `C:\Users\*`, `/home/*`, `/Users/*` → `<пользователь>`, обрезка traceback до 16 384 символов), `api/v1/crash_reports.py` (`POST /v1/crash-reports` — 202 `{id, received_at}`, публичный без `X-API-Key`, ошибки 415/422 problem+json со списком `errors`, тело не логируется), `CrashReceipt` в `schemas.py`, регистрация роутера в `main.py`; ретеншн 30 дней документирован (§5.9, очиститель — M8/M11). Лимит тела наследуется от общего `BodySizeLimitMiddleware`. Тесты: 23 новых в `tests/service/test_crash_reports_api.py` (валидация, PII-санитайзер для трёх ОС, обрезка, 415/413/422, OpenAPI), всего 136 service и **410 passed** полным прогоном; `ruff check`/`format --check` чисто | `000be31` |
 | 2026-11-04 | T3.1 | API-ключи и корреляция: `service/app/security.py` (роли `write`/`admin`, `hmac.compare_digest`, 401 без/с неверным ключом, 403 при недостаточной роли; роли не иерархичны — admin-ключ не публикует, write-ключ не удаляет при заданном admin), `service/app/request_id.py` (`RequestContextMiddleware`: валидация входящего `X-Request-ID` 32–64 `[A-Za-z0-9._-]` иначе UUID4, заголовок на всех ответах, `ContextVar` + `RequestIdFilter` для журнала), `errors.py` (обработчики `RequestValidationError`/`HTTPException`/`Exception`, URN 400/405, 500 без деталей), deps `require_write_key`/`require_delete_key` + схема `ApiKey` в OpenAPI; `BodySizeLimitMiddleware` берёт id из scope. Проверено: 401/403/201/204, эхо валидного и замена невалидного id, 404/405/422/413/500 в problem+json, ключ отсутствует в ответах и журнале. Тесты: 26 новых (`test_auth.py`, `test_request_id.py`), service — 162, всего **436 passed**; `ruff` чисто | `105c9dc` |
+| 2026-11-04 | T3.2 | Production-образ сервиса: `docker/Dockerfile.service` — multi-stage (`builder` → `runtime`: venv без кэша pip и компиляторов), non-root `UID/GID 10001`, `HEALTHCHECK` раз в 10 с через `python -m service.app.healthcheck` (только `/healthz`, без БД; короткая ошибка вместо traceback), exec-форма uvicorn для SIGTERM и `--timeout-graceful-shutdown 20`. `requirements-service.txt` разделён на runtime и `requirements-service-test.txt` (pytest/coverage в образ не попадают), `.dockerignore` дополнен секретами и отчётами покрытия. Проверено вживую: `docker build -f docker/Dockerfile.service -t clikit-service:local .` → образ 332 МБ; контейнер `healthy`, процесс `uid=10001`, `/healthz`/`/readyz`/`/version` 200, `POST`/`GET` сценария на PostgreSQL 16, `docker stop` → exit 0 и graceful shutdown. Статические тесты `test_dockerfile.py` (5) и `test_healthcheck.py` (3), всего **444 passed**; `ruff` чисто | `05a6624` |
 
 ## 12. Вне вехи (сознательно)
 
