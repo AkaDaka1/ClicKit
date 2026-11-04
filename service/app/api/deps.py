@@ -10,15 +10,32 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Request, Security
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from service.app.config import Settings
 from service.app.db import Database
 from service.app.errors import ApiError
 from service.app.models import Scenario
+from service.app.security import (
+    WRITE_ALLOWED,
+    authorize,
+    delete_allowed_roles,
+)
+
+#: Схема `X-API-Key` для OpenAPI (`docs/api.md` §2).
+api_key_scheme = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=False,
+    scheme_name="ApiKey",
+    description=(
+        "Ключ записи (CLICKIT_API_KEY) для публикации; "
+        "административный ключ — для удаления."
+    ),
+)
 
 
 def get_settings(request: Request) -> Settings:
@@ -31,6 +48,44 @@ def get_settings(request: Request) -> Settings:
         Настройки с заданными ключом и URL БД.
     """
     return request.app.state.settings
+
+
+def require_write_key(
+    request: Request,
+    api_key: Annotated[str | None, Security(api_key_scheme)] = None,
+) -> None:
+    """Проверить ключ записи для `POST /v1/scenarios` (`docs/api.md` §2).
+
+    Args:
+        request: Запрос FastAPI (настройки приложения).
+        api_key: Значение `X-API-Key` (FastAPI читает заголовок).
+
+    Raises:
+        ApiError: 401 — ключ не передан или неверен; 403 — передан ключ,
+            который не является ключом записи (например, admin-ключ).
+    """
+    authorize(get_settings(request), api_key, allowed=WRITE_ALLOWED)
+
+
+def require_delete_key(
+    request: Request,
+    api_key: Annotated[str | None, Security(api_key_scheme)] = None,
+) -> None:
+    """Проверить ключ удаления для `DELETE /v1/scenarios/{id}`.
+
+    Если задан `CLICKIT_ADMIN_API_KEY`, принимается только он; иначе —
+    обычный ключ записи (`docs/api.md` §2).
+
+    Args:
+        request: Запрос FastAPI (настройки приложения).
+        api_key: Значение `X-API-Key`.
+
+    Raises:
+        ApiError: 401 — ключ не передан или неверен; 403 — ключ верен, но
+            удаление им запрещено (write-ключ при заданном admin-ключе).
+    """
+    settings = get_settings(request)
+    authorize(settings, api_key, allowed=delete_allowed_roles(settings))
 
 
 def require_database(request: Request) -> Database:

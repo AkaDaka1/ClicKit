@@ -20,6 +20,8 @@ from service.app.api.deps import (
     get_session,
     get_settings,
     parse_uuid,
+    require_delete_key,
+    require_write_key,
     scenario_metadata,
 )
 from service.app.errors import ApiError
@@ -94,6 +96,10 @@ CREATE_REQUEST_BODY: dict[str, Any] = {
 _UNSAFE_FILENAME_RE = re.compile(r"[^0-9A-Za-z_.\- ]+")
 
 SessionDep = Annotated[Session, Depends(get_session)]
+#: Зависимость «ключ записи» (`docs/api.md` §2).
+WriteKeyDep = Annotated[None, Depends(require_write_key)]
+#: Зависимость «ключ удаления» (admin-ключ или ключ записи).
+DeleteKeyDep = Annotated[None, Depends(require_delete_key)]
 
 
 @router.post(
@@ -112,6 +118,7 @@ async def create_scenario(
     request: Request,
     response: Response,
     session: SessionDep,
+    _: WriteKeyDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ScenarioCreatedResponse:
     """Создать сценарий с учётом `Idempotency-Key`."""
@@ -218,7 +225,11 @@ def download_scenario(
     description="Требует API-ключ; повторное удаление — 404 (docs/api.md §5.8).",
     responses=PROBLEM_RESPONSES,
 )
-def delete_scenario(session: SessionDep, scenario_id: str) -> Response:
+def delete_scenario(
+    session: SessionDep,
+    _: DeleteKeyDep,
+    scenario_id: str,
+) -> Response:
     """Удалить сценарий по идентификатору."""
     repository = SqlScenarioRepository(session)
     record = repository.get(parse_uuid(scenario_id))

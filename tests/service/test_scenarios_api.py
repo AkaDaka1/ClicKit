@@ -450,7 +450,10 @@ def test_body_limit_follows_settings(database) -> None:
         accepted = small.post(
             "/v1/scenarios",
             content=json.dumps(publish_body()),
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": API_KEY,
+            },
         )
 
     assert rejected.status_code == 413

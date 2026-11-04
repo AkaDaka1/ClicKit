@@ -13,12 +13,21 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from service.app.api.v1 import crash_reports, health, scenarios
 from service.app.config import Settings, load_settings
 from service.app.db import Database, DatabaseProtocol
-from service.app.errors import ApiError, api_error_handler
+from service.app.errors import (
+    ApiError,
+    api_error_handler,
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_error_handler,
+)
 from service.app.middleware import BodySizeLimitMiddleware
+from service.app.request_id import RequestContextMiddleware, configure_logging
 from service.app.version import SERVICE_NAME, SERVICE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -44,10 +53,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         resolved = settings if settings is not None else load_settings()
         resolved.validate()
-        logging.basicConfig(
-            level=resolved.log_level,
-            format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        )
+        configure_logging(resolved.log_level)
         app.state.settings = resolved
         app.state.database = (
             database if database is not None else Database(resolved.require_db_url())
@@ -67,8 +73,14 @@ def create_app(
         description="HTTP-сервис публикации сценариев ClicKit и crash-отчётов.",
         lifespan=lifespan,
     )
+    # Порядок важен: RequestContextMiddleware добавляется последним и потому
+    # оказывается внешним — идентификатор есть даже у ответа 413 лимита тела.
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.include_router(health.router)
     app.include_router(scenarios.router)
     app.include_router(crash_reports.router)

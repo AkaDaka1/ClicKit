@@ -136,6 +136,10 @@ def client(database: Database) -> Iterator[TestClient]:
         database=database,
     )
     with TestClient(app) as test_client:
+        # Публичные GET-методы ключ игнорируют; защищённые POST/DELETE в тестах
+        # получают валидный ключ записи по умолчанию (T3.1). Тесты 401/403
+        # переопределяют заголовок явно.
+        test_client.headers.update({"X-API-Key": API_KEY})
         yield test_client
 
 

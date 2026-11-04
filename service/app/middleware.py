@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import Any
 
 from starlette.datastructures import Headers
@@ -17,6 +16,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from service.app.config import DEFAULT_MAX_BODY_BYTES
 from service.app.errors import problem_response
+from service.app.request_id import request_id_of_scope
 
 
 class BodySizeLimitMiddleware:
@@ -64,7 +64,7 @@ class BodySizeLimitMiddleware:
             "payload-too-large",
             f"Тело запроса больше лимита {limit} байт",
             instance=scope.get("path", "/"),
-            request_id=str(uuid.uuid4()),
+            request_id=request_id_of_scope(scope),
         )
         await response(scope, receive, send)
 

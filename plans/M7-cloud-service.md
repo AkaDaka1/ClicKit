@@ -1,7 +1,7 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
 > План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅,
-> T2.1 ✅, T2.2 ✅ — 2026-11-04).
+> T2.1 ✅, T2.2 ✅, T3.1 ✅ — 2026-11-04).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -193,21 +193,21 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | T1.2 | БД, модели, Alembic, `/readyz` | T1.1 | Postgres поднят, миграции применяются, 200/503 проверены | ✅ |
 | T2.1 | CRUD сценариев, валидация IR, идемпотентность, лимит 1 МБ | T1.2 | Тесты 201/200/404/409/413/422; дубль по ключу не создаётся | ✅ |
 | T2.2 | Приём crash-отчётов и правила ретеншна | T1.2 | 202, валидация, нет PII; ретеншн описан | ✅ |
-| T3.1 | API-ключ, problem+json, `request_id` | T2.1 | 401/403, единый формат ошибок, заголовок `X-Request-ID` | ⬜ |
+| T3.1 | API-ключ, problem+json, `request_id` | T2.1 | 401/403, единый формат ошибок, заголовок `X-Request-ID` | ✅ |
 | T3.2 | `Dockerfile.service`: multi-stage, non-root, healthcheck | T3.1 | Образ собирается, healthy, процесс не от root | ⬜ |
 | T4.1 | `docker-compose.cloud.yml`: API + Postgres + том | T3.2 | `up -d` и `down`; данные переживают перезапуск | ⬜ |
 | T4.2 | Клиент `cloud/client.py` и `scripts/cloud_publish.py` | T4.1 | Публикация и скачивание против compose; retry/timeout покрыты mock-тестами | ⬜ |
 | T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ⬜ |
 | T6.1 | Документация: README, `docs/cloud.md`, `docs/api.md`, ADR | T5.1 | Инструкции воспроизводятся с чистой машины; ADR в §3.3 | ⬜ |
 
-**Уточнение по T3.1 (2026-11-03).** Часть формата ошибок уже реализована в
-T2.1: `service/app/errors.py` отдаёт `application/problem+json` со всеми
-полями RFC 7807 (включая `request_id` и список `errors` с путями), а
-`X-Request-ID` возвращается на ошибках. В T3.1 остаётся: проверка
-`X-API-Key` (401/403, `security.py`, write/admin-ключи), валидация и эхо
-**входящего** `X-Request-ID` на всех ответах (в т. ч. успешных), единые
-обработчики `RequestValidationError`/`HTTPException`/500 и корреляция
-`request_id` в журнале.
+**Уточнение по T3.1 (2026-11-03, реализовано 2026-11-04).** Часть формата ошибок
+уже была реализована в T2.1: `service/app/errors.py` отдаёт
+`application/problem+json` со всеми полями RFC 7807 (включая `request_id` и
+список `errors` с путями). В T3.1 добавлены: проверка `X-API-Key`
+(401/403, `security.py`, write/admin-ключи), валидация и эхо **входящего**
+`X-Request-ID` на всех ответах (в т. ч. успешных), единые обработчики
+`RequestValidationError`/`HTTPException`/500 и корреляция `request_id`
+в журнале.
 
 ### Параллелизм (волны)
 
@@ -267,6 +267,7 @@ T2.1: `service/app/errors.py` отдаёт `application/problem+json` со вс�
 | 2026-11-02 | T1.2 | БД и миграции: `service/app/db.py` (`Database`: engine, `session`/`session_scope`, `check()` = `SELECT 1`, `dispose`, таймаут соединения 5 с), `service/app/models.py` (`scenarios`, `crash_reports` по `docs/api.md` §8, CHECK/индексы, `ux_scenarios_idempotency_key`), Alembic (`service/alembic.ini`, `service/migrations/env.py` + `versions/0001_initial_schema.py`, URL только из `CLICKIT_DB_URL`); `CLICKIT_DB_URL` стал обязательным (fail-closed), engine живёт в `lifespan`; `/readyz` — 200 `{"status":"ready","checks":{"database":"ok"}}` / 503 `unavailable` без деталей. Проверено на `postgres:16` в Docker (порт 55432): `upgrade head` → таблицы и `alembic_version=0001`, `alembic check` — без расхождений, `downgrade base`/`upgrade head` повторяются, живой `uvicorn` отдаёт 200, при остановленной БД — 503 при `/healthz` 200, после старта БД — снова 200. Тесты: 35 в `tests/service/` (всего **309 passed**), `ruff check`/`format --check` чисто | — |
 | 2026-11-03 | T2.1 | CRUD сценариев: `service/app/{scenario_service,repository,errors,middleware}.py`, `api/v1/scenarios.py`, `api/deps.py`; `POST /v1/scenarios` (201 с `Idempotency-Key`, replay, 409, 413, 415, 422), `GET /v1/scenarios/{id}` (200 с `ETag`, 304 weak/strong), `GET /v1/scenarios` (пагинация, `created_at DESC`), `DELETE` (204/404); `BodySizeLimitMiddleware` (общий слой до разбора, `CLICKIT_MAX_BODY_BYTES`); `ScenarioRepository` с обработкой `IntegrityError` (гонка); валидация IR через `core.ir.schema` (ADR №37). Проверено: живой `uvicorn` + PostgreSQL 16 (Alembic-миграция `0001`), все эндпоинты, ETag, replay, конфликт, лимиты, problem+json. Тесты: 113 service (SQLite + PostgreSQL 16), всего **387 passed**; `ruff` чисто. Commit `83f9585` | `83f9585` |
 | 2026-11-04 | T2.2 | Приём crash-отчётов: `service/app/crash_service.py` (валидация `app_version` 1–64 / `os` ≤64 / `error_hash` 64 hex с нормализацией, санитайзер домашних путей `C:\Users\*`, `/home/*`, `/Users/*` → `<пользователь>`, обрезка traceback до 16 384 символов), `api/v1/crash_reports.py` (`POST /v1/crash-reports` — 202 `{id, received_at}`, публичный без `X-API-Key`, ошибки 415/422 problem+json со списком `errors`, тело не логируется), `CrashReceipt` в `schemas.py`, регистрация роутера в `main.py`; ретеншн 30 дней документирован (§5.9, очиститель — M8/M11). Лимит тела наследуется от общего `BodySizeLimitMiddleware`. Тесты: 23 новых в `tests/service/test_crash_reports_api.py` (валидация, PII-санитайзер для трёх ОС, обрезка, 415/413/422, OpenAPI), всего 136 service и **410 passed** полным прогоном; `ruff check`/`format --check` чисто | `000be31` |
+| 2026-11-04 | T3.1 | API-ключи и корреляция: `service/app/security.py` (роли `write`/`admin`, `hmac.compare_digest`, 401 без/с неверным ключом, 403 при недостаточной роли; роли не иерархичны — admin-ключ не публикует, write-ключ не удаляет при заданном admin), `service/app/request_id.py` (`RequestContextMiddleware`: валидация входящего `X-Request-ID` 32–64 `[A-Za-z0-9._-]` иначе UUID4, заголовок на всех ответах, `ContextVar` + `RequestIdFilter` для журнала), `errors.py` (обработчики `RequestValidationError`/`HTTPException`/`Exception`, URN 400/405, 500 без деталей), deps `require_write_key`/`require_delete_key` + схема `ApiKey` в OpenAPI; `BodySizeLimitMiddleware` берёт id из scope. Проверено: 401/403/201/204, эхо валидного и замена невалидного id, 404/405/422/413/500 в problem+json, ключ отсутствует в ответах и журнале. Тесты: 26 новых (`test_auth.py`, `test_request_id.py`), service — 162, всего **436 passed**; `ruff` чисто | `105c9dc` |
 
 ## 12. Вне вехи (сознательно)
 
