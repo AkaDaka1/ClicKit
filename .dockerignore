@@ -20,3 +20,17 @@ __pycache__/
 *.log
 *.zip
 SHA256SUMS.txt
+
+# Секреты и локальные данные не должны попадать даже в контекст сборки.
+.env
+.env.*
+!.env.example
+settings.local.json
+*.local.json
+scratch/
+
+# Отчёты тестов и покрытия (в образ не нужны).
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

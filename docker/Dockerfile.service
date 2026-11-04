@@ -1,0 +1,77 @@
+# Production-образ ClicKit Cloud (M7 T3.2).
+#
+# Образ собирается в два этапа: builder ставит зависимости в отдельный venv,
+# runtime копирует только venv и код сервиса. Компиляторы и кэш pip в итоговый
+# образ не попадают. Тестовые зависимости (requirements-service-test.txt)
+# намеренно не устанавливаются — они нужны только в CI/локальных тестах.
+#
+# Запуск (ключи и URL БД передаются только через env, см. docs/api.md §9):
+#   docker build -f docker/Dockerfile.service -t clikit-service:local .
+#   docker run --rm -p 8000:8000 \
+#     -e CLICKIT_API_KEY=... \
+#     -e CLICKIT_DB_URL=postgresql+psycopg://... \
+#     clikit-service:local
+#
+# Контейнер работает не от root, отвечает на /healthz и корректно принимает
+# SIGTERM: ENTRYPOINT/CMD в exec-форме, поэтому сигнал получает uvicorn, а не
+# промежуточный shell.
+
+ARG PYTHON_VERSION=3.11
+
+# --- Этап 1: зависимости в изолированном venv ------------------------------
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+WORKDIR /build
+
+# Сначала только зависимости: слой кэшируется, пока requirements не менялись.
+# Все пакеты имеют manylinux-колёса, поэтому компилятор в builder не нужен.
+COPY requirements-service.txt ./
+RUN python -m pip install --no-cache-dir -r requirements-service.txt
+
+
+# --- Этап 2: минимальный runtime -------------------------------------------
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    LANG=C.UTF-8 \
+    PATH="/opt/venv/bin:${PATH}" \
+    CLICKIT_LOG_LEVEL=INFO
+
+# Непривилегированный пользователь с фиксированным UID/GID: в Kubernetes и
+# при монтировании томов проще опираться на числовой идентификатор.
+RUN groupadd --gid 10001 clikit \
+    && useradd --uid 10001 --gid 10001 --create-home \
+        --home-dir /home/clikit --shell /usr/sbin/nologin clikit
+
+WORKDIR /app
+
+# venv из builder — единственное, что нужно от этапа сборки.
+COPY --from=builder /opt/venv /opt/venv
+
+# Сервис импортирует core.ir для валидации сценариев (ADR №37), поэтому core/
+# копируется рядом с service/. GUI, resources/ и тесты в образ не входят.
+COPY --chown=10001:10001 service ./service
+COPY --chown=10001:10001 core ./core
+
+USER 10001:10001
+
+EXPOSE 8000
+
+# Liveness без БД: /healthz отвечает 200, пока жив процесс. Readiness с
+# проверкой БД (/readyz) намеренно не используется в HEALTHCHECK — иначе
+# недоступность PostgreSQL перезапускала бы контейнер.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD ["python", "-m", "service.app.healthcheck"]
+
+# exec-форма: SIGTERM доходит до uvicorn, graceful shutdown работает.
+ENTRYPOINT ["python", "-m", "uvicorn", "service.app.main:app"]
+CMD ["--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "20"]
