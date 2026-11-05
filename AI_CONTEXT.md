@@ -87,6 +87,9 @@ ClicKit/
 ├── AGENTS.md              # короткие стартовые инструкции для ИИ-агента
 ├── .gitignore             # игнорируемые артефакты — держать актуальным!
 ├── .dockerignore          # что не попадает в контекст сборки образов (docker/)
+├── docker-compose.yml     # Linux-тесты в контейнере (M6)
+├── docker-compose.cloud.yml # ClicKit Cloud: API + PostgreSQL + том (M7 T4.1)
+├── .env.example           # шаблон локальных настроек Cloud (без секретов)
 ├── .github/workflows/     # CI (ci.yml) и релиз по тегу (release.yml)
 ├── LICENSE                # MIT © 2026 Danil Momot
 ├── README.md
@@ -493,6 +496,17 @@ ClicKit/
       перезапуска контейнера. `ENTRYPOINT`/`CMD` в exec-форме, поэтому SIGTERM
       получает uvicorn и завершается graceful (exit 0). Секреты — только env;
       `.dockerignore` исключает `.env*`, кроме `.env.example`.
+
+   56. **Локальный Cloud — compose с одноразовыми миграциями** (2026-11-04,
+       M7 T4.1): `docker-compose.cloud.yml` поднимает PostgreSQL 16 (том
+       `pgdata`), одноразовый сервис `migrate` (`alembic upgrade head`) и API;
+       API стартует только после `service_healthy` БД и
+       `service_completed_successfully` миграций. Схему по-прежнему меняет
+       только Alembic (ADR №52), сервис не вызывает `create_all`. Секреты
+       (`CLICKIT_API_KEY`, `POSTGRES_PASSWORD`) обязательны через `${VAR:?}` и
+       `.env`; в Git лежит только `.env.example` без значений, `.env` —
+       в `.gitignore`. Порт БД наружу не публикуется; данные переживают
+       `compose down` (удаляются только `down -v`).
 
 ---
 
