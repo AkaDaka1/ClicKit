@@ -1,7 +1,10 @@
-"""Снимки интерфейса для README: offscreen-рендер реального окна.
+"""Снимки интерфейса для README: рендер реального окна без экрана.
 
-Скрипт поднимает настоящее окно ClicKit в offscreen-режиме (без экрана),
+Скрипт поднимает настоящее окно ClicKit с флагом `WA_DontShowOnScreen`
+(виджет рендерится, но не появляется на экране и не перехватывает фокус),
 заполняет форму демонстрационными значениями и сохраняет PNG в `docs/img/`.
+Нативная платформа Qt нужна ради системных шрифтов: у offscreen-платформы
+на Windows нет шрифтовой базы, и вместо текста получаются квадраты.
 Ввод не эмулируется: используется mock-бэкенд, поэтому мышь не двигается,
 а пользовательские настройки в `%APPDATA%` не читаются и не пишутся.
 
@@ -10,7 +13,8 @@
     python scripts/make_screenshots.py
 
 QtWebEngine должен уметь запуститься без GPU и sandbox — это те же
-переменные окружения, что и в CI/смоук-тестах.
+переменные окружения, что и в CI/смоук-тестах. На CI (где сессии без
+десктопа) флаг `CLICKIT_SHOTS_OFFSCREEN=1` возвращает offscreen-платформу.
 """
 
 import os
@@ -20,7 +24,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 # Переменные Qt нужно выставить до импорта PySide6.
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+if os.environ.get("CLICKIT_SHOTS_OFFSCREEN") == "1":
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QTWEBENGINE_DISABLE_SANDBOX", "1")
 os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
 
@@ -124,6 +129,11 @@ def main() -> int:
             theme=theme,
         )
         window.resize(*WINDOW_SIZE)
+        # Рендер без появления на экране: grab() рисует виджет в pixmap,
+        # а окно не показывается пользователю и не крадёт фокус.
+        from PySide6.QtCore import Qt
+
+        window.setAttribute(Qt.WA_DontShowOnScreen, True)
         window.show()
         _pump(app, 500)
 
