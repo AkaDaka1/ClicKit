@@ -1,0 +1,37 @@
+name: Feature request
+description: Предложить идею или улучшение ClicKit
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Сначала взгляните на [дорожную карту](../blob/master/README.md#-дорожная-карта)
+        и планы вех ([plans/](../tree/master/plans)) — возможно, идея уже
+        запланирована (например, `if`/`while`-условия и запись действий).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу не получается решить?
+      description: Опишите сценарий использования, а не конкретное решение
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Предлагаемое решение
+      description: Как это могло бы работать с точки зрения пользователя
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы и обходные пути
+      description: Что используете сейчас; существующие функции, которые близки
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Область
+      options:
+        - label: Идея касается desktop-приложения
+        - label: Идея касается ClicKit Cloud / API
+        - label: Готов помочь с реализацией (PR)

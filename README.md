@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="resources/icons/app.svg" width="88" alt="ClicKit icon" />
+
 # 🧰 ClicKit
 
 **The auto-clicker that builds like a kit.**
@@ -7,16 +9,77 @@
 A Windows auto-clicker with visual block scripting: snap colorful blocks
 together to script clicks, moves and delays — no coding required.
 
+[![CI](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml/badge.svg)](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AkaDaka1/ClicKit?include_prereleases&label=release&color=5865F2)](https://github.com/AkaDaka1/ClicKit/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Windows](https://img.shields.io/badge/OS-Windows_10%2F11-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![PySide6](https://img.shields.io/badge/GUI-PySide6_%2B_Qt-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Blockly](https://img.shields.io/badge/scripting-Blockly-4285F4?logo=googleblockly&logoColor=white)](https://developers.google.com/blockly)
-[![Status](https://img.shields.io/badge/status-1.0.0-5865F2)](#)
-[![CI](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml/badge.svg)](https://github.com/AkaDaka1/ClicKit/actions/workflows/ci.yml)
+[![Cloud](https://img.shields.io/badge/cloud-FastAPI_%2B_PostgreSQL-009688?logo=fastapi&logoColor=white)](docs/api.md)
+[![Docker](https://img.shields.io/badge/GHCR-images-2496ED?logo=docker&logoColor=white)](https://github.com/AkaDaka1/ClicKit/pkgs/container/clikit-test)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing--security)
 
 **English** · [Русский](#ru)
 
 </div>
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="docs/img/screenshot-simple-mode.png" width="49%" alt="ClicKit simple mode: click point, mouse button, interval and repeat count" />
+  <img src="docs/img/screenshot-editor.png" width="49%" alt="ClicKit scenario editor: Blockly canvas with a starter click scenario" />
+</p>
+
+<p align="center">
+  <sub>Simple mode (left) and the block scenario editor with the starter click scenario (right), dark theme.</sub>
+</p>
+
+## 🏗️ Architecture at a glance
+
+```mermaid
+flowchart LR
+    subgraph UI["GUI · PySide6 (main thread)"]
+        SIMPLE["Simple mode"]
+        EDITOR["Blockly editor<br/>QWebEngineView"]
+        CONTROL["Tray · hotkeys · settings"]
+    end
+
+    subgraph BRIDGE["bridge/"]
+        CHANNEL["QWebChannel"]
+        TRANSLATOR["Blockly-JSON → IR"]
+    end
+
+    subgraph ENGINE["core/ · no Qt imports"]
+        IR[("IR scenario<br/>.acl.json v1")]
+        RUNNER["ScenarioRunner<br/>interpreter"]
+        EXECUTOR["Executor<br/>worker thread"]
+        BACKEND["InputBackend"]
+    end
+
+    WIN["Windows SendInput"]
+    CLOUD[("ClicKit Cloud<br/>FastAPI + PostgreSQL")]
+
+    EDITOR --> CHANNEL --> TRANSLATOR --> IR
+    IR --> RUNNER --> BACKEND
+    SIMPLE --> EXECUTOR --> BACKEND
+    CONTROL -.-> EXECUTOR
+    BACKEND --> WIN
+    IR -. publish .-> CLOUD
+```
+
+Four invariants keep the layers honest:
+
+- **Scenarios are data, never code.** Blockly builds a versioned IR
+  (`.acl.json`); the interpreter executes only the known node types.
+- **`core/` never imports Qt.** The engine is testable headless, and the GUI
+  talks to it through adapters and signals.
+- **Scripts run in a worker thread.** The GUI thread never blocks, and the
+  emergency stop hotkey stays responsive.
+- **One cursor, one owner.** Clicks and scenarios are mutually exclusive,
+  because both drive the single Windows pointer (see
+  [`AI_CONTEXT.md` §3.1](AI_CONTEXT.md)).
 
 ---
 
@@ -25,8 +88,9 @@ together to script clicks, moves and delays — no coding required.
 ## 🚧 Project status
 
 **ClicKit 1.0.0** — the first public release. Milestones **M0–M6** are complete
-and merged into `master`; **M7–M11** (cloud service, observability, IaC, delivery,
-security/resilience) are planned and tracked in
+and merged into `master`; **M7** (ClicKit Cloud: scenario API, PostgreSQL,
+container image, local compose) is in progress, while **M8–M11** (observability,
+IaC, delivery, security/resilience) are planned and tracked in
 [`plans/README.md`](plans/README.md). The app follows the Windows theme by default
 (system / dark / light can be picked in Settings), all three global hotkeys
 (start, stop, coordinate picker) are configurable without a restart, and a
@@ -73,7 +137,7 @@ want to automate a few clicks.
 | **M4** | Blockly visual editor with live execution | ✅ Done |
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 | **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
-| **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | 📋 Planned |
+| **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | 🚧 In progress |
 | **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
 | **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
@@ -230,16 +294,46 @@ fast, reproducible test environment.
   then run `docker compose -f docker-compose.cloud.yml up -d`;
 - API contract, configuration and error codes: [`docs/api.md`](docs/api.md).
 
+## 🗂️ Repository map
+
+```text
+app/          entry point, logging setup, version, resource paths
+core/         click engine, IR schema/interpreter, settings, hotkeys — no Qt
+gui/          PySide6 window, simple mode, Blockly editor, themes, tray
+bridge/       Blockly-JSON ↔ IR translation and the QWebChannel bridge
+resources/    vendored Blockly, QSS themes, icons, example scenarios
+service/      ClicKit Cloud: FastAPI app, SQLAlchemy models, Alembic migrations
+cloud/        httpx client for the service (M7)
+packaging/    PyInstaller spec, Windows version info, NOTICE
+docker/       test, Windows build and service images
+scripts/      demos, scenario runner, vendoring, release checks, screenshots
+tests/        pytest: engine, GUI smoke tests, service, release tools
+plans/        milestone plans with task graphs (M0–M11)
+docs/         API contract, cloud notes and README screenshots
+```
+
 ## 🛠️ Tech stack
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
 inside `QWebEngineView` · `QWebChannel` JS↔Python bridge · `pyautogui` + `pynput`
-behind a pluggable `InputBackend` abstraction · PyInstaller for packaging.
+behind a pluggable `InputBackend` abstraction · PyInstaller for packaging ·
+FastAPI + PostgreSQL + SQLAlchemy/Alembic for ClicKit Cloud.
 
 - Architecture and coding rules: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Work log: [`PROGRESS.md`](PROGRESS.md)
 - Milestone plans and task graphs: [`plans/README.md`](plans/README.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- API contract for ClicKit Cloud: [`docs/api.md`](docs/api.md)
+
+## 🤝 Contributing & security
+
+Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md)
+before opening a pull request: it covers the branch/commit conventions, local
+checks (`ruff`, `pytest`) and the documentation rule. By participating you agree
+to the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+Found a security issue? **Do not open a public issue** — use the private
+reporting channel described in [`SECURITY.md`](SECURITY.md).
 
 ## ⚠️ Disclaimer
 
@@ -274,8 +368,9 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 ## 🚧 Статус проекта
 
 **ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M6** завершены и влиты
-в `master`; **M7–M11** (облачный сервис, наблюдаемость, IaC, доставка,
-безопасность и устойчивость) запланированы и ведутся в
+в `master`; **M7** (ClicKit Cloud: API сценариев, PostgreSQL, контейнерный
+образ, локальный compose) в работе, а **M8–M11** (наблюдаемость, IaC,
+доставка, безопасность и устойчивость) запланированы и ведутся в
 [`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
 выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
 (старт, стоп, захват точки) переназначаются без перезапуска, а журнал
@@ -298,6 +393,50 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 |---|---|
 | 🖱️ **Простой режим** | Классический автокликер: выбрал точку на экране, задал интервал, кнопку мыши и число повторов — готово. |
 | 🧩 **Режим сценариев** | Визуальный редактор на базе Blockly: сложные последовательности собираются перетаскиванием блоков — клики, движения, задержки, циклы, условия — как детали LEGO. |
+
+## 🏗️ Архитектура
+
+```mermaid
+flowchart LR
+    subgraph UI["GUI · PySide6 (главный поток)"]
+        SIMPLE["Простой режим"]
+        EDITOR["Редактор Blockly<br/>QWebEngineView"]
+        CONTROL["Трей · хоткеи · настройки"]
+    end
+
+    subgraph BRIDGE["bridge/"]
+        CHANNEL["QWebChannel"]
+        TRANSLATOR["Blockly-JSON → IR"]
+    end
+
+    subgraph ENGINE["core/ · без импортов Qt"]
+        IR[("IR-сценарий<br/>.acl.json v1")]
+        RUNNER["ScenarioRunner<br/>интерпретатор"]
+        EXECUTOR["Executor<br/>поток-воркер"]
+        BACKEND["InputBackend"]
+    end
+
+    WIN["Windows SendInput"]
+    CLOUD[("ClicKit Cloud<br/>FastAPI + PostgreSQL")]
+
+    EDITOR --> CHANNEL --> TRANSLATOR --> IR
+    IR --> RUNNER --> BACKEND
+    SIMPLE --> EXECUTOR --> BACKEND
+    CONTROL -.-> EXECUTOR
+    BACKEND --> WIN
+    IR -. публикация .-> CLOUD
+```
+
+Четыре инварианта, которые держат слои честными:
+
+- **Сценарий — это данные, а не код.** Blockly собирает версионируемый IR
+  (`.acl.json`), интерпретатор исполняет только известные типы узлов.
+- **`core/` не импортирует Qt.** Движок тестируется без экрана, а GUI
+  общается с ним через адаптеры и сигналы.
+- **Сценарии исполняются в воркере.** Главный поток не блокируется, поэтому
+  аварийный стоп по хоткею срабатывает всегда.
+- **Один курсор — один владелец.** Клики и сценарий взаимоисключающие: оба
+  двигают единственный указатель Windows (см. [`AI_CONTEXT.md` §3.1](AI_CONTEXT.md)).
 
 ## ✨ Ключевые возможности
 
@@ -322,7 +461,7 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 | **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
-| **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | 📋 Запланировано |
+| **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | 🚧 В работе |
 | **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
 | **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
@@ -483,16 +622,46 @@ Windows-only, а Linux-контейнер даёт быстрый воспрои
   `docker compose -f docker-compose.cloud.yml up -d`;
 - контракт API, конфигурация и коды ошибок — [`docs/api.md`](docs/api.md).
 
+## 🗂️ Карта репозитория
+
+```text
+app/          точка входа, журналирование, версия, пути к ресурсам
+core/         движок кликов, схема/интерпретатор IR, настройки, хоткеи — без Qt
+gui/          окно PySide6, простой режим, редактор Blockly, темы, трей
+bridge/       транслятор Blockly-JSON ↔ IR и мост QWebChannel
+resources/    вендоренный Blockly, темы QSS, иконки, примеры сценариев
+service/      ClicKit Cloud: FastAPI, модели SQLAlchemy, миграции Alembic
+cloud/        httpx-клиент сервиса (M7)
+packaging/    spec PyInstaller, сведения о версии Windows, NOTICE
+docker/       образы тестов, Windows-сборки и сервиса
+scripts/      демо, запуск сценариев, вендоринг, проверка релиза, скриншоты
+tests/        pytest: движок, смоук-тесты GUI, сервис, релизные утилиты
+plans/        планы вех с графами задач (M0–M11)
+docs/         контракт API, заметки о Cloud, скриншоты для README
+```
+
 ## 🛠️ Технологии
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
 внутри `QWebEngineView` · мост JS↔Python на `QWebChannel` · `pyautogui` + `pynput`
-за сменной абстракцией `InputBackend` · упаковка через PyInstaller.
+за сменной абстракцией `InputBackend` · упаковка через PyInstaller ·
+FastAPI + PostgreSQL + SQLAlchemy/Alembic для ClicKit Cloud.
 
 - Архитектура и правила кодинга: [`AI_CONTEXT.md`](AI_CONTEXT.md)
 - Журнал работ: [`PROGRESS.md`](PROGRESS.md)
 - Планы вех и графы задач: [`plans/README.md`](plans/README.md)
 - История изменений: [`CHANGELOG.md`](CHANGELOG.md)
+- Контракт API ClicKit Cloud: [`docs/api.md`](docs/api.md)
+
+## 🤝 Участие и безопасность
+
+Участие приветствуется! Перед pull request прочитайте
+[`CONTRIBUTING.md`](CONTRIBUTING.md): там правила веток и коммитов, локальные
+проверки (`ruff`, `pytest`) и правило обновления документации. Участвуя в
+проекте, вы соглашаетесь с [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+Нашли уязвимость? **Не открывайте публичный issue** — используйте приватный
+канал, описанный в [`SECURITY.md`](SECURITY.md).
 
 ## ⚠️ Дисклеймер
 

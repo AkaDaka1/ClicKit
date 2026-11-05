@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Вопросы и обсуждение
+    url: https://github.com/AkaDaka1/ClicKit/discussions
+    about: Как что-то сделать, идеи «в общем», помощь со сценариями Blockly
+  - name: Уязвимости и безопасность
+    url: https://github.com/AkaDaka1/ClicKit/security/advisories/new
+    about: Только приватно — не открывайте публичный issue
+  - name: Документация
+    url: https://github.com/AkaDaka1/ClicKit/blob/master/README.md
+    about: Установка, запуск, архитектура (README, AI_CONTEXT.md, docs/api.md)

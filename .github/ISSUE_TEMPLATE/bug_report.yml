@@ -1,0 +1,84 @@
+name: Bug report
+description: Сообщить об ошибке в ClicKit (приложение, редактор, сборка)
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за репорт! Заполните шаблон — без деталей reproduce мы почти
+        всегда просим уточнений. Журнал: `%APPDATA%\ClicKit\logs\app.log`.
+
+        Замечание по безопасности (утечка данных, обход API и т. п.) публико-
+        вать здесь **не нужно** — используйте приватное отчётление
+        ([SECURITY.md](../blob/master/SECURITY.md)).
+  - type: dropdown
+    id: component
+    attributes:
+      label: Компонент
+      options:
+        - Простой режим (клики)
+        - Редактор сценариев (Blockly)
+        - Запуск/исполнение сценария
+        - Хоткеи / пикер / трей
+        - Темы и интерфейс
+        - Сборка / установщик
+        - ClicKit Cloud (сервис, API)
+        - Другое
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Версия ClicKit
+      description: «Помощь → О программе» или тег релиза
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: launch
+    attributes:
+      label: Как запущено
+      options:
+        - Архив ClicKit-win64.zip
+        - Один файл ClicKit.exe
+        - python -m app (из исходников)
+        - Контейнер / docker compose
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Версия Windows
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+      description: Минимальная последовательность действий
+      placeholder: |
+        1. Открыть «Простой режим»
+        2. Задать интервал 1 мс
+        3. Нажать F5
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое и фактическое поведение
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Фрагмент журнала
+      description: |
+        Отрывок `%APPDATA%\ClicKit\logs\app.log` вокруг сбоя.
+        Удалите персональные пути (домашний каталог можно заменить на <пользователь>).
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Дополнительно
+      description: Скриншоты, сценарий .acl.json (проверьте, что нет приватных данных), версии зависимостей

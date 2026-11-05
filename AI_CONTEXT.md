@@ -87,10 +87,16 @@ ClicKit/
 ├── AGENTS.md              # короткие стартовые инструкции для ИИ-агента
 ├── .gitignore             # игнорируемые артефакты — держать актуальным!
 ├── .dockerignore          # что не попадает в контекст сборки образов (docker/)
+├── .editorconfig          # единые настройки редактора (LF, отступы, CRLF для .bat)
 ├── docker-compose.yml     # Linux-тесты в контейнере (M6)
 ├── docker-compose.cloud.yml # ClicKit Cloud: API + PostgreSQL + том (M7 T4.1)
 ├── .env.example           # шаблон локальных настроек Cloud (без секретов)
 ├── .github/workflows/     # CI (ci.yml) и релиз по тегу (release.yml)
+├── .github/ISSUE_TEMPLATE/ # формы bug/feature + config.yml (contact links)
+├── .github/PULL_REQUEST_TEMPLATE.md # чек-лист PR (проверки, документация)
+├── CONTRIBUTING.md        # правила участия: ветки, коммиты, проверки, документация
+├── SECURITY.md            # приватное отчётление об уязвимостях, модель угроз
+├── CODE_OF_CONDUCT.md     # Contributor Covenant 2.1 (адаптация)
 ├── LICENSE                # MIT © 2026 Danil Momot
 ├── README.md
 ├── requirements.txt
@@ -151,7 +157,8 @@ ClicKit/
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
-├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1)
+├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
+│                          # img/ (скриншоты для README; scripts/make_screenshots.py)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
 │   │                      # middleware (лимит тела), request_id (X-Request-ID
@@ -633,7 +640,15 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-04 (**M7 T3.2 выполнена** — production-образ
+*Последнее обновление: 2026-11-05 (**оформление репозитория** — новые скриншоты
+`docs/img/` через `scripts/make_screenshots.py`, README дополнен бейджами
+(CI/Release/License/Python/Ruff/Windows/PySide6/Blockly/Cloud/GHCR/PRs),
+блоками скриншотов и mermaid-диаграммами архитектуры (EN и RU), картой
+репозитория, статус M7 обновлён на «в работе»; созданы `CONTRIBUTING.md`,
+`SECURITY.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), формы
+`.github/ISSUE_TEMPLATE/{bug_report,feature_request,config}.yml`,
+`.github/PULL_REQUEST_TEMPLATE.md` и `.editorconfig`; §3.2 дополнен этими
+файлами и `docs/img/`). Ранее, 2026-11-04: **M7 T3.2 и T4.1** — production-образ
 ClicKit Cloud: `docker/Dockerfile.service` (multi-stage `builder` → `runtime`,
 non-root `UID/GID 10001`, `HEALTHCHECK` через `service/app/healthcheck.py`
 на `/healthz`, exec-форма uvicorn для SIGTERM, graceful shutdown 20 с),
