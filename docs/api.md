@@ -392,6 +392,25 @@ CLICKIT_DB_URL=postgresql+psycopg://clikit:clikit@localhost:5432/clikit \
   alembic -c service/alembic.ini upgrade head
 ```
 
+### Локальный запуск через Docker Compose (T4.1)
+
+`docker-compose.cloud.yml` поднимает API, PostgreSQL 16 и применяет миграции
+до старта сервиса (одноразовый сервис `migrate`, см. ADR №56):
+
+```bash
+cp .env.example .env    # задайте CLICKIT_API_KEY и POSTGRES_PASSWORD
+docker compose -f docker-compose.cloud.yml up -d
+curl http://localhost:8000/healthz     # 200
+docker compose -f docker-compose.cloud.yml down
+```
+
+- API ждёт здоровую БД и успешное завершение `migrate`.
+- Данные PostgreSQL лежат в именованном томе `pgdata` и переживают `down`;
+  удалить их: `down -v`.
+- Порт БД наружу не публикуется; отладка —
+  `docker compose -f docker-compose.cloud.yml exec db psql -U clikit -d clikit`.
+
+
 
 ## 10. Клиент и CLI (контракт M7, T4.2)
 

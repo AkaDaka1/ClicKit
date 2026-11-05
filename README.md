@@ -222,6 +222,14 @@ The Windows-container jobs are intentionally separate from Linux test jobs:
 the application itself remains Windows-only, while Linux containers provide a
 fast, reproducible test environment.
 
+### ClicKit Cloud (M7, in progress)
+
+- `docker-compose.cloud.yml` starts the FastAPI service, PostgreSQL 16 and a
+  one-shot Alembic migration job (API + database + named volume);
+- copy `.env.example` to `.env`, set `CLICKIT_API_KEY` and `POSTGRES_PASSWORD`,
+  then run `docker compose -f docker-compose.cloud.yml up -d`;
+- API contract, configuration and error codes: [`docs/api.md`](docs/api.md).
+
 ## 🛠️ Tech stack
 
 Python 3.11+ · PySide6 (Qt for Python, LGPL) · Blockly (vendored, Apache-2.0)
@@ -465,6 +473,15 @@ python scripts/verify_release.py --tag v1.0.0 --smoke
 
 Windows-контейнеры намеренно отделены от Linux-тестов: само приложение остаётся
 Windows-only, а Linux-контейнер даёт быстрый воспроизводимый тестовый прогон.
+
+### ClicKit Cloud (M7, в работе)
+
+- `docker-compose.cloud.yml` поднимает FastAPI-сервис, PostgreSQL 16 и
+  одноразовую задачу миграций Alembic (API + БД + именованный том);
+- скопируйте `.env.example` в `.env`, задайте `CLICKIT_API_KEY` и
+  `POSTGRES_PASSWORD`, затем выполните
+  `docker compose -f docker-compose.cloud.yml up -d`;
+- контракт API, конфигурация и коды ошибок — [`docs/api.md`](docs/api.md).
 
 ## 🛠️ Технологии
 

@@ -1,0 +1,85 @@
+# Локальный ClicKit Cloud: API + PostgreSQL 16 + именованный том (M7 T4.1).
+#
+# Быстрый старт (секреты — только через .env, см. docs/api.md §9):
+#   copy .env.example .env        # PowerShell; в bash: cp .env.example .env
+#   # заполнить CLICKIT_API_KEY и POSTGRES_PASSWORD
+#   docker compose -f docker-compose.cloud.yml up -d
+#   curl http://localhost:8000/healthz
+#   docker compose -f docker-compose.cloud.yml down
+#
+# `migrate` — одноразовый сервис: применяет Alembic-миграции до старта API.
+# API ждёт и здоровую БД, и успешное завершение миграций. Схему меняет только
+# Alembic (ADR №52), поэтому сервис не вызывает create_all.
+#
+# Данные PostgreSQL лежат в именованном томе `pgdata` и переживают `down` и
+# перезапуск контейнеров. Удалить данные: `down -v` (осторожно).
+#
+# Порт БД наружу не публикуется: для отладки —
+#   docker compose -f docker-compose.cloud.yml exec db psql -U clikit -d clikit
+
+name: clikit-cloud
+
+# Общий образ сервиса для API и миграций: собирается один раз.
+x-service-image: &service-image
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.service
+  image: clikit-service:local
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clikit
+      POSTGRES_DB: clikit
+      # :? — compose не стартует с пустым паролем; значение только из .env/env.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clikit -d clikit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    stop_grace_period: 30s
+
+  migrate:
+    <<: *service-image
+    restart: "no"
+    # ENTRYPOINT образа — uvicorn; для миграций он заменяется полностью, а CMD
+    # очищается, иначе аргументы uvicorn добавились бы к команде alembic.
+    entrypoint: ["python", "-m", "alembic", "-c", "service/alembic.ini", "upgrade", "head"]
+    command: []
+    environment:
+      CLICKIT_DB_URL: postgresql+psycopg://clikit:${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в .env}@db:5432/clikit
+      CLICKIT_LOG_LEVEL: ${CLICKIT_LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+    # HEALTHCHECK образа проверяет HTTP-сервер, которого у миграций нет.
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *service-image
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${CLICKIT_API_PORT:-8000}:8000"
+    environment:
+      CLICKIT_DB_URL: postgresql+psycopg://clikit:${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в .env}@db:5432/clikit
+      CLICKIT_API_KEY: ${CLICKIT_API_KEY:?Задайте CLICKIT_API_KEY (≥ 16 символов) в .env}
+      CLICKIT_ADMIN_API_KEY: ${CLICKIT_ADMIN_API_KEY:-}
+      CLICKIT_LOG_LEVEL: ${CLICKIT_LOG_LEVEL:-INFO}
+      CLICKIT_GIT_SHA: ${CLICKIT_GIT_SHA:-local}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 30s
+
+volumes:
+  pgdata:

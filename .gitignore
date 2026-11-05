@@ -44,6 +44,8 @@ scratch/
 # --- Локальные конфиги и секреты ---
 .env
 .env.*
+# Шаблон без секретов — часть репозитория.
+!.env.example
 settings.local.json
 *.local.json
 
