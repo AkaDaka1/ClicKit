@@ -34,18 +34,28 @@ def eval_js(view: EditorView, expression: str, timeout: float = 20.0) -> object:
         QApplication.processEvents()
         time.sleep(0.01)
     if not holder["done"]:
-        raise AssertionError(f"JS не ответил за {timeout:g} с: {expression}")
+        raise TimeoutError(f"JS не ответил за {timeout:g} с: {expression}")
     return holder["value"]
 
 
-def wait_js(view: EditorView, expression: str, timeout: float = 20.0) -> bool:
-    """Ждать, пока JS-выражение не вернёт истину."""
+def wait_js(view: EditorView, expression: str, timeout: float = 30.0) -> bool:
+    """Ждать, пока JS-выражение не вернёт истину.
+
+    На медленных раннерах CI первый вызов `runJavaScript` может отвечать
+    дольше 2 с (прогрев Chromium), поэтому каждый опрос получает весь
+    оставшийся бюджет, а не фиксированные 2 с.
+    """
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if eval_js(view, expression, timeout=2.0) is True:
-            return True
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        try:
+            if eval_js(view, expression, timeout=remaining) is True:
+                return True
+        except TimeoutError:
+            pass
         time.sleep(0.05)
-    return False
 
 
 def close_view(view: EditorView) -> None:
