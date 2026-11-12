@@ -170,6 +170,7 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 | Дата | Задача | Результат | Commit |
 |---|---|---|---|
 | 2026-11-01 | — | План создан; SLO и стек согласованы | — |
+| 2026-11-13 | T0.1 | SLI/SLO зафиксированы: `docs/sre/slo.md` (99.5 % / 30 дней, бюджет 0.5 % = 216 мин, p95 ≤ 300 мс, burn rate 14.4/6, политика 50/75/100 %, границы SLI и ограничения), `observability/prometheus/recording_rules.yml` (11 записей), `observability/prometheus/tests/slo_rules_test.yml` (4 сценария promtool); retention Prometheus 15 → 40 дней — иначе 30-дневный SLO не посчитать (ADR №60, §3 обновлён); проверено `promtool check rules` (11 rules) и `promtool test rules` (SUCCESS) в `prom/prometheus:latest`; 8 статических тестов `tests/service/test_slo_docs.py`, полный прогон 515 passed | `58c34b7` |
 
 ## 11. Вне вехи
 

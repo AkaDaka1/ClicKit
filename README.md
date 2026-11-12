@@ -139,7 +139,7 @@ want to automate a few clicks.
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 | **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
 | **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | ✅ Done |
-| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
+| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 🚧 In progress |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
 | **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
 | **M11** | Security & resilience: scanning, load, backups, chaos | 📋 Planned |
@@ -480,7 +480,7 @@ flowchart LR
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 | **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
 | **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | ✅ Готово |
-| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
+| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 🚧 В работе |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
 | **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
 | **M11** | Безопасность и устойчивость: сканирование, нагрузка, бэкапы, chaos | 📋 Запланировано |

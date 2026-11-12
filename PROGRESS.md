@@ -59,6 +59,7 @@
 | 2026-11-05 | **Пост-фиксы оформления:** выставлены GitHub-топики репозитория (python, sqlalchemy, postgresql, fastapi, alembic, pyside6, qt6, blockly, pyautogui, pynput, pyinstaller, windows, auto-clicker, automation, docker — через `gh api`); скриншоты переделаны без «квадратиков» вместо текста: `make_screenshots.py` теперь рендерит окно на нативной платформе с `WA_DontShowOnScreen` (окно не появляется, мышь не двигается, шрифты системные; у offscreen-платформы Qt на Windows нет шрифтовой базы; запасной режим — `CLICKIT_SHOTS_OFFSCREEN=1`); починен CI (`test_page_loads_and_has_starter_blocks` падал на раннере: внутренний таймаут `eval_js` 2 с меньше времени прогрева Chromium — `wait_js` теперь отдаёт опросу весь оставшийся бюджет и ловит `TimeoutError`, дефолт ожидания 30 с) | ✅ Готово |
 | 2026-11-12 | **T5.1 (M7) выполнена — тесты сервиса и job `service-tests` в CI:** в `ci.yml` добавлен отдельный job `service-tests` на `ubuntu-latest` с сервисным контейнером `postgres:16` (`pg_isready`, `CLICKIT_TEST_DB_URL` → `localhost:5432/clikit_test`): `tests/service` проверяют уникальный индекс идемпотентности, `JSONB` и `timestamptz` на настоящей СУБД, локально без переменной — на файловой SQLite. Покрытие `service/` считается с ветвями, порог 80 % задан в `pyproject.toml` (`[tool.coverage.run]`/`[tool.coverage.report]`, недостижение роняет job), JUnit и `coverage.xml` сохраняются артефактом `service-reports`. Конфигурацию страхуют 5 статических тестов `tests/service/test_ci_workflow.py`; `AGENTS.md` дополнен локальной командой с покрытием. Проверено: 226 service-тестов на PostgreSQL 16 — 95.12 % (8.9 с в CI), полный прогон **500 passed**, `ruff check`/`format --check` чисто; PR #6 (run 43277921558) — все job зелёные, `service-tests` 43 с. ADR №58, схема CI в `AI_CONTEXT.md` §3.4 | ✅ Готово |
 | 2026-11-12 | **T6.1 (M7) выполнена — документация ClicKit Cloud:** создан `docs/cloud.md` — зачем сервис, архитектура, требования, запуск с чистой машины (PowerShell и bash), проверка `/healthz`/`/readyz`/`/version`, публикация/список/скачивание через CLI, эндпоинты, коды ошибок и лимиты, миграции, тесты, эксплуатация (журналы, `pg_dump`/restore, ретеншн), диагностика и безопасность; `docs/api.md` дополнен перекрёстными ссылками и разделом «Связанные документы»; README (EN/RU) — M7 ✅, расширенный раздел Cloud с причиной и быстрым стартом; `.env.example` и `docker-compose.cloud.yml` ссылаются на руководство; `AI_CONTEXT.md` §3.3 — ADR №59; 7 статических тестов `tests/service/test_cloud_docs.py` (ссылки, переменные, эндпоинты, коды CLI). Проверено на чистом окружении: `compose down -v --rmi local` → `up -d --build`, контейнеры healthy, `migrate` exit 0, публикация/список/скачивание (файл проходит `run_scenario.py --dry-run`), replay по `Idempotency-Key`, удаление и 404, crash-отчёт с PII-санитайзером, `/readyz` 503 при остановленной БД и 200 после старта, данные и `pg_dump` переживают `down`/`up`; тесты: 7 новых (`tests/service/test_cloud_docs.py`), service — 233, покрытие 96.5 % (SQLite), полный прогон **507 passed**, `ruff check`/`format --check` чисто. PR #7 (run 43326940563) — все job зелёные, включая `service-tests` на PostgreSQL 16 | ✅ Готово |
+| 2026-11-13 | **T0.1 (M8) выполнена — SLI/SLO и PromQL:** создан `docs/sre/slo.md` — SLI доступности и задержки с формулами, границы (только маршруты `/v1/...`; `route` — шаблон FastAPI, не сырой путь; 4xx клиента не жгут бюджет; пустой трафик считается выполнением SLO), SLO **99.5 % / 30 дней**, бюджет **0.5 % = 216 мин = 3 ч 36 мин** (7.2 мин/день, 50.4 мин/неделю), p95 ≤ **300 мс** для 95 % успешных запросов к сценариям, burn rate **14.4 за 1 ч** (2 % бюджета) и **6 за 6 ч** (5 %), политика исчерпания 50/75/100 %, честные ограничения (один инстанс, SLI видит только дошедшие до приложения запросы); `observability/prometheus/recording_rules.yml` — 11 записей (RPS, доля 5xx, доступность 5m/1h/6h/30d, латентность 5m/30d, burn rate 1h/6h, израсходованный бюджет 30d) с защитой от NaN на пустом трафике; `observability/prometheus/tests/slo_rules_test.yml` — 4 promtool-сценария (пустой трафик → SLI 1, 1 % ошибок → 0.99 и burn 2, 4xx не влияют, служебные маршруты исключены); retention Prometheus **15 → 40 дней** (иначе 30-дневный SLO не посчитать; план M8 §3 обновлён), ADR №60; ссылки из `docs/api.md` и `docs/cloud.md`; 8 статических тестов `tests/service/test_slo_docs.py` (цифры, набор записей, метрики, ссылки, отсутствие секретов), `pyyaml` в `requirements-service-test.txt`. Проверено: `promtool check rules` — `SUCCESS: 11 rules found`, `promtool test rules` — `SUCCESS` (образ `prom/prometheus:latest`); полный прогон **515 passed**, `ruff check`/`format --check` чисто. Commit `58c34b7` | ✅ Готово |
 
 ---
 
@@ -69,7 +70,8 @@
   контракт API, скелет сервиса, БД и миграции, CRUD сценариев, приём
   crash-отчётов, API-ключи и корреляция запросов, production-образ сервиса,
   локальный compose API + PostgreSQL, клиент публикации, тесты сервиса в CI,
-  документация), M8–M11 запланированы.
+  документация), **M8 в работе** (T0.1 ✅ — SLI/SLO, error budget и PromQL),
+  M9–M11 запланированы.
   Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
@@ -169,13 +171,17 @@
   машины, CLI, эксплуатация, диагностика), перекрёстные ссылки в `docs/api.md`,
   README (EN/RU) с M7 ✅ и быстрым стартом, ADR №59; 7 статических тестов
   документации. **M7 закрыт по всем задачам.**
-- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2); тестовые зависимости сервиса вынесены в `requirements-service-test.txt` (T3.2).
-- **Ближайшая веха:** **M8 — наблюдаемость** (`plans/M8-observability.md`):
+- **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2); тестовые зависимости сервиса вынесены в `requirements-service-test.txt` (T3.2; с M8 T0.1 — ещё `pyyaml` для проверки recording rules); для проверки правил наблюдаемости — `promtool` из образа `prom/prometheus` (локально; подключение в CI — T3.1).
+- **Текущая веха:** **M8 — наблюдаемость** (`plans/M8-observability.md`):
   JSON-логи и полноценный `/metrics`, Prometheus/Grafana/Loki/Tempo, алерты,
-  SLO 99.5 % и error budget, runbook. M7 завершён: контракт `docs/api.md`,
-  скелет сервиса, БД и Alembic, CRUD сценариев, crash-отчёты, API-ключи и
-  `X-Request-ID`, production-образ, локальный compose, клиент/CLI, тесты и CI,
-  документация `docs/cloud.md`.
+  SLO 99.5 % и error budget, runbook. **T0.1 ✅** (2026-11-13): контракт SLI/SLO
+  в `docs/sre/slo.md` (99.5 % / 30 дней, бюджет 216 мин, p95 ≤ 300 мс, burn
+  rate 14.4/6, политика 50/75/100 %) и проверенные `promtool` recording rules
+  `observability/prometheus/recording_rules.yml`; retention Prometheus 40 дней
+  (ADR №60). Следующая задача — **T1.1**: JSON-логи с `request_id`.
+  M7 завершён: контракт `docs/api.md`, скелет сервиса, БД и Alembic, CRUD
+  сценариев, crash-отчёты, API-ключи и `X-Request-ID`, production-образ,
+  локальный compose, клиент/CLI, тесты и CI, документация `docs/cloud.md`.
 
 ## Следующие шаги (по порядку)
 
@@ -198,8 +204,11 @@
    `python -m pytest tests/service --cov` (порог 80 %); на реальном
    PostgreSQL — `CLICKIT_TEST_DB_URL=postgresql+psycopg://…`, как в job
    `service-tests`.
-5. **M8 — наблюдаемость** (`plans/M8-observability.md`): следующая веха; сначала
-   JSON-логи и `/metrics`, затем Grafana/Loki/Tempo, алерты, SLO и runbook.
+5. **M8 — наблюдаемость** (`plans/M8-observability.md`): **T0.1 ✅** — контракт
+   SLI/SLO и recording rules (`docs/sre/slo.md`,
+   `observability/prometheus/recording_rules.yml`, проверка `promtool`);
+   следующая задача — T1.1 (JSON-логи и `request_id`), затем `/metrics`,
+   Grafana/Loki/Tempo, алерты, runbook.
 6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,
    `plans/M10-delivery.md`): после M7 и M6 T3.2; Terraform → k3s/Helm/TLS →
    CD staging/prod с откатом и DORA.

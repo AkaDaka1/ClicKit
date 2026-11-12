@@ -159,7 +159,8 @@ ClicKit/
 │                          # cloud_publish — клиент ClicKit Cloud, M7 T4.2)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
-│                          # img/ (скриншоты для README; scripts/make_screenshots.py)
+│                          # sre/ (slo.md — M8 T0.1), img/ (скриншоты для
+│                          # README; scripts/make_screenshots.py)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
 │   │                      # middleware (лимит тела), request_id (X-Request-ID
@@ -171,13 +172,16 @@ ClicKit/
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
+├── observability/         # правила и стек наблюдаемости (M8): prometheus/
+│                          # (recording_rules.yml, tests/), далее Grafana/
+│                          # Loki/Tempo/Alertmanager (T2.1–T3.1)
 └── tests/
 ```
 
 Каталог `service/` создан в M7 (T1.1: скелет, T1.2: БД и миграции),
-`cloud/` — в T4.2 (клиент и CLI). Каталоги
-`observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
-интерфейсы и критерии готовности зафиксированы в
+`cloud/` — в T4.2 (клиент и CLI), `observability/` и `docs/sre/` — в M8 T0.1
+(recording rules и контракт SLO). Каталоги `infra/`, `deploy/` появятся в
+M9–M11; их интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
 структура выше — фактическая; плановые каталоги не считаются реализованными.
 
@@ -559,6 +563,21 @@ ClicKit/
        --build`), а статические тесты `tests/service/test_cloud_docs.py`
        фиксируют разделение ролей, ссылки из README и обязательные переменные
        окружения.
+
+   60. **SLI считаются по метрикам, которые видел сам сервис**
+       (2026-11-13, M8 T0.1): в SLO входят только пользовательские маршруты
+       `/v1/...`; служебные (`/healthz`, `/readyz`, `/metrics`, `/version`,
+       `/docs`) и несовпавшие пути исключены, 4xx клиента не жгут error
+       budget, пустой трафик считается выполнением SLO (молчание ловит
+       отдельный алерт `up`). Формулы живут в recording rules
+       `observability/prometheus/recording_rules.yml`, а не в дашбордах;
+       цифры (99.5 % за 30 дней, p95 ≤ 300 мс, burn rate 14.4/6, политика
+       50/75/100 %) зафиксированы в `docs/sre/slo.md` и меняются только через
+       ADR. Retention Prometheus — **40 дней** вместо 15 из первоначального
+       плана: 30-дневное окно SLO не посчитать из 15 дней данных; параметр
+       плана M8 §3 обновлён. Запросы проверяются `promtool check rules` и
+       `promtool test rules` на синтетических сериях, статические тесты
+       `tests/service/test_slo_docs.py` держат документ и правила в согласии.
 
 ---
 
