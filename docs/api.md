@@ -508,6 +508,8 @@ curl -s -X DELETE localhost:8000/v1/scenarios/<id> \
 ## 13. Связанные документы
 
 - [`docs/cloud.md`](cloud.md) — запуск, эксплуатация, CLI и диагностика.
+- [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget и политика
+  надёжности (M8).
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач T0.1–T6.1 и журнал.
 - [`README.md`](../README.md) — обзор продукта и точка входа в документацию.

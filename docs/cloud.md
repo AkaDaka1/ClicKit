@@ -413,6 +413,8 @@ curl.exe -s http://localhost:8000/openapi.json | Out-Null   # 200
 
 - [`docs/api.md`](api.md) — нормативный контракт: эндпоинты, ошибки, лимиты,
   идемпотентность, схема PostgreSQL 16, конфигурация env.
+- [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget и политика
+  исчерпания бюджета (M8).
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач и журнал.
 - [`README.md`](../README.md) — обзор продукта и быстрый старт.

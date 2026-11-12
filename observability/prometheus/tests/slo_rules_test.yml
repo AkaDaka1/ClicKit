@@ -1,0 +1,107 @@
+# Unit-тесты recording rules SLO (M8 T0.1).
+#
+# Запуск:
+#   docker run --rm --entrypoint promtool \
+#     -v "${PWD}/observability:/observability:ro" prom/prometheus:latest \
+#     test rules /observability/prometheus/tests/slo_rules_test.yml
+#
+# Смысл тестов — зафиксировать семантику SLI, которую обещает docs/sre/slo.md:
+# 4xx не жгут бюджет, служебные маршруты не считаются, пустой трафик не даёт
+# NaN, burn rate считается от бюджета 0.5 %.
+# Значения сравниваются после `round`, потому что promtool сравнивает float
+# побитово, а нас интересует смысл (0.99), а не младший бит double.
+rule_files:
+  - ../recording_rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: пустой трафик — SLI выполнен, burn rate равен нулю
+    interval: 1m
+    input_series:
+      - series: 'clikit_build_info{version="1.0.0",git_sha="test"}'
+        values: "1x20"
+    promql_expr_test:
+      - expr: round(clikit:sli_availability:ratio_rate5m, 0.001)
+        eval_time: 5m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: round(clikit:sli_latency:ratio_rate5m, 0.001)
+        eval_time: 5m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: round(clikit:slo_burn_rate:ratio_1h, 0.01)
+        eval_time: 5m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+
+  - name: 1 % ошибок и 10 % медленных запросов
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios/{id}",status="200"}'
+        values: "0+99x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios/{id}",status="503"}'
+        values: "0+1x20"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios/{id}",status="200",le="0.3"}'
+        values: "0+90x20"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios/{id}",status="200",le="+Inf"}'
+        values: "0+100x20"
+    promql_expr_test:
+      - expr: round(clikit:http_requests:rate5m, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1.67
+      - expr: round(clikit:http_errors:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.01
+      - expr: round(clikit:sli_availability:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.99
+      - expr: round(clikit:sli_latency:ratio_rate5m, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.9
+      - expr: round(clikit:slo_burn_rate:ratio_1h, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 2
+
+  - name: ошибки клиента (4xx) не жгут error budget
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="201"}'
+        values: "0+99x20"
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="422"}'
+        values: "0+50x20"
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="503"}'
+        values: "0+1x20"
+    promql_expr_test:
+      - expr: round(clikit:sli_availability:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.99
+
+  - name: служебные маршруты не входят в SLI
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="201"}'
+        values: "0+100x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/healthz",status="503"}'
+        values: "0+100x20"
+    promql_expr_test:
+      - expr: round(clikit:sli_availability:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1

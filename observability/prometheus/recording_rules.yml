@@ -1,0 +1,89 @@
+# Recording rules SLO ClicKit Cloud (M8 T0.1).
+#
+# Источник истины по цифрам — docs/sre/slo.md. Здесь только вычисления,
+# чтобы дашборды и алерты (T3.1/T4.1) читали одни и те же SLI, а не
+# повторяли формулы каждый по-своему.
+#
+# Ожидаемые метрики сервиса (появляются в T1.2, формат — docs/api.md §5.4):
+#   clikit_http_requests_total{method,route,status}          — counter
+#   clikit_http_request_duration_seconds_bucket{method,route,status,le} — histogram
+#
+# Соглашения:
+#   * `route` — шаблон маршрута FastAPI (`/v1/scenarios/{id}`), не сырой путь:
+#     иначе кардинальность взорвётся на каждом id;
+#   * в SLI входят только пользовательские маршруты `/v1/...`; служебные
+#     `/healthz`, `/readyz`, `/metrics`, `/docs` и несовпавшие пути исключены;
+#   * 4xx клиента не жгут error budget: знаменатель их не содержит;
+#   * на пустом трафике SLI считается выполненным: `or vector(0)` в числителе
+#     и `or vector(1)` в знаменателе убирают NaN при делении 0/0.
+#     Молчание сервиса ловит отдельный алерт `up` (T3.1), а не SLI.
+
+groups:
+  - name: clikit-sli
+    interval: 15s
+    rules:
+      # Трафик (RPS) по пользовательским маршрутам — для дашборда T2.2.
+      - record: clikit:http_requests:rate5m
+        expr: |
+          sum(rate(clikit_http_requests_total{route=~"/v1/.*"}[5m]))
+
+      # Доля 5xx среди запросов, которые считаются в SLI (без 4xx).
+      - record: clikit:http_errors:ratio_rate5m
+        expr: |
+          (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[5m])) or vector(0))
+          /
+          (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[5m])) or vector(1))
+
+      # Доступность SLI: 1 − доля 5xx. Окна — для политики burn rate.
+      - record: clikit:sli_availability:ratio_rate5m
+        expr: 1 - clikit:http_errors:ratio_rate5m
+      - record: clikit:sli_availability:ratio_rate1h
+        expr: |
+          1 - (
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[1h])) or vector(0))
+            /
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[1h])) or vector(1))
+          )
+      - record: clikit:sli_availability:ratio_rate6h
+        expr: |
+          1 - (
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[6h])) or vector(0))
+            /
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[6h])) or vector(1))
+          )
+      - record: clikit:sli_availability:ratio_rate30d
+        expr: |
+          1 - (
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[30d])) or vector(0))
+            /
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[30d])) or vector(1))
+          )
+
+      # Задержка SLI: доля успешных запросов к сценариям не дольше 300 мс.
+      # На пустом трафике считаем SLI выполненным (`or vector(1)` в числителе).
+      - record: clikit:sli_latency:ratio_rate5m
+        expr: |
+          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[5m])) or vector(1))
+          /
+          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[5m])) or vector(1))
+      - record: clikit:sli_latency:ratio_rate30d
+        expr: |
+          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[30d])) or vector(1))
+          /
+          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[30d])) or vector(1))
+
+  - name: clikit-slo
+    interval: 1m
+    rules:
+      # Burn rate: во сколько раз быстрее нормы тратится бюджет 0.5 %.
+      # burn = 1 — бюджет кончится ровно через 30 дней,
+      # burn = 14.4 за 1 ч — потрачено 2 % бюджета, burn = 6 за 6 ч — 5 %.
+      - record: clikit:slo_burn_rate:ratio_1h
+        expr: (1 - clikit:sli_availability:ratio_rate1h) / 0.005
+      - record: clikit:slo_burn_rate:ratio_6h
+        expr: (1 - clikit:sli_availability:ratio_rate6h) / 0.005
+
+      # Израсходованная часть бюджета за 30 дней: 0 — не тратили,
+      # 1 — бюджет исчерпан, больше 1 — SLO нарушен.
+      - record: clikit:slo_error_budget:consumed_ratio_30d
+        expr: (1 - clikit:sli_availability:ratio_rate30d) / 0.005
