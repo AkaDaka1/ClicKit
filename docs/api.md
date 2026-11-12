@@ -439,7 +439,7 @@ class CloudClient:
 
 | Исключение | Откуда |
 |---|---|
-| `CloudError` (база: status, detail, request_id) | общее |
+| `CloudError` (база: `status`, `detail`, `request_id`, `type_urn`) | общее |
 | `CloudAuthError` | 401/403 |
 | `CloudNotFoundError` | 404 |
 | `CloudValidationError(issues)` | 422 |
@@ -452,19 +452,25 @@ Retry **только** на 5xx, таймауты и сетевые ошибки
 
 ### `scripts/cloud_publish.py`
 
-```
+```text
 python scripts/cloud_publish.py publish <файл.acl.json> [--name ...] [--description ...]
-                                              [--idempotency-key ...] [--url URL] [--api-key KEY]
-python scripts/cloud_publish.py download <id> --output <файл.acl.json> [--url URL]
-python scripts/cloud_publish.py list [--limit N] [--offset N]
-python scripts/cloud_publish.py delete <id>
-python scripts/cloud_publish.py crash-report <файл.json>
+                                  [--idempotency-key ...] [--url URL] [--api-key KEY]
+                                  [--timeout S] [--attempts N]
+python scripts/cloud_publish.py download <id> [--output <файл.acl.json>] [общие флаги]
+python scripts/cloud_publish.py list [--limit N] [--offset N] [общие флаги]
+python scripts/cloud_publish.py delete <id> [общие флаги]
+python scripts/cloud_publish.py crash-report <файл.json> [общие флаги]
 ```
 
-Параметры `--url`/`--api-key` можно заменить env `CLICKIT_CLOUD_URL`,
-`CLICKIT_API_KEY`. Коды выхода: `0` ok, `2` ошибка использования,
-`3` авторизация, `4` не найдено, `5` невалидные данные/сценарий,
-`6` сеть/сервер.
+Здесь `[общие флаги]` — `--url`, `--api-key`, `--timeout`, `--attempts`
+(принимаются всеми подкомандами). Параметры `--url`/`--api-key` заменяются
+env `CLICKIT_CLOUD_URL` (по умолчанию `http://localhost:8000`),
+`CLICKIT_API_KEY`. Таймаут одной попытки — 5 с, попыток — 3; обе величины
+настраиваются флагами и не меняют retry-политику (повтор только 5xx/таймаут/
+сеть). `download` без `--output` сохраняет файл как `<name>.acl.json` (имя из
+IR очищается от небезопасных символов). Коды выхода: `0` ok, `2` ошибка
+использования, `3` авторизация, `4` не найдено, `5` невалидные данные/сценарий
+(включая 409/413/422), `6` сеть/сервер.
 
 ## 11. Проверка контракта (примеры)
 
