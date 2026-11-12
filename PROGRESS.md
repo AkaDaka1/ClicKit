@@ -58,17 +58,18 @@
 | 2026-11-12 | **T4.2 (M7) выполнена — клиент публикации сценариев:** `cloud/client.py` — `CloudClient` (таймаут 5 с на попытку, до 3 попыток, паузы `0.5, 1, 2` с ±25 % jitter только для 5xx/таймаутов/сетевых ошибок, 4xx без повтора) и иерархия ошибок по problem+json (`CloudError` → `CloudAuthError` 401/403, `CloudNotFoundError` 404, `CloudConflictError` 409, `CloudTooLargeError` 413, `CloudValidationError` 422 с `issues`, `CloudServerError` 5xx/сеть), dataclass `PublishedScenario`/`ScenarioPage`/`CrashReceipt`; `scripts/cloud_publish.py` — подкоманды `publish`/`download`/`list`/`delete`/`crash-report`, URL и ключ из `--url`/`--api-key` или env `CLICKIT_CLOUD_URL`/`CLICKIT_API_KEY`, коды выхода 0/2/3/4/5/6 по контракту `docs/api.md` §10, локальная валидация IR до отправки, атомарная запись скачанного файла. Проверено вживую на `docker compose -f docker-compose.cloud.yml`: публикация, список, скачивание (файл проходит `run_scenario.py --dry-run`), replay идемпотентности с тем же id, 409 при другом теле (код 5), неверный ключ → 3, неизвестный id → 4, остановленный API → 6 после двух попыток, crash-отчёт → 202 (в БД виден PII-санитайзер). 44 новых теста (`tests/service/test_cloud_client.py`, `tests/service/test_cloud_publish_cli.py`), service — 221, полный прогон **495 passed**; `ruff check`/`format --check` чисто | ✅ Готово |
 | 2026-11-05 | **Пост-фиксы оформления:** выставлены GitHub-топики репозитория (python, sqlalchemy, postgresql, fastapi, alembic, pyside6, qt6, blockly, pyautogui, pynput, pyinstaller, windows, auto-clicker, automation, docker — через `gh api`); скриншоты переделаны без «квадратиков» вместо текста: `make_screenshots.py` теперь рендерит окно на нативной платформе с `WA_DontShowOnScreen` (окно не появляется, мышь не двигается, шрифты системные; у offscreen-платформы Qt на Windows нет шрифтовой базы; запасной режим — `CLICKIT_SHOTS_OFFSCREEN=1`); починен CI (`test_page_loads_and_has_starter_blocks` падал на раннере: внутренний таймаут `eval_js` 2 с меньше времени прогрева Chromium — `wait_js` теперь отдаёт опросу весь оставшийся бюджет и ловит `TimeoutError`, дефолт ожидания 30 с) | ✅ Готово |
 | 2026-11-12 | **T5.1 (M7) выполнена — тесты сервиса и job `service-tests` в CI:** в `ci.yml` добавлен отдельный job `service-tests` на `ubuntu-latest` с сервисным контейнером `postgres:16` (`pg_isready`, `CLICKIT_TEST_DB_URL` → `localhost:5432/clikit_test`): `tests/service` проверяют уникальный индекс идемпотентности, `JSONB` и `timestamptz` на настоящей СУБД, локально без переменной — на файловой SQLite. Покрытие `service/` считается с ветвями, порог 80 % задан в `pyproject.toml` (`[tool.coverage.run]`/`[tool.coverage.report]`, недостижение роняет job), JUnit и `coverage.xml` сохраняются артефактом `service-reports`. Конфигурацию страхуют 5 статических тестов `tests/service/test_ci_workflow.py`; `AGENTS.md` дополнен локальной командой с покрытием. Проверено: 226 service-тестов на PostgreSQL 16 — 95.12 % (8.9 с в CI), полный прогон **500 passed**, `ruff check`/`format --check` чисто; PR #6 (run 43277921558) — все job зелёные, `service-tests` 43 с. ADR №58, схема CI в `AI_CONTEXT.md` §3.4 | ✅ Готово |
+| 2026-11-12 | **T6.1 (M7) выполнена — документация ClicKit Cloud:** создан `docs/cloud.md` — зачем сервис, архитектура, требования, запуск с чистой машины (PowerShell и bash), проверка `/healthz`/`/readyz`/`/version`, публикация/список/скачивание через CLI, эндпоинты, коды ошибок и лимиты, миграции, тесты, эксплуатация (журналы, `pg_dump`/restore, ретеншн), диагностика и безопасность; `docs/api.md` дополнен перекрёстными ссылками и разделом «Связанные документы»; README (EN/RU) — M7 ✅, расширенный раздел Cloud с причиной и быстрым стартом; `.env.example` и `docker-compose.cloud.yml` ссылаются на руководство; `AI_CONTEXT.md` §3.3 — ADR №59; 7 статических тестов `tests/service/test_cloud_docs.py` (ссылки, переменные, эндпоинты, коды CLI). Проверено на чистом окружении: `compose down -v --rmi local` → `up -d --build`, контейнеры healthy, `migrate` exit 0, публикация/список/скачивание (файл проходит `run_scenario.py --dry-run`), replay по `Idempotency-Key`, удаление и 404, crash-отчёт с PII-санитайзером, `/readyz` 503 при остановленной БД и 200 после старта, данные и `pg_dump` переживают `down`/`up`; тесты: 7 новых (`tests/service/test_cloud_docs.py`), service — 233, покрытие 96.5 % (SQLite), полный прогон **507 passed**, `ruff check`/`format --check` чисто. PR #7 (run 43326940563) — все job зелёные, включая `service-tests` на PostgreSQL 16 | ✅ Готово |
 
 ---
 
 ## Текущий статус
 
 - **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
-  подтверждены реальными прогонами GitHub Actions; **M7 в работе** (T0.1–T5.1
-  готовы: контракт API, скелет сервиса, БД и миграции, CRUD сценариев,
-  приём crash-отчётов, API-ключи и корреляция запросов, production-образ
-  сервиса, локальный compose API + PostgreSQL, клиент публикации и тесты
-  сервиса в CI), M8–M11 запланированы.
+  подтверждены реальными прогонами GitHub Actions; **M7 завершён** (T0.1–T6.1:
+  контракт API, скелет сервиса, БД и миграции, CRUD сценариев, приём
+  crash-отчётов, API-ключи и корреляция запросов, production-образ сервиса,
+  локальный compose API + PostgreSQL, клиент публикации, тесты сервиса в CI,
+  документация), M8–M11 запланированы.
   Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
 - **M0:** завершён — скелет проекта с рабочей точкой входа `python -m app`.
@@ -164,33 +165,32 @@
   с сервисным PostgreSQL 16 (`CLICKIT_TEST_DB_URL`), покрытие `service/`
   с ветвями и порогом 80 % в `pyproject.toml`, JUnit и `coverage.xml`
   артефактом; 226 тестов, 95.12 %; PR #6 — все job зелёные.
-  Следующая — T6.1 (документация `docs/cloud.md`, README, API, ADR).
+  **T6.1 ✅** (2026-11-12): документация — `docs/cloud.md` (запуск с чистой
+  машины, CLI, эксплуатация, диагностика), перекрёстные ссылки в `docs/api.md`,
+  README (EN/RU) с M7 ✅ и быстрым стартом, ADR №59; 7 статических тестов
+  документации. **M7 закрыт по всем задачам.**
 - **Зависимости:** установлены (PySide6 6.12.0 — включая WebEngine, pyautogui 0.9.54, pynput 1.8.2, ruff 0.17.2, pytest 9.1.1); для сборки — PyInstaller 6.22.3; для сервиса (M7) — fastapi 0.162.0, uvicorn 0.54.0, httpx 0.28.1, SQLAlchemy 2.1.6, Alembic 1.20.1, psycopg 3.3.6 (T1.2); тестовые зависимости сервиса вынесены в `requirements-service-test.txt` (T3.2).
-- **Ближайшая веха:** **M7 — ClicKit Cloud**: T0.1 ✅ (контракт `docs/api.md`),
-  T1.1 ✅ (скелет сервиса), T1.2 ✅ (БД, модели, Alembic, `/readyz`),
-  **T2.1 ✅** (CRUD сценариев, идемпотентность, лимит 1 МБ), **T2.2 ✅**
-  (приём crash-отчётов, санитайзер PII), **T3.1 ✅** (API-ключи, единый
-  problem+json, `X-Request-ID` на всех ответах), **T3.2 ✅** (Docker-образ
-  сервиса: multi-stage, non-root, healthcheck), **T4.1 ✅** (локальный compose:
-  API + PostgreSQL + том), **T4.2 ✅** (клиент `cloud/client.py` и
-  `scripts/cloud_publish.py`), **T5.1 ✅** (job `service-tests` на PostgreSQL 16,
-  226 тестов, покрытие 95.12 %); следующая задача — **T6.1** (документация
-  Cloud: `docs/cloud.md`, README, `docs/api.md`, ADR).
+- **Ближайшая веха:** **M8 — наблюдаемость** (`plans/M8-observability.md`):
+  JSON-логи и полноценный `/metrics`, Prometheus/Grafana/Loki/Tempo, алерты,
+  SLO 99.5 % и error budget, runbook. M7 завершён: контракт `docs/api.md`,
+  скелет сервиса, БД и Alembic, CRUD сценариев, crash-отчёты, API-ключи и
+  `X-Request-ID`, production-образ, локальный compose, клиент/CLI, тесты и CI,
+  документация `docs/cloud.md`.
 
 ## Следующие шаги (по порядку)
 
 1. **M6 выполнен** — все чекпоинты (T0.1–T6.1) подтверждены прогонами
    GitHub Actions; повторный запуск `Dev release` обновляет draft `dev`.
 2. **Защита `master`** (Settings → Branches): обязательные проверки `lint`,
-   `tests` и `tests-docker`, запрет прямого push, обязательный PR, удаление
-   ветки после merge; почистить влитые `feat/*`-ветки.
-4. **M7 — ClicKit Cloud** (`plans/M7-cloud-service.md`): T0.1 контракт ✅ →
+   `tests`, `tests-docker` и `service-tests`, запрет прямого push, обязательный PR,
+   удаление ветки после merge; почистить влитые `feat/*`-ветки.
+4. **M7 — ClicKit Cloud выполнен** (`plans/M7-cloud-service.md`): T0.1 контракт ✅ →
    T1.1 скелет ✅ → T1.2 БД ✅ → T2.1/T2.2 CRUD и crash-отчёты ✅ →
    T3.1 ключи и request_id ✅ → T3.2 Dockerfile ✅ → T4.1 compose ✅ →
-   T4.2 клиент и CLI ✅ → T5.1 тесты/CI ✅ → T6.1 docs. Для локальной проверки
-   сервиса и клиента:
+   T4.2 клиент и CLI ✅ → T5.1 тесты/CI ✅ → T6.1 документация ✅. Запуск и
+   эксплуатация — `docs/cloud.md`; для локальной проверки:
    `copy .env.example .env` (заполнить ключи), `docker compose -f
-   docker-compose.cloud.yml up -d`; для БД без compose — `postgres:16`
+   docker-compose.cloud.yml up -d --build`; для БД без compose — `postgres:16`
    в Docker и `alembic -c service/alembic.ini upgrade head` при заданном
    `CLICKIT_DB_URL`; публикация сценария — `python scripts/cloud_publish.py
    publish <файл.acl.json>` (URL и ключ из `--url`/`--api-key` или env
@@ -198,7 +198,7 @@
    `python -m pytest tests/service --cov` (порог 80 %); на реальном
    PostgreSQL — `CLICKIT_TEST_DB_URL=postgresql+psycopg://…`, как в job
    `service-tests`.
-5. **M8 — наблюдаемость** (`plans/M8-observability.md`): после M7; сначала
+5. **M8 — наблюдаемость** (`plans/M8-observability.md`): следующая веха; сначала
    JSON-логи и `/metrics`, затем Grafana/Loki/Tempo, алерты, SLO и runbook.
 6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,
    `plans/M10-delivery.md`): после M7 и M6 T3.2; Terraform → k3s/Helm/TLS →

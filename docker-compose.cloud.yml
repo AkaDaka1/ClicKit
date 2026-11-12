@@ -1,6 +1,6 @@
 # Локальный ClicKit Cloud: API + PostgreSQL 16 + именованный том (M7 T4.1).
 #
-# Быстрый старт (секреты — только через .env, см. docs/api.md §9):
+# Быстрый старт (секреты — только через .env, см. docs/cloud.md §3):
 #   copy .env.example .env        # PowerShell; в bash: cp .env.example .env
 #   # заполнить CLICKIT_API_KEY и POSTGRES_PASSWORD
 #   docker compose -f docker-compose.cloud.yml up -d

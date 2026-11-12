@@ -17,7 +17,7 @@ together to script clicks, moves and delays — no coding required.
 [![Windows](https://img.shields.io/badge/OS-Windows_10%2F11-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![PySide6](https://img.shields.io/badge/GUI-PySide6_%2B_Qt-41CD52?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython/)
 [![Blockly](https://img.shields.io/badge/scripting-Blockly-4285F4?logo=googleblockly&logoColor=white)](https://developers.google.com/blockly)
-[![Cloud](https://img.shields.io/badge/cloud-FastAPI_%2B_PostgreSQL-009688?logo=fastapi&logoColor=white)](docs/api.md)
+[![Cloud](https://img.shields.io/badge/cloud-FastAPI_%2B_PostgreSQL-009688?logo=fastapi&logoColor=white)](docs/cloud.md)
 [![Docker](https://img.shields.io/badge/GHCR-images-2496ED?logo=docker&logoColor=white)](https://github.com/AkaDaka1/ClicKit/pkgs/container/clikit-test)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing--security)
 
@@ -87,10 +87,9 @@ Four invariants keep the layers honest:
 
 ## 🚧 Project status
 
-**ClicKit 1.0.0** — the first public release. Milestones **M0–M6** are complete
-and merged into `master`; **M7** (ClicKit Cloud: scenario API, PostgreSQL,
-container image, local compose) is in progress, while **M8–M11** (observability,
-IaC, delivery, security/resilience) are planned and tracked in
+**ClicKit 1.0.0** — the first public release. Milestones **M0–M7** are complete
+and merged into `master`; **M8–M11** (observability, IaC, delivery,
+security/resilience) are planned and tracked in
 [`plans/README.md`](plans/README.md). The app follows the Windows theme by default
 (system / dark / light can be picked in Settings), all three global hotkeys
 (start, stop, coordinate picker) are configurable without a restart, and a
@@ -98,8 +97,10 @@ rotated log is written to `%APPDATA%\ClicKit\logs\app.log`. Two modes are
 available: the classic **Simple mode** and the **block scenario editor** with
 live execution highlighting. The release is a portable folder archive
 `ClicKit-win64.zip` built with PyInstaller (a single-file `ClicKit.exe` can be
-built locally with `--onefile`), so no Python installation is required. Conditions
-(`if`/`while`) and the input recorder remain on the roadmap.
+built locally with `--onefile`), so no Python installation is required. **ClicKit
+Cloud** (M7) adds optional scenario sharing and privacy-safe crash reports through
+a FastAPI + PostgreSQL service. Conditions (`if`/`while`) and the input recorder
+remain on the roadmap.
 
 ## 💡 Why ClicKit?
 
@@ -137,7 +138,7 @@ want to automate a few clicks.
 | **M4** | Blockly visual editor with live execution | ✅ Done |
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 | **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
-| **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | 🚧 In progress |
+| **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | ✅ Done |
 | **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
 | **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
@@ -286,13 +287,29 @@ The Windows-container jobs are intentionally separate from Linux test jobs:
 the application itself remains Windows-only, while Linux containers provide a
 fast, reproducible test environment.
 
-### ClicKit Cloud (M7, in progress)
+### ClicKit Cloud (M7)
 
-- `docker-compose.cloud.yml` starts the FastAPI service, PostgreSQL 16 and a
-  one-shot Alembic migration job (API + database + named volume);
-- copy `.env.example` to `.env`, set `CLICKIT_API_KEY` and `POSTGRES_PASSWORD`,
-  then run `docker compose -f docker-compose.cloud.yml up -d`;
-- API contract, configuration and error codes: [`docs/api.md`](docs/api.md).
+The desktop app works fully offline; ClicKit Cloud is an **optional** service
+layer that adds two things: scenario sharing (publish/download `.acl.json`
+through HTTP) and privacy-safe crash reports (home paths are redacted, no
+accounts, IPs or user names, 30-day retention). The service validates scenarios
+with the same `core.ir.schema` code as the app, so only known IR nodes are
+accepted.
+
+Quick start with Docker Compose:
+
+```bash
+git clone https://github.com/AkaDaka1/ClicKit.git && cd ClicKit
+cp .env.example .env                 # fill CLICKIT_API_KEY and POSTGRES_PASSWORD
+docker compose -f docker-compose.cloud.yml up -d --build
+curl http://localhost:8000/healthz   # {"status":"ok",...}
+python scripts/cloud_publish.py publish resources/examples/click_pause_loop.acl.json
+python scripts/cloud_publish.py list
+```
+
+- full walkthrough (PowerShell commands, tests, backup, troubleshooting):
+  [`docs/cloud.md`](docs/cloud.md);
+- API contract, error codes and limits: [`docs/api.md`](docs/api.md).
 
 ## 🗂️ Repository map
 
@@ -309,7 +326,7 @@ docker/       test, Windows build and service images
 scripts/      demos, scenario runner, vendoring, release checks, screenshots
 tests/        pytest: engine, GUI smoke tests, service, release tools
 plans/        milestone plans with task graphs (M0–M11)
-docs/         API contract, cloud notes and README screenshots
+docs/         API contract, cloud operations guide and README screenshots
 ```
 
 ## 🛠️ Tech stack
@@ -324,6 +341,7 @@ FastAPI + PostgreSQL + SQLAlchemy/Alembic for ClicKit Cloud.
 - Milestone plans and task graphs: [`plans/README.md`](plans/README.md)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - API contract for ClicKit Cloud: [`docs/api.md`](docs/api.md)
+- Cloud operations guide: [`docs/cloud.md`](docs/cloud.md)
 
 ## 🤝 Contributing & security
 
@@ -367,10 +385,9 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M6** завершены и влиты
-в `master`; **M7** (ClicKit Cloud: API сценариев, PostgreSQL, контейнерный
-образ, локальный compose) в работе, а **M8–M11** (наблюдаемость, IaC,
-доставка, безопасность и устойчивость) запланированы и ведутся в
+**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M7** завершены и влиты
+в `master`; **M8–M11** (наблюдаемость, IaC, доставка, безопасность и
+устойчивость) запланированы и ведутся в
 [`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
 выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
 (старт, стоп, захват точки) переназначаются без перезапуска, а журнал
@@ -378,8 +395,9 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 классический **«Простой режим»** и **блочный редактор сценариев** с подсветкой
 выполнения. Релиз — это архив `ClicKit-win64.zip` (PyInstaller onedir); один
 файл `ClicKit.exe` собирается отдельно (`--onefile`), — Python на целевой
-машине в обоих случаях не нужен. Условия (`if`/`while`) и запись действий
-остаются в планах.
+машине в обоих случаях не нужен. **ClicKit Cloud** (M7) добавляет опциональный
+обмен сценариями и приватные crash-отчёты через сервис FastAPI + PostgreSQL.
+Условия (`if`/`while`) и запись действий остаются в планах.
 
 ## 💡 Почему ClicKit?
 
@@ -461,7 +479,7 @@ flowchart LR
 | **M4** | Визуальный редактор Blockly с подсветкой выполнения | ✅ Готово |
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 | **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
-| **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | 🚧 В работе |
+| **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | ✅ Готово |
 | **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
 | **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
@@ -613,14 +631,29 @@ python scripts/verify_release.py --tag v1.0.0 --smoke
 Windows-контейнеры намеренно отделены от Linux-тестов: само приложение остаётся
 Windows-only, а Linux-контейнер даёт быстрый воспроизводимый тестовый прогон.
 
-### ClicKit Cloud (M7, в работе)
+### ClicKit Cloud (M7)
 
-- `docker-compose.cloud.yml` поднимает FastAPI-сервис, PostgreSQL 16 и
-  одноразовую задачу миграций Alembic (API + БД + именованный том);
-- скопируйте `.env.example` в `.env`, задайте `CLICKIT_API_KEY` и
-  `POSTGRES_PASSWORD`, затем выполните
-  `docker compose -f docker-compose.cloud.yml up -d`;
-- контракт API, конфигурация и коды ошибок — [`docs/api.md`](docs/api.md).
+Desktop-приложение полностью работает офлайн; ClicKit Cloud — **опциональный**
+серверный слой, который добавляет две вещи: обмен сценариями (публикация и
+скачивание `.acl.json` по HTTP) и приватные crash-отчёты (домашние пути
+вырезаются, нет аккаунтов, IP и имён пользователей, хранение 30 дней). Сервис
+валидирует сценарии тем же кодом `core.ir.schema`, что и приложение, — принимаются
+только известные узлы IR.
+
+Быстрый старт через Docker Compose:
+
+```bash
+git clone https://github.com/AkaDaka1/ClicKit.git && cd ClicKit
+cp .env.example .env                 # заполните CLICKIT_API_KEY и POSTGRES_PASSWORD
+docker compose -f docker-compose.cloud.yml up -d --build
+curl http://localhost:8000/healthz   # {"status":"ok",...}
+python scripts/cloud_publish.py publish resources/examples/click_pause_loop.acl.json
+python scripts/cloud_publish.py list
+```
+
+- подробное руководство (команды PowerShell, тесты, резервная копия,
+  диагностика): [`docs/cloud.md`](docs/cloud.md);
+- контракт API, коды ошибок и лимиты — [`docs/api.md`](docs/api.md).
 
 ## 🗂️ Карта репозитория
 
@@ -637,7 +670,7 @@ docker/       образы тестов, Windows-сборки и сервиса
 scripts/      демо, запуск сценариев, вендоринг, проверка релиза, скриншоты
 tests/        pytest: движок, смоук-тесты GUI, сервис, релизные утилиты
 plans/        планы вех с графами задач (M0–M11)
-docs/         контракт API, заметки о Cloud, скриншоты для README
+docs/         контракт API, руководство по Cloud, скриншоты для README
 ```
 
 ## 🛠️ Технологии
@@ -652,6 +685,7 @@ FastAPI + PostgreSQL + SQLAlchemy/Alembic для ClicKit Cloud.
 - Планы вех и графы задач: [`plans/README.md`](plans/README.md)
 - История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 - Контракт API ClicKit Cloud: [`docs/api.md`](docs/api.md)
+- Руководство по ClicKit Cloud: [`docs/cloud.md`](docs/cloud.md)
 
 ## 🤝 Участие и безопасность
 
