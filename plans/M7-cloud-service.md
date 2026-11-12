@@ -31,8 +31,10 @@
       таймауты и retry с backoff проверены тестами с mock-сервером.
       (✅ T4.2: `cloud/client.py` + CLI; 44 теста на `httpx.MockTransport`;
       живая проверка против `docker compose -f docker-compose.cloud.yml`.)
-- [ ] Автотесты сервиса: не менее 30 тестов, покрытие `service/` ≥ 80%,
+- [x] Автотесты сервиса: не менее 30 тестов, покрытие `service/` ≥ 80%,
       `ruff check` и `ruff format --check` чистые.
+      (✅ T5.1: 226 тестов `tests/service`, покрытие 95.12 % с ветвями,
+      job `service-tests` зелёный на PR #6.)
 - [ ] `docs/cloud.md` и `docs/api.md` описывают запуск, эндпоинты, коды ошибок,
       аутентификацию и ограничения.
 
@@ -202,7 +204,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | T3.2 | `Dockerfile.service`: multi-stage, non-root, healthcheck | T3.1 | Образ собирается, healthy, процесс не от root | ✅ |
 | T4.1 | `docker-compose.cloud.yml`: API + Postgres + том | T3.2 | `up -d` и `down`; данные переживают перезапуск | ✅ |
 | T4.2 | Клиент `cloud/client.py` и `scripts/cloud_publish.py` | T4.1 | Публикация и скачивание против compose; retry/timeout покрыты mock-тестами | ✅ |
-| T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ⬜ |
+| T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ✅ |
 | T6.1 | Документация: README, `docs/cloud.md`, `docs/api.md`, ADR | T5.1 | Инструкции воспроизводятся с чистой машины; ADR в §3.3 | ⬜ |
 
 **Уточнение по T3.1 (2026-11-03, реализовано 2026-11-04).** Часть формата ошибок
@@ -251,7 +253,9 @@ tests/service/            # API, БД, клиент, идемпотентнос�
   только в локальном `.env`.)
 - [x] Контейнер non-root, healthcheck, корректно завершается по SIGTERM.
   (✅ T3.2: `clikit-service:local`, uid 10001, HEALTHCHECK healthy, `docker stop` → exit 0.)
-- [ ] Тесты сервиса зелёные локально и в CI; `ruff` чистый.
+- [x] Тесты сервиса зелёные локально и в CI; `ruff` чистый.
+  (✅ T5.1: job `service-tests` на PostgreSQL 16 — 226 passed, 95.12 %;
+  PR #6, run 43277921558.)
 - [ ] README объясняет, зачем сервису нужен ClicKit, и как его запустить.
 - [ ] Изменения не затронули поведение desktop-приложения и `core/` без сети.
 
@@ -280,6 +284,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | 2026-11-12 | T4.2 | Клиент и CLI: `cloud/client.py` (`CloudClient` с таймаутом 5 с, до 3 попыток, паузы `0.5, 1, 2` с ±25 % jitter только для 5xx/таймаутов/сети; 4xx не ретраятся; problem+json → иерархия `CloudError`/`CloudAuthError`/`CloudNotFoundError`/`CloudConflictError`/`CloudTooLargeError`/`CloudValidationError(issues)`/`CloudServerError` с `status`, `detail`, `request_id`, `type_urn`; dataclass `PublishedScenario`, `ScenarioPage`, `CrashReceipt`; `X-API-Key` из конструктора, id экранируется в пути, публикация проверяет наличие ключа до сети) и `cloud/__init__.py`; `scripts/cloud_publish.py` — подкоманды `publish`/`download`/`list`/`delete`/`crash-report`, URL и ключ из `--url`/`--api-key` или env `CLICKIT_CLOUD_URL`/`CLICKIT_API_KEY`, коды выхода 0/2/3/4/5/6 по контракту, локальная валидация IR перед публикацией, атомарная запись скачанного файла, чтение JSON с BOM (`utf-8-sig`). Проверено вживую на compose: публикация, список, скачивание (файл проходит `run_scenario.py --dry-run`), replay по `Idempotency-Key` (тот же id), 409 при другом теле (код 5), неверный ключ → 3, неизвестный id → 4, остановленный API → 6 с двумя попытками, crash-отчёт → 202 и PII-санитайзер в БД. Тесты: 44 новых (`tests/service/test_cloud_client.py`, `tests/service/test_cloud_publish_cli.py`), service — 221, всего полный прогон **495 passed**; `ruff check`/`format --check` чисто | `862631b` |
 
 | 2026-11-05 | T4.1 | Локальный compose: `docker-compose.cloud.yml` — PostgreSQL 16 с томом `pgdata` и `pg_isready`, одноразовый `migrate` (`alembic upgrade head`, `command: []`), API с портом `${CLICKIT_API_PORT:-8000}`, ожиданием `service_healthy` БД и `service_completed_successfully` миграций; обязательные секреты через `${VAR:?}`. Добавлены `.env.example` (без значений), `!.env.example` в `.gitignore`, раздел «Локальный запуск» в `docs/api.md`, краткое упоминание в README, 7 статических тестов `tests/service/test_compose_cloud.py`. Проверено вживую: `up -d --build` → `migrate` exit 0 и `alembic_version=0001`, API healthy, `/healthz`/`/readyz`/`/version` 200, `POST`/`GET`/list сценария, при остановке БД `/readyz` 503 (healthz 200), после старта снова 200; `down` → `up -d` — сценарий сохранился в томе; `down -v` удаляет данные. Тесты: 450 passed + 1 нестабильный QtWebEngine-тест, прошедший при повторном запуске (к задаче не относится); `ruff` чисто | `0c2dee8` |
+| 2026-11-12 | T5.1 | Тесты сервиса и CI: job `service-tests` в `ci.yml` (`ubuntu-latest`, сервисный контейнер `postgres:16` с `pg_isready`, `CLICKIT_TEST_DB_URL` → `localhost:5432/clikit_test`, Python 3.11, кэш pip по обоим requirements-файлам); `pytest tests/service --cov` с ветвями и порогом 80 % из `pyproject.toml` (`[tool.coverage.run]` / `[tool.coverage.report]`), JUnit и `coverage.xml` — артефакт `service-reports` (`if: always()`); 5 статических тестов `tests/service/test_ci_workflow.py` (job, PostgreSQL 16, зависимости, отчёты, порог); `AGENTS.md` — локальная команда с покрытием. Локально: 226 service-тестов на PostgreSQL 16 — 95.12 % (SQLite по умолчанию), полный прогон **500 passed**, `ruff check`/`format --check` чисто. PR #6 (run 43277921558): `service-tests` — 226 passed, 95.12 %, 43 с, все job зелёные — чекпоинт пройден | `cf3b779` |
 
 ## 12. Вне вехи (сознательно)
 

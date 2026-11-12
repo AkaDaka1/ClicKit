@@ -533,6 +533,19 @@ ClicKit/
       атомарной записью скачанного файла; URL и ключ — из аргументов или
       env `CLICKIT_CLOUD_URL`/`CLICKIT_API_KEY`.
 
+   58. **Тесты сервиса — отдельный Linux-job с PostgreSQL 16**
+      (2026-11-12, M7 T5.1): `ci.yml` получает job `service-tests` на
+      `ubuntu-latest` с сервисным контейнером `postgres:16`, поэтому
+      `tests/service` проверяют уникальный индекс идемпотентности, `JSONB`
+      и `timestamptz` на реальной СУБД через `CLICKIT_TEST_DB_URL`;
+      локально без переменной те же тесты идут на файловой SQLite.
+      Windows-матрица desktop не ставит FastAPI/PostgreSQL и не замедляется.
+      Покрытие считается только по `service/` (ветви включены, порог 80 %
+      в `pyproject.toml`; недостижение порога роняет job), JUnit и
+      `coverage.xml` сохраняются артефактом `service-reports`. Порог — часть
+      контракта задачи: «тесты есть» без измерения покрытия не считается
+      выполнением.
+
 ---
 
 ### 3.4. CI/CD
@@ -541,6 +554,7 @@ ClicKit/
 PR / push в master ──► ci.yml ──► lint ───────────────┐
                                         ├─► tests (3.11, 3.12, 3.13; Windows)
                                         ├─► tests-docker (Linux-контейнер)
+                                        ├─► service-tests (PostgreSQL 16, Linux)
                                         └─► package (--zip + smoke, только master)
 
 push в master/dev ──► docker.yml ──► build-test (Linux)  ──► GHCR: <sha> + latest/dev
@@ -567,10 +581,13 @@ runner недоступен), Linux-образ — через `docker/build-push
 Правила и локальные аналоги:
 
 - Пуш в `master` — только через PR с зелёным CI (настройки репозитория:
-  branch protection, обязательные проверки `lint` и `tests`, удаление ветки
-  после merge).
+  branch protection, обязательные проверки `lint`, `tests` и `service-tests`,
+  удаление ветки после merge).
 - Локальная проверка того же, что в CI: `ruff check .`, `ruff format --check .`,
-  `python -m pytest`, `docker compose run --rm test` (Linux-контейнер, ADR №33).
+  `python -m pytest`, `docker compose run --rm test` (Linux-контейнер, ADR №33),
+  `python -m pytest tests/service --cov` (сервис, порог покрытия — ADR №58).
+  Тесты сервиса с реальным PostgreSQL: задать `CLICKIT_TEST_DB_URL`
+  (в CI — сервисный контейнер `postgres:16`), без неё — файловая SQLite.
 - Локальная проверка релиза перед тегом:
   `python scripts/build_exe.py --zip` и
   `python scripts/verify_release.py --tag v<версия> --smoke`.
@@ -605,7 +622,7 @@ runner недоступен), Linux-образ — через `docker/build-push
   README и `packaging/version_info.txt`; при релизе менять синхронно
   (и `pyproject.toml` — расхождение ловит `tests/test_release_tools.py`).
 - **CI/CD не обходится:** `master` принимает изменения только через PR с
-  зелёными `lint`/`tests`; релиз — только тегом `v<APP_VERSION>`; скрипты
+  зелёными `lint`/`tests`/`service-tests`; релиз — только тегом `v<APP_VERSION>`; скрипты
   `scripts/verify_release.py` и `scripts/release_notes.py` обязаны оставаться
   рабочими, их поведение покрыто тестами.
 - **Планы вех — публичная часть репозитория:** `plans/M<#>-*.md` и индекс
@@ -658,7 +675,15 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-12 (**M7 T4.2** — клиент ClicKit Cloud
+*Последнее обновление: 2026-11-12 (**M7 T5.1** — тесты сервиса в CI: job
+`service-tests` на `ubuntu-latest` с сервисным контейнером `postgres:16`
+(`CLICKIT_TEST_DB_URL`), покрытие `service/` с ветвями и порогом 80 %
+(`pytest-cov`, `pyproject.toml`), JUnit и `coverage.xml` — артефактом
+`service-reports`; локально 226 service-тестов на PostgreSQL 16 дают
+95.12 %; PR #6 (run 43277921558) — все job зелёные, `service-tests` 43 с;
+§3.3 — ADR №58, §3.4 — схема CI и локальные команды.)*
+
+*Ранее, 2026-11-12 (**M7 T4.2** — клиент ClicKit Cloud
 `cloud/client.py` (`CloudClient`: таймаут 5 с, до 3 попыток с jitter только
 для 5xx/таймаутов/сети, иерархия `CloudError` по problem+json,
 `PublishedScenario`/`ScenarioPage`/`CrashReceipt`) и CLI
