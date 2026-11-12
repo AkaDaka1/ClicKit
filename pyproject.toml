@@ -17,3 +17,16 @@ known-first-party = ["app", "core", "gui", "bridge", "service", "cloud"]
 # Корень проекта в sys.path: тесты импортируют `app`, `core`, `gui`, `tests.*`.
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+# Покрытие считается по сервисному слою (M7 T5.1): CI job `service-tests`
+# запускает только `tests/service`. Ветви учитываются — иначе обработчики
+# ошибок и ветки идемпотентности не видны в отчёте.
+source = ["service"]
+branch = true
+
+[tool.coverage.report]
+# Порог из плана M7 (T5.1): сервис не принимается с покрытием ниже 80 %.
+fail_under = 80
+show_missing = true
+skip_covered = true

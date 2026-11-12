@@ -46,7 +46,9 @@
 - Сервис (M7): `pip install -r requirements-service.txt` и
   `uvicorn service.app.main:app` (нужен `CLICKIT_API_KEY`, см. `docs/api.md` §9)
 - Тесты сервиса (M7): `pip install -r requirements-service-test.txt` и
-  `python -m pytest tests/service`
+  `python -m pytest tests/service` (с покрытием — `--cov`, порог 80 % задан
+  в `pyproject.toml`; с реальным PostgreSQL 16 — переменная
+  `CLICKIT_TEST_DB_URL`, как в CI-job `service-tests`)
 - Образ сервиса (M7): `docker build -f docker/Dockerfile.service -t clikit-service:local .`
 - Сборка релиза: `pip install -r requirements-build.txt` и `python scripts/build_exe.py --both`
 - Запуск: `python -m app`
