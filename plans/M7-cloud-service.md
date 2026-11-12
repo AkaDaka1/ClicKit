@@ -1,7 +1,6 @@
 # M7 — ClicKit Cloud: сервис сценариев
 
-> План создан 2026-11-01. Статус: 🔄 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅,
-> T2.1 ✅, T2.2 ✅, T3.1 ✅, T3.2 ✅, T4.1 ✅, T4.2 ✅ — 2026-11-12).
+> План создан 2026-11-01. Статус: ✅ завершён 2026-11-12 (T0.1–T6.1 ✅).
 > Связь: продолжает продукт после M5; не дублирует M6 (Docker-среда тестов,
 > образ сборки, GHCR и dev-релизы остаются в M6).
 
@@ -17,16 +16,23 @@
 
 ## 2. Критерий готовности
 
-- [ ] `docker compose -f docker-compose.cloud.yml up -d` поднимает API и
+- [x] `docker compose -f docker-compose.cloud.yml up -d` поднимает API и
       PostgreSQL; `GET /healthz` → 200, `GET /readyz` → 200 при доступной БД
       и 503 при недоступной.
-- [ ] `POST /v1/scenarios` создаёт сценарий, `GET /v1/scenarios/{id}` возвращает
+      (✅ T4.1 и повторно T6.1: `down -v --rmi local` → `up -d --build`,
+      контейнеры healthy, `/readyz` 503 при остановленной БД и 200 после старта.)
+- [x] `POST /v1/scenarios` создаёт сценарий, `GET /v1/scenarios/{id}` возвращает
       его, `GET /v1/scenarios` отдаёт страницу списка; невалидный IR → 422,
       неизвестный id → 404, повтор с тем же `Idempotency-Key` не создаёт дубль.
-- [ ] IR валидируется тем же кодом `core.ir.schema`, что и desktop-приложение;
+      (✅ T2.1: тесты 201/200/404/409/413/422; T6.1: живой прогон публикации,
+      списка, скачивания, replay по ключу и 404 после удаления.)
+- [x] IR валидируется тем же кодом `core.ir.schema`, что и desktop-приложение;
       тело запроса ограничено 1 МБ; ошибки — в формате `application/problem+json`.
-- [ ] Контейнер работает не от root, имеет `HEALTHCHECK`, собирается
+      (✅ T2.1: `scenario_from_mapping` и `BodySizeLimitMiddleware`; T3.1:
+      единые problem+json-обработчики.)
+- [x] Контейнер работает не от root, имеет `HEALTHCHECK`, собирается
       multi-stage и запускается без Python на хосте.
+      (✅ T3.2: `clikit-service:local`, uid 10001, healthy, graceful SIGTERM.)
 - [x] `scripts/cloud_publish.py` публикует файл `.acl.json` и скачивает его по id;
       таймауты и retry с backoff проверены тестами с mock-сервером.
       (✅ T4.2: `cloud/client.py` + CLI; 44 теста на `httpx.MockTransport`;
@@ -35,8 +41,10 @@
       `ruff check` и `ruff format --check` чистые.
       (✅ T5.1: 226 тестов `tests/service`, покрытие 95.12 % с ветвями,
       job `service-tests` зелёный на PR #6.)
-- [ ] `docs/cloud.md` и `docs/api.md` описывают запуск, эндпоинты, коды ошибок,
+- [x] `docs/cloud.md` и `docs/api.md` описывают запуск, эндпоинты, коды ошибок,
       аутентификацию и ограничения.
+      (✅ T6.1: `docs/cloud.md` — руководство с чистого старта; `docs/api.md` —
+      нормативный контракт, документы ссылаются друг на друга.)
 
 ## 3. Согласованные параметры
 
@@ -188,6 +196,11 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 - **ADR №38 — API-ключ для записи, публичное чтение.** Для пет-проекта
   достаточно статического ключа из env; полноценные пользователи, OAuth и
   квоты — вне M7. Ключ сравнивается за постоянное время, в логи не попадает.
+- **ADR №59 — документация Cloud** (T6.1): `docs/api.md` — нормативный
+  контракт, `docs/cloud.md` — практическое руководство (запуск, эксплуатация,
+  диагностика), README — точка входа. Изменение контракта начинается с
+  `docs/api.md`, изменение запуска — с `docs/cloud.md`; инструкции проверяются
+  на чистом окружении.
 
 ## 7. Граф задач
 
@@ -205,7 +218,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 | T4.1 | `docker-compose.cloud.yml`: API + Postgres + том | T3.2 | `up -d` и `down`; данные переживают перезапуск | ✅ |
 | T4.2 | Клиент `cloud/client.py` и `scripts/cloud_publish.py` | T4.1 | Публикация и скачивание против compose; retry/timeout покрыты mock-тестами | ✅ |
 | T5.1 | Тесты сервиса и job `service-tests` в CI | T4.2, M6 T2.1 | ≥ 30 тестов, покрытие ≥ 80%, job зелёный на PR | ✅ |
-| T6.1 | Документация: README, `docs/cloud.md`, `docs/api.md`, ADR | T5.1 | Инструкции воспроизводятся с чистой машины; ADR в §3.3 | ⬜ |
+| T6.1 | Документация: README, `docs/cloud.md`, `docs/api.md`, ADR | T5.1 | Инструкции воспроизводятся с чистой машины; ADR в §3.3 | ✅ |
 
 **Уточнение по T3.1 (2026-11-03, реализовано 2026-11-04).** Часть формата ошибок
 уже была реализована в T2.1: `service/app/errors.py` отдаёт
@@ -246,8 +259,11 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 
 ## 9. Чек-лист приёмки
 
-- [ ] API отвечает по контракту; OpenAPI открывается и совпадает с `docs/api.md`.
-- [ ] Невалидный сценарий отклоняется с 422 и путями ошибок, а не 500.
+- [x] API отвечает по контракту; OpenAPI открывается и совпадает с `docs/api.md`.
+  (✅ T2.1/T3.1: эндпоинты и problem+json по контракту, OpenAPI-схема в тестах;
+  T6.1: живой прогон против compose.)
+- [x] Невалидный сценарий отклоняется с 422 и путями ошибок, а не 500.
+  (✅ T2.1: тесты схемы и IR — 422 со списком `errors`, без 500.)
 - [x] Секреты не в репозитории: только `.env.example` и переменные окружения.
   (✅ T4.1: `.env` в `.gitignore`, compose требует `${VAR:?}`, значения —
   только в локальном `.env`.)
@@ -256,8 +272,12 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 - [x] Тесты сервиса зелёные локально и в CI; `ruff` чистый.
   (✅ T5.1: job `service-tests` на PostgreSQL 16 — 226 passed, 95.12 %;
   PR #6, run 43277921558.)
-- [ ] README объясняет, зачем сервису нужен ClicKit, и как его запустить.
-- [ ] Изменения не затронули поведение desktop-приложения и `core/` без сети.
+- [x] README объясняет, зачем ClicKit нужен сервис, и как его запустить.
+  (✅ T6.1: раздел Cloud в README (EN/RU), быстрый старт и ссылка на
+  `docs/cloud.md`.)
+- [x] Изменения не затронули поведение desktop-приложения и `core/` без сети.
+  (✅ T6.1: задача только документационная, код desktop и `core/` не менялся;
+  сервис остаётся опциональным слоем — ADR №36.)
 
 ## 10. Риски и меры
 
@@ -285,6 +305,7 @@ tests/service/            # API, БД, клиент, идемпотентнос�
 
 | 2026-11-05 | T4.1 | Локальный compose: `docker-compose.cloud.yml` — PostgreSQL 16 с томом `pgdata` и `pg_isready`, одноразовый `migrate` (`alembic upgrade head`, `command: []`), API с портом `${CLICKIT_API_PORT:-8000}`, ожиданием `service_healthy` БД и `service_completed_successfully` миграций; обязательные секреты через `${VAR:?}`. Добавлены `.env.example` (без значений), `!.env.example` в `.gitignore`, раздел «Локальный запуск» в `docs/api.md`, краткое упоминание в README, 7 статических тестов `tests/service/test_compose_cloud.py`. Проверено вживую: `up -d --build` → `migrate` exit 0 и `alembic_version=0001`, API healthy, `/healthz`/`/readyz`/`/version` 200, `POST`/`GET`/list сценария, при остановке БД `/readyz` 503 (healthz 200), после старта снова 200; `down` → `up -d` — сценарий сохранился в томе; `down -v` удаляет данные. Тесты: 450 passed + 1 нестабильный QtWebEngine-тест, прошедший при повторном запуске (к задаче не относится); `ruff` чисто | `0c2dee8` |
 | 2026-11-12 | T5.1 | Тесты сервиса и CI: job `service-tests` в `ci.yml` (`ubuntu-latest`, сервисный контейнер `postgres:16` с `pg_isready`, `CLICKIT_TEST_DB_URL` → `localhost:5432/clikit_test`, Python 3.11, кэш pip по обоим requirements-файлам); `pytest tests/service --cov` с ветвями и порогом 80 % из `pyproject.toml` (`[tool.coverage.run]` / `[tool.coverage.report]`), JUnit и `coverage.xml` — артефакт `service-reports` (`if: always()`); 5 статических тестов `tests/service/test_ci_workflow.py` (job, PostgreSQL 16, зависимости, отчёты, порог); `AGENTS.md` — локальная команда с покрытием. Локально: 226 service-тестов на PostgreSQL 16 — 95.12 % (SQLite по умолчанию), полный прогон **500 passed**, `ruff check`/`format --check` чисто. PR #6 (run 43277921558): `service-tests` — 226 passed, 95.12 %, 43 с, все job зелёные — чекпоинт пройден | `cf3b779` |
+| 2026-11-12 | T6.1 | Документация: `docs/cloud.md` (зачем сервис, архитектура, требования, запуск с чистой машины, проверка `/healthz`/`/readyz`/`/version`, публикация/список/скачивание, эндпоинты, коды и лимиты, миграции, тесты, эксплуатация, резервное копирование, диагностика, безопасность, границы M7); `docs/api.md` — перекрёстные ссылки и раздел «Связанные документы»; README (EN/RU) — M7 ✅, расширенный раздел Cloud; `.env.example` и `docker-compose.cloud.yml` ссылаются на руководство; `AI_CONTEXT.md` §3.3 — ADR №59; 7 статических тестов `tests/service/test_cloud_docs.py` (ссылки, переменные, эндпоинты, коды CLI). Проверено на чистом окружении: `down -v --rmi local` → `up -d --build`, контейнеры healthy, `migrate` exit 0; публикация, список, скачивание (файл проходит `run_scenario.py --dry-run`), replay по `Idempotency-Key`, удаление и 404, crash-отчёт с PII-санитайзером, `/readyz` 503 при остановленной БД и 200 после старта, данные и `pg_dump` переживают `down`/`up`; тесты: 7 новых, service — 233, покрытие 96.5 % (SQLite), полный прогон **507 passed**, `ruff` чист | — |
 
 ## 12. Вне вехи (сознательно)
 

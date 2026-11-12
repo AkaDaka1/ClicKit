@@ -118,8 +118,13 @@ CI проверяет Docker-тесты, GHCR публикуется отдел�
 - CLI-клиент с таймаутами/retry; тесты и job `service-tests`.
 - План: [`plans/M7-cloud-service.md`](plans/M7-cloud-service.md).
 
-**Статус: 📋 запланировано.** Не дублирует M6: публикация образа — M10,
-облако — M9, наблюдаемость — M8.
+**Статус: ✅ выполнен (2026-11-12)** — T0.1–T6.1: контракт `docs/api.md`,
+FastAPI-сервис с PostgreSQL 16 и Alembic, CRUD сценариев с идемпотентностью и
+ETag, crash-отчёты с PII-санитайзером, API-ключи и `X-Request-ID`,
+production-образ (non-root, healthcheck), локальный compose, клиент
+`cloud/client.py` и CLI `scripts/cloud_publish.py`, job `service-tests`
+(233 теста, покрытие ≥ 95 %), руководство [`docs/cloud.md`](docs/cloud.md).
+Не дублирует M6: публикация образа — M10, облако — M9, наблюдаемость — M8.
 
 ## M8 — Наблюдаемость и SLO
 **Цель:** полный контур «лог → метрика → алерт → runbook → SLO → постмортем».
