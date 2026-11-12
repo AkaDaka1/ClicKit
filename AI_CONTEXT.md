@@ -155,7 +155,8 @@ ClicKit/
 ├── docker/                # Dockerfile.test (Linux-тесты), Dockerfile.build-win (M6),
 │                          # Dockerfile.service (production-образ ClicKit Cloud, M7 T3.2)
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
-│                          # генерация иконки, сборка .exe, проверка релиза)
+│                          # генерация иконки, сборка .exe, проверка релиза,
+│                          # cloud_publish — клиент ClicKit Cloud, M7 T4.2)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
 │                          # img/ (скриншоты для README; scripts/make_screenshots.py)
@@ -169,12 +170,12 @@ ClicKit/
 │   │                      # api/ (deps.py + v1/: health, scenarios,
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
-├── cloud/                 # httpx-клиент сервиса (M7 T4.2)
+├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
 └── tests/
 ```
 
 Каталог `service/` создан в M7 (T1.1: скелет, T1.2: БД и миграции),
-`cloud/` появится в T4.2. Каталоги
+`cloud/` — в T4.2 (клиент и CLI). Каталоги
 `observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
 интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
@@ -515,6 +516,23 @@ ClicKit/
        в `.gitignore`. Порт БД наружу не публикуется; данные переживают
        `compose down` (удаляются только `down -v`).
 
+  57. **Клиент Cloud — отдельный пакет `cloud/`, retry по контракту**
+      (2026-11-12, M7 T4.2): `cloud/client.py` не импортируется из `core/` и
+      `gui/` и не требует PySide6 — desktop остаётся работоспособным без
+      сети (ADR №36). Повторяются только 5xx, таймауты и сетевые ошибки
+      (до 3 попыток, паузы `0.5, 1, 2` с ±25 % jitter), 4xx не ретраятся;
+      ответ problem+json превращается в иерархию `CloudError`
+      (`CloudAuthError` 401/403, `CloudNotFoundError` 404,
+      `CloudConflictError` 409, `CloudTooLargeError` 413,
+      `CloudValidationError` 422 с `issues`, `CloudServerError` 5xx/сеть)
+      с `status`, `detail`, `request_id` и `type_urn`. Ключ — из
+      конструктора (`X-API-Key`), метод записи проверяет его до сети.
+      `scripts/cloud_publish.py` — тонкий CLI (`publish`/`download`/`list`/
+      `delete`/`crash-report`) с кодами выхода 0/2/3/4/5/6 из
+      `docs/api.md` §10, локальной валидацией IR перед публикацией и
+      атомарной записью скачанного файла; URL и ключ — из аргументов или
+      env `CLICKIT_CLOUD_URL`/`CLICKIT_API_KEY`.
+
 ---
 
 ### 3.4. CI/CD
@@ -640,7 +658,15 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-05 (**оформление репозитория** — новые скриншоты
+*Последнее обновление: 2026-11-12 (**M7 T4.2** — клиент ClicKit Cloud
+`cloud/client.py` (`CloudClient`: таймаут 5 с, до 3 попыток с jitter только
+для 5xx/таймаутов/сети, иерархия `CloudError` по problem+json,
+`PublishedScenario`/`ScenarioPage`/`CrashReceipt`) и CLI
+`scripts/cloud_publish.py` (`publish`/`download`/`list`/`delete`/
+`crash-report`, коды выхода 0/2/3/4/5/6); проверено вживую против
+`docker compose -f docker-compose.cloud.yml`, 44 новых теста, полный прогон
+495 passed; §3.2 — фактический `cloud/`, §3.3 — ADR №57. Ранее,
+2026-11-05: **оформление репозитория** — новые скриншоты
 `docs/img/` через `scripts/make_screenshots.py`, README дополнен бейджами
 (CI/Release/License/Python/Ruff/Windows/PySide6/Blockly/Cloud/GHCR/PRs),
 блоками скриншотов и mermaid-диаграммами архитектуры (EN и RU), картой
