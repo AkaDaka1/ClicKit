@@ -306,7 +306,13 @@ async def unhandled_exception_handler(
     """
     request_id = request_id_of(request)
     logger.exception(
-        "Необработанная ошибка сервиса (request_id=%s)", request_id, exc_info=exc
+        "Необработанная ошибка сервиса (request_id=%s)",
+        request_id,
+        exc_info=exc,
+        # Обработчик 500 вызывает `ServerErrorMiddleware` — слой **выше**
+        # `RequestContextMiddleware`, где `ContextVar` уже сброшен. Поэтому
+        # идентификатор передаётся явно, иначе запись журнала осталась бы с `-`.
+        extra={"request_id": request_id},
     )
     return problem_response(
         500,

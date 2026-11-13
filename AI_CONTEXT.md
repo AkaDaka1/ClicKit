@@ -169,7 +169,8 @@ ClicKit/
 │   │                      # (SQL-доступ), crash_service (домен crash-отчётов),
 │   │                      # healthcheck (liveness для Docker HEALTHCHECK),
 │   │                      # observability/ (logging.py — JSON-журнал M8 T1.1;
-│   │                      # metrics.py/tracing.py — T1.2–T1.3),
+│   │                      # metrics.py — метрики Prometheus M8 T1.2;
+│   │                      # tracing.py — T1.3),
 │   │                      # api/ (deps.py + v1/: health, scenarios,
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
@@ -597,6 +598,21 @@ M9–M11; их интерфейсы и критерии готовности з�
        обработчик берёт поток при каждой записи (`_LateBoundStreamHandler`),
        иначе строки терялись бы после подмены `sys.stdout`. Формат наружу не
        настраивается: парсится машиной (Promtail → Loki в T2.1), а не глазами.
+
+   62. **Метрики — собственный реестр на приложение, метки только шаблонные**
+       (2026-11-13, M8 T1.2): коллекторы живут в `ServiceMetrics` с приватным
+       `CollectorRegistry` (второй экземпляр — тесты — не падает на
+       `Duplicated timeseries`), учёт HTTP — единственный ASGI-слой
+       `HttpMetricsMiddleware` внутри лимита тела и внутри `RequestContextMiddleware`,
+       запись ровно один раз (`record()` защищён флагом: вызов в
+       `http.response.start` и в `finally` на случай обрыва/ответа мимо `send`).
+       Метки — только `method`, `route` (шаблон FastAPI, не сырой путь) и
+       `status`; несовпавшие пути и 413 лимита тела получают `route="unmatched"`.
+       Корзина `0.3` обязана быть в гистограмме — это порог задержки SLO.
+       `clikit_db_pool_connections` и `clikit_build_info` вычисляются на момент
+       скрейпа, а не регистрируются коллекторами: пул и сборка не события.
+       Скрейп `/metrics` не пишет access-запись (иначе шум каждые 15 с) и не
+       считается сам себя в `requests_in_flight`.
 
 ---
 

@@ -21,6 +21,9 @@ pytest.importorskip("sqlalchemy")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from service.app.config import Settings  # noqa: E402
+from service.app.db import Database  # noqa: E402
+from service.app.main import create_app  # noqa: E402
 from service.app.observability.logging import (  # noqa: E402
     REQUIRED_FIELDS,
     JsonFormatter,
@@ -260,3 +263,40 @@ def test_api_key_never_appears_in_logs(
     assert out, "журнал пуст — JSON-обработчик не подключён"
     assert API_KEY not in out
     assert "***" in out
+
+
+def test_unhandled_error_log_keeps_request_id(
+    database: Database,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """500 логируется с `request_id`, хотя обработчик стоит выше контекста (T1.2).
+
+    `ServerErrorMiddleware` вызывает обработчик 500 вне
+    `RequestContextMiddleware`, где `ContextVar` уже сброшен, поэтому
+    идентификатор передаётся в запись явно.
+    """
+    from service.app.api.v1 import scenarios as scenarios_module
+
+    def boom(self: object, **kwargs: object) -> tuple[list[object], int]:
+        raise RuntimeError("сбой для проверки журнала")
+
+    monkeypatch.setattr(scenarios_module.SqlScenarioRepository, "list_page", boom)
+    app = create_app(
+        Settings(api_key=API_KEY, db_url=database.url),
+        database=database,
+    )
+
+    capsys.readouterr()
+    with TestClient(app, raise_server_exceptions=False) as failing:
+        assert (
+            failing.get("/v1/scenarios", headers={"X-Request-ID": VALID_ID}).status_code
+            == 500
+        )
+
+    payloads = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines() if line
+    ]
+    errors = [item for item in payloads if item["level"] == "ERROR"]
+    assert errors, f"нет ERROR-записи: {payloads!r}"
+    assert errors[-1]["request_id"] == VALID_ID

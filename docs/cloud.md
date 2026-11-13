@@ -191,7 +191,7 @@ docker compose -f docker-compose.cloud.yml up -d --build
 | `GET /healthz` | публичный | liveness без БД |
 | `GET /readyz` | публичный | readiness с `SELECT 1` |
 | `GET /version` | публичный | версия, git sha, время сборки |
-| `GET /metrics` | публичный | заготовка Prometheus (M8) |
+| `GET /metrics` | публичный | метрики Prometheus (M8 T1.2) |
 | `POST /v1/scenarios` | `X-API-Key` | публикация сценария |
 | `GET /v1/scenarios/{id}` | публичный | скачивание `.acl.json`, `ETag` |
 | `GET /v1/scenarios` | публичный | список метаданных (`limit`, `offset`) |
@@ -364,6 +364,21 @@ docker compose -f docker-compose.cloud.yml logs api | Select-String '"request_id
 
 Уровень — `CLICKIT_LOG_LEVEL`; ключи API и traceback с домашними каталогами
 маскируются форматтером (`service/app/observability/logging.py`).
+
+### 8.1.1. Метрики
+
+С M8 (T1.2) `GET /metrics` отдаёт метрики Prometheus: счётчик и гистограмму
+HTTP-запросов, gauge «в обработке», состояние пула БД и сведения о сборке
+(контракт — [`docs/api.md` §5.4](api.md#54-get-metrics--метрики-prometheus-текст),
+цифры SLO — [`docs/sre/slo.md`](sre/slo.md) §8).
+
+```powershell
+curl.exe -s http://localhost:8000/metrics | Select-String "clikit_http_requests_total"
+```
+
+Метка `route` — шаблон маршрута (`/v1/scenarios/{scenario_id}`), поэтому
+кардинальность не растёт с числом сценариев. Скрейп `/metrics` не пишет
+access-запись в журнал, но учитывается в метриках.
 
 ### 8.2. Данные и резервная копия
 

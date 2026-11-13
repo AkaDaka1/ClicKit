@@ -12,6 +12,11 @@ from fastapi.responses import PlainTextResponse
 
 from core.ir.nodes import SCENARIO_VERSION
 from service.app.config import Settings
+from service.app.observability.metrics import (
+    METRICS_CONTENT_TYPE,
+    ServiceMetrics,
+    render_metrics,
+)
 from service.app.schemas import (
     HealthResponse,
     ReadinessChecks,
@@ -79,26 +84,28 @@ def version(request: Request) -> VersionResponse:
 @router.get(
     "/metrics",
     response_class=PlainTextResponse,
-    summary="Заготовка метрик Prometheus",
-    description="В M7 отдаёт только `clikit_build_info`; полные метрики — M8.",
-    response_description="Текст в формате Prometheus 0.0.4",
+    summary="Метрики Prometheus",
+    description=(
+        "HTTP-метрики, состояние пула БД и сведения о сборке "
+        "(контракт — `docs/sre/slo.md` §8)."
+    ),
+    response_description="Текст в формате Prometheus (`text/plain; version=1.0.0`)",
 )
-def metrics(request: Request) -> PlainTextResponse:
-    """Отдать заготовку метрик в текстовом формате Prometheus."""
-    settings: Settings = request.app.state.settings
-    body = "\n".join(
-        (
-            "# HELP clikit_build_info Сведения о сборке ClicKit Cloud.",
-            "# TYPE clikit_build_info gauge",
-            "clikit_build_info"
-            f'{{version="{_escape_label(SERVICE_VERSION)}",'
-            f'git_sha="{_escape_label(settings.git_sha)}"}} 1',
-            "",
-        )
+async def metrics(request: Request) -> PlainTextResponse:
+    """Отдать метрики в текстовом формате Prometheus (M8 T1.2).
+
+    Обработчик **асинхронный** намеренно: на синхронных обработчиках FastAPI
+    выполняет их в пуле потоков, а слой метрик снимает «в обработке» лишь
+    после возврата управления — `/metrics` показывал бы сам себя в gauge.
+    """
+    state = request.app.state
+    settings: Settings = state.settings
+    collector: ServiceMetrics = state.metrics
+    database = getattr(state, "database", None)
+    pool_samples = getattr(database, "pool_samples", None)
+    body = render_metrics(
+        collector,
+        pool_samples=pool_samples if callable(pool_samples) else None,
+        build_labels=lambda: {"version": SERVICE_VERSION, "git_sha": settings.git_sha},
     )
-    return PlainTextResponse(body, media_type="text/plain; version=0.0.4")
-
-
-def _escape_label(value: str) -> str:
-    """Экранировать значение метки по правилам текстового формата Prometheus."""
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    return PlainTextResponse(body, media_type=METRICS_CONTENT_TYPE)

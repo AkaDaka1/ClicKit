@@ -151,8 +151,12 @@ class CorrelationFilter(logging.Filter):
         Returns:
             Всегда `True`: фильтр только обогащает запись.
         """
-        record.request_id = current_request_id.get() or MISSING
-        record.trace_id = current_trace_id.get() or MISSING
+        record.request_id = (
+            getattr(record, "request_id", None) or current_request_id.get() or MISSING
+        )
+        record.trace_id = (
+            getattr(record, "trace_id", None) or current_trace_id.get() or MISSING
+        )
         return True
 
 

@@ -149,17 +149,45 @@
 (`CLICKIT_GIT_SHA`, `CLICKIT_BUILD_TIME`, по умолчанию `"unknown"`/`""`).
 `ir_format_version` равен `core.ir.nodes.SCENARIO_VERSION`.
 
-### 5.4. `GET /metrics` — заготовка Prometheus (текст)
+### 5.4. `GET /metrics` — метрики Prometheus (текст)
 
-200, `Content-Type: text/plain; version=0.0.4`:
+200, `Content-Type: text/plain; version=1.0.0; charset=utf-8`. Формат —
+текстовый Prometheus 1.0 (OpenMetrics-совместимый), читается Prometheus
+≥ 2.40 и стандартным парсером `prometheus_client`.
+
+Метрики контракта (`docs/sre/slo.md` §8):
+
+| Метрика | Тип | Метки |
+|---|---|---|
+| `clikit_http_requests_total` | counter | `method`, `route`, `status` |
+| `clikit_http_request_duration_seconds` | histogram | `method`, `route`, `status`, `le` |
+| `clikit_http_requests_in_flight` | gauge | — |
+| `clikit_db_pool_connections` | gauge | `state` (`in_use`, `idle`, `overflow`) |
+| `clikit_build_info` | gauge | `version`, `git_sha` |
 
 ```text
 # HELP clikit_build_info Сведения о сборке ClicKit Cloud.
 # TYPE clikit_build_info gauge
 clikit_build_info{version="0.1.0",git_sha="unknown"} 1
+# HELP clikit_http_requests_total HTTP-запросы ClicKit Cloud: метод, шаблон маршрута, код ответа.
+# TYPE clikit_http_requests_total counter
+clikit_http_requests_total{method="GET",route="/v1/scenarios/{scenario_id}",status="200"} 3.0
 ```
 
-Полные метрики — M8.
+Правила:
+
+- `route` — **шаблон** маршрута FastAPI (`/v1/scenarios/{scenario_id}`), а не
+  сырой путь: id сценария в метки не попадает. Запрос, не совпавший ни с
+  одним маршрутом (включая 413 лимита тела, который отвечает до
+  маршрутизации), получает `route="unmatched"`.
+- Корзина `le="0.3"` гистограммы — порог задержки SLO; набор корзин
+  фиксирован в `service/app/observability/metrics.py`.
+- `clikit_http_requests_in_flight` не считает сам скрейп `/metrics`, иначе
+  gauge в теле ответа всегда был бы ≥ 1.
+- `clikit_db_pool_connections` появляется только при настоящем пуле
+  SQLAlchemy (PostgreSQL); на `NullPool`/`StaticPool` метрики нет.
+- Скрейп `/metrics` не пишет access-запись в журнал (иначе журнал состоял бы
+  из шума одного эндпоинта), но учитывается в счётчике и гистограмме.
 
 ### 5.5. `POST /v1/scenarios` — публикация сценария
 

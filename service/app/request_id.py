@@ -5,7 +5,12 @@
 UUID4; заголовок возвращается **на всех** ответах (успешных и ошибочных),
 а `.request_id` попадает в problem+json. Тот же идентификатор кладётся в
 `ContextVar`, поэтому каждая запись журнала внутри обработки запроса
-помечается им (полноценные трейсы — M8).
+помечается им (трейс `trace_id` — T1.3).
+
+Access-запись по умолчанию есть у каждого запроса; служебные маршруты
+(`QUIET_ROUTES`, пока это `/metrics`) метрики помечают в
+`scope["state"]["quiet_log"]`, и журнал молчит — иначе скрейп каждые 15
+секунд забивал бы журнал.
 """
 
 from __future__ import annotations
@@ -19,6 +24,8 @@ from typing import Any
 
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from service.app.observability.metrics import QUIET_LOG_KEY
 
 #: Заголовок корреляции (`docs/api.md` §3).
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -128,15 +135,18 @@ class RequestContextMiddleware:
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
-            elapsed_ms = (time.perf_counter() - started) * 1000
-            logger.info(
-                "HTTP-запрос",
-                extra={
-                    "event": "http_request",
-                    "method": scope.get("method", "-"),
-                    "path": scope.get("path", "/"),
-                    "status": status_code,
-                    "duration_ms": round(elapsed_ms, 1),
-                },
-            )
+            # Скрейп `/metrics` идёт каждые 15 с: запись о нём — шум в журнале.
+            # Метрики при этом продолжают учитывать запрос (T1.2).
+            if not state.get(QUIET_LOG_KEY):
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                logger.info(
+                    "HTTP-запрос",
+                    extra={
+                        "event": "http_request",
+                        "method": scope.get("method", "-"),
+                        "path": scope.get("path", "/"),
+                        "status": status_code,
+                        "duration_ms": round(elapsed_ms, 1),
+                    },
+                )
             current_request_id.reset(token)

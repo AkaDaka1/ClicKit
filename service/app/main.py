@@ -28,6 +28,7 @@ from service.app.errors import (
 )
 from service.app.middleware import BodySizeLimitMiddleware
 from service.app.observability.logging import configure_logging
+from service.app.observability.metrics import HttpMetricsMiddleware, ServiceMetrics
 from service.app.request_id import RequestContextMiddleware
 from service.app.version import SERVICE_NAME, SERVICE_VERSION
 
@@ -49,6 +50,10 @@ def create_app(
     Returns:
         Приложение с системными роутерами и настроенным жизненным циклом.
     """
+    # Реестр метрик создаётся при сборке приложения: у каждого экземпляра
+    # (включая тестовые) свой, поэтому счётчики не «протекают» между
+    # приложениями и не конфликтуют в глобальном реестре prometheus_client.
+    metrics = ServiceMetrics()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -59,6 +64,7 @@ def create_app(
             secrets=(resolved.api_key, resolved.admin_api_key),
         )
         app.state.settings = resolved
+        app.state.metrics = metrics
         app.state.database = (
             database if database is not None else Database(resolved.require_db_url())
         )
@@ -77,9 +83,13 @@ def create_app(
         description="HTTP-сервис публикации сценариев ClicKit и crash-отчётов.",
         lifespan=lifespan,
     )
+    app.state.metrics = metrics
     # Порядок важен: RequestContextMiddleware добавляется последним и потому
     # оказывается внешним — идентификатор есть даже у ответа 413 лимита тела.
+    # Метрики — сразу под ним: у запроса уже есть `request_id`, а 413 лимита
+    # тела попадает и в метрики, и в журнал.
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(HttpMetricsMiddleware)
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
