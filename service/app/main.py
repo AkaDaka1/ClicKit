@@ -27,7 +27,8 @@ from service.app.errors import (
     validation_error_handler,
 )
 from service.app.middleware import BodySizeLimitMiddleware
-from service.app.request_id import RequestContextMiddleware, configure_logging
+from service.app.observability.logging import configure_logging
+from service.app.request_id import RequestContextMiddleware
 from service.app.version import SERVICE_NAME, SERVICE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,10 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         resolved = settings if settings is not None else load_settings()
         resolved.validate()
-        configure_logging(resolved.log_level)
+        configure_logging(
+            resolved.log_level,
+            secrets=(resolved.api_key, resolved.admin_api_key),
+        )
         app.state.settings = resolved
         app.state.database = (
             database if database is not None else Database(resolved.require_db_url())

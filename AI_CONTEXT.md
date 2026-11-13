@@ -168,6 +168,8 @@ ClicKit/
 │   │                      # scenario_service (домен сценариев), repository
 │   │                      # (SQL-доступ), crash_service (домен crash-отчётов),
 │   │                      # healthcheck (liveness для Docker HEALTHCHECK),
+│   │                      # observability/ (logging.py — JSON-журнал M8 T1.1;
+│   │                      # metrics.py/tracing.py — T1.2–T1.3),
 │   │                      # api/ (deps.py + v1/: health, scenarios,
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
@@ -578,6 +580,23 @@ M9–M11; их интерфейсы и критерии готовности з�
        плана M8 §3 обновлён. Запросы проверяются `promtool check rules` и
        `promtool test rules` на синтетических сериях, статические тесты
        `tests/service/test_slo_docs.py` держат документ и правила в согласии.
+
+   61. **Журнал сервиса — JSON-строки с корреляцией** (2026-11-13, M8 T1.1):
+       `service/app/observability/logging.py` — единственное место, где
+       задаётся формат журнала; обязательные поля `timestamp`, `level`,
+       `logger`, `message`, `service`, `version`, `request_id`, `trace_id`
+       (вне запроса/трейса — `-`), доступ-запись несёт `event`, `method`,
+       `path`, `status`, `duration_ms`. Идентификаторы берутся из `ContextVar`
+       (`request_id` — `request_id.py`, `trace_id` заполнит OTel в T1.3), а
+       логгеры uvicorn переводятся на общий обработчик, поэтому один лог
+       связывает HTTP-запрос, запись и будущий трейс (ADR №41). Секреты
+       **не попадают в журнал** двумя барьерами: значения ключей передаются
+       в `configure_logging` и заменяются на `***`, типовые пары
+       `X-API-Key: …`/`password=…` вырезаются регуляркой, traceback проходит
+       санитайзер PII. Если stdout контейнера ещё не готов при настройке,
+       обработчик берёт поток при каждой записи (`_LateBoundStreamHandler`),
+       иначе строки терялись бы после подмены `sys.stdout`. Формат наружу не
+       настраивается: парсится машиной (Promtail → Loki в T2.1), а не глазами.
 
 ---
 

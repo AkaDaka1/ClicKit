@@ -347,6 +347,24 @@ docker compose -f docker-compose.cloud.yml logs migrate
 поэтому ошибку пользователя можно найти по `request_id` из problem+json.
 Тело crash-отчёта и API-ключи в журнал не пишутся.
 
+С M8 (T1.1) журнал сервиса — **JSON в stdout**, одна запись на строку:
+
+```json
+{"timestamp":"2026-11-13T10:00:00.000Z","level":"INFO","logger":"service.app.request_id","message":"HTTP-запрос","service":"clikit-cloud","version":"0.1.0","request_id":"…","trace_id":"-","event":"http_request","method":"GET","path":"/v1/scenarios","status":200,"duration_ms":12.4}
+```
+
+Обязательные поля: `timestamp`, `level`, `logger`, `message`, `service`,
+`version`, `request_id`, `trace_id` (вне запроса и трейса — `-`). Поиск по
+журналу идёт по полям, а не по тексту:
+
+```powershell
+# Найти все записи одного запроса (id — из заголовка ответа или problem+json)
+docker compose -f docker-compose.cloud.yml logs api | Select-String '"request_id":"<id>"'
+```
+
+Уровень — `CLICKIT_LOG_LEVEL`; ключи API и traceback с домашними каталогами
+маскируются форматтером (`service/app/observability/logging.py`).
+
 ### 8.2. Данные и резервная копия
 
 ```powershell
