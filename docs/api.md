@@ -389,6 +389,11 @@ CREATE INDEX ix_crash_reports_created_at ON crash_reports (created_at);
 Секреты — только в env/`.env`; в Git — `.env.example` без значений (ключи
 маскируются при логировании и в ответах).
 
+С M8 журнал сервиса — JSON-строки в stdout с обязательными полями
+`timestamp`, `level`, `logger`, `message`, `service`, `version`, `request_id`,
+`trace_id` (ADR №61); ключи API и пути пользователя в traceback маскируются.
+Формат и поиск по журналу — `docs/cloud.md` §8.1.
+
 Схема БД меняется только миграциями Alembic (модели — `service/app/models.py`,
 миграции — `service/migrations`); URL для миграций читается из того же
 `CLICKIT_DB_URL`:
