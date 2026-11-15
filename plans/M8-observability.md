@@ -1,6 +1,6 @@
 # M8 — Наблюдаемость и SLO
 
-> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅ — 2026-11-13).
+> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13).
 > Зависимость: M7 (работающий сервис и БД). Без сервиса метрикам нечего
 > измерять; M8 не добавляет новые продуктовые функции.
 
@@ -58,6 +58,13 @@
 - `service/app/observability/logging.py` — JSON-форматтер, `request_id`,
   `trace_id`, уровень, длительность, статус; исключения без секретов.
 - `service/app/observability/metrics.py` — счётчики/гистограммы, `/metrics`.
+
+  Реализовано в T1.2: `ServiceMetrics` (приватный `CollectorRegistry`),
+  `HttpMetricsMiddleware` (счётчик, гистограмма, in-flight; запись ровно один
+  раз), `render_metrics` (текст Prometheus 1.0 + `clikit_db_pool_connections`
+  и `clikit_build_info` на момент скрейпа). Метки — `method`, `route`
+  (шаблон FastAPI), `status`; несовпавшие пути — `route="unmatched"`.
+  `Database.pool_samples()` отдаёт состояния пула SQLAlchemy.
 - `service/app/observability/tracing.py` — OTel, FastAPI/SQLAlchemy
   instrumentation, OTLP-экспортёр.
 - middleware: `X-Request-ID` (входящий или новый), запись в лог и ответ.
@@ -119,7 +126,7 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 |---|---|---|---|---|
 | T0.1 | SLI/SLO и PromQL-запросы, политика error budget | M7 | `docs/sre/slo.md` с формулами и цифрами; запросы проверены | ✅ |
 | T1.1 | JSON-логи и `request_id` middleware | T0.1 | Логи парсятся, поля обязательны, секретов нет | ✅ |
-| T1.2 | Prometheus-метрики и `/metrics` | T1.1 | Метрики scrapes, unit-тесты, имена стабильны | ⬜ |
+| T1.2 | Prometheus-метрики и `/metrics` | T1.1 | Метрики scrapes, unit-тесты, имена стабильны | ✅ |
 | T1.3 | OTel-трейсы и Tempo | T1.2 | Спан HTTP + БД, `trace_id` в логе | ⬜ |
 | T2.1 | Compose-стек наблюдаемости | T1.3 | Все targets UP, UI открываются | ⬜ |
 | T2.2 | Дашборд Grafana как код | T2.1 | JSON в Git, панели показывают трафик, скриншот | ⬜ |
@@ -178,6 +185,7 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 | 2026-11-01 | — | План создан; SLO и стек согласованы | — |
 | 2026-11-13 | T0.1 | SLI/SLO зафиксированы: `docs/sre/slo.md` (99.5 % / 30 дней, бюджет 0.5 % = 216 мин, p95 ≤ 300 мс, burn rate 14.4/6, политика 50/75/100 %, границы SLI и ограничения), `observability/prometheus/recording_rules.yml` (11 записей), `observability/prometheus/tests/slo_rules_test.yml` (4 сценария promtool); retention Prometheus 15 → 40 дней — иначе 30-дневный SLO не посчитать (ADR №60, §3 обновлён); проверено `promtool check rules` (11 rules) и `promtool test rules` (SUCCESS) в `prom/prometheus:latest`; 8 статических тестов `tests/service/test_slo_docs.py`, полный прогон 515 passed | `58c34b7` |
 | 2026-11-13 | T1.1 | JSON-журнал и корреляция: `service/app/observability/logging.py` — `JsonFormatter` (обязательные поля `timestamp`, `level`, `logger`, `message`, `service`, `version`, `request_id`, `trace_id`; необязательные `event`/`method`/`path`/`route`/`status`/`duration_ms`/`error_type`), `CorrelationFilter` из `ContextVar` (`current_request_id`, `current_trace_id` для T1.3), `configure_logging(level, secrets=…)` переводит uvicorn-логгеры на общий обработчик, `_LateBoundStreamHandler` берёт поток при каждой записи (иначе записи терялись после подмены stdout); маскировка секретов (значения ключей → `***`, пары `X-API-Key: …`/`password=…`) и санитайзер PII в traceback; доступ-запись `RequestContextMiddleware` — структурированные поля вместо текстовой строки, `main.py` передаёт ключи в `configure_logging`. `docs/cloud.md` §8.1 — формат и поиск по журналу; ADR №61. Тесты: 10 новых (`tests/service/test_json_logging.py`: схема полей, контекст, маскировка, traceback, сквозной access-лог, отсутствие ключа), обновлены `test_request_id.py`/`test_auth.py` (поля записи вместо текста); service — 251 passed, `ruff check`/`format --check` чисто | `5f9f8cd` |
+| 2026-11-13 | T1.2 | Метрики Prometheus и `/metrics`: `service/app/observability/metrics.py` — `ServiceMetrics` (приватный `CollectorRegistry` на приложение, чтобы тестовые экземпляры не падали на `Duplicated timeseries`), `HttpMetricsMiddleware` (счётчик `clikit_http_requests_total`, гистограмма `clikit_http_request_duration_seconds` с корзиной `le="0.3"` — порогом SLO, gauge `clikit_http_requests_in_flight`; запись ровно один раз, в `http.response.start` и в `finally`), `render_metrics` (Prometheus 1.0 + `clikit_db_pool_connections` и `clikit_build_info` на момент скрейпа); `Database.pool_samples()` — состояния пула SQLAlchemy. Метки только `method`/`route`/`status`, `route` — шаблон FastAPI (`/v1/scenarios/{scenario_id}`), несовпавшие пути и 413 лимита тела — `unmatched`; 500 (ответ `ServerErrorMiddleware`) берёт маршрут из `scope` в `finally`, иначе 5xx выпадали бы из SLI. Скрейп `/metrics` не пишет access-запись и не считается в `in_flight`. Попутно: `unhandled_exception_handler` передаёт `request_id` в журнал явно (обработчик стоит выше `RequestContextMiddleware`), `CorrelationFilter` уважает явное поле. `docs/api.md` §5.4 и `docs/cloud.md` §8.1.1 обновлены; `prometheus-client>=0.20` в `requirements-service.txt`; ADR №62. Тесты: 18 новых (`tests/service/test_metrics.py`: форма серий, кардинальность, корзины, сквозной учёт 200/401/404/422/413/500, in-flight, подавление журнала, формат и пул БД) + 1 в `test_json_logging.py`; service — 271 passed, покрытие 96.44 %; полный прогон **545 passed**; проверено вживую `uvicorn` (`/healthz`, `/version`, `/metrics`, 404, 500; `route`-шаблоны, `in_flight 0`, `build_info`); `ruff check`/`format --check` чисто | `18e756c` |
 
 ## 11. Вне вехи
 
