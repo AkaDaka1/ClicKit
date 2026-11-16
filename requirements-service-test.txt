@@ -8,3 +8,6 @@
 pytest>=8.0
 pytest-asyncio>=0.24
 pytest-cov>=5.0
+# PyYAML нужен статическим тестам правил наблюдаемости (M8 T0.1):
+# recording rules и promtool-тесты — YAML, их структура проверяется до CI.
+pyyaml>=6.0

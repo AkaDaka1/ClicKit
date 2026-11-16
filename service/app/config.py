@@ -20,6 +20,11 @@ DEFAULT_IDEMPOTENCY_TTL_HOURS = 24
 MIN_API_KEY_LENGTH = 16
 #: Допустимые уровни журналирования.
 LOG_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+#: OTLP HTTP-адрес по умолчанию: стандартный порт OTLP/HTTP
+#: (`plans/M8-observability.md` §3); путь `/v1/traces` добавляет экспортёр.
+DEFAULT_OTLP_ENDPOINT = "http://localhost:4318"
+#: Таймаут экспорта спанов, секунды: экспорт не должен держать запрос.
+DEFAULT_SPAN_EXPORT_TIMEOUT_SECONDS = 5
 
 
 class ServiceConfigError(RuntimeError):
@@ -38,6 +43,15 @@ class Settings:
     git_sha: str = "unknown"
     build_time: str = ""
     log_level: str = "INFO"
+    #: Т्रेйсы OTel (M8 T1.3). `False` — трейсы выключены полностью: в логе
+    #: `trace_id` остаётся `-`, экспорт в Tempo не идёт.
+    otel_enabled: bool = True
+    #: Адрес OTLP HTTP-приёмника (Tempo): `http://tempo:4318` в compose.
+    otel_endpoint: str = DEFAULT_OTLP_ENDPOINT
+    #: Доля сэмплируемых трейсов (1.0 — все, как принято локально).
+    otel_sample_rate: float = 1.0
+    #: Имя ресурса `service.name`; `None` — `SERVICE_NAME` сервиса.
+    otel_service_name: str | None = None
 
     def validate(self) -> None:
         """Проверить обязательные настройки и безопасные значения.
@@ -73,6 +87,14 @@ class Settings:
             allowed = ", ".join(sorted(LOG_LEVELS))
             raise ServiceConfigError(
                 f"CLICKIT_LOG_LEVEL должен быть одним из: {allowed}"
+            )
+        if not 0.0 < self.otel_sample_rate <= 1.0:
+            raise ServiceConfigError(
+                "CLICKIT_OTEL_SAMPLE_RATE должен быть больше 0 и не больше 1"
+            )
+        if self.otel_enabled and not self.otel_endpoint:
+            raise ServiceConfigError(
+                "CLICKIT_OTEL_ENDPOINT не задан, хотя CLICKIT_OTEL_ENABLED=1"
             )
 
     def require_db_url(self) -> str:
@@ -120,6 +142,12 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         git_sha=_clean(source.get("CLICKIT_GIT_SHA")) or "unknown",
         build_time=_clean(source.get("CLICKIT_BUILD_TIME")) or "",
         log_level=(_clean(source.get("CLICKIT_LOG_LEVEL")) or "INFO").upper(),
+        otel_enabled=_env_bool(source, "CLICKIT_OTEL_ENABLED", True),
+        otel_endpoint=(
+            _clean(source.get("CLICKIT_OTEL_ENDPOINT")) or DEFAULT_OTLP_ENDPOINT
+        ),
+        otel_sample_rate=_env_float(source, "CLICKIT_OTEL_SAMPLE_RATE", 1.0),
+        otel_service_name=_clean(source.get("CLICKIT_OTEL_SERVICE_NAME")),
     )
     settings.validate()
     return settings
@@ -142,3 +170,29 @@ def _env_int(source: Mapping[str, str], name: str, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise ServiceConfigError(f"{name} должно быть целым числом: {value!r}") from exc
+
+
+def _env_bool(source: Mapping[str, str], name: str, default: bool) -> bool:
+    """Прочитать флаг окружения: `1/true/yes/on` и `0/false/no/off`."""
+    value = _clean(source.get(name))
+    if value is None:
+        return default
+    lowered = value.lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    raise ServiceConfigError(
+        f"{name} должен быть одним из: 1, 0, true, false, yes, no, on, off"
+    )
+
+
+def _env_float(source: Mapping[str, str], name: str, default: float) -> float:
+    """Прочитать дробную переменную окружения с понятной ошибкой."""
+    value = _clean(source.get(name))
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ServiceConfigError(f"{name} должно быть числом: {value!r}") from exc

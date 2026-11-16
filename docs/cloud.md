@@ -191,7 +191,7 @@ docker compose -f docker-compose.cloud.yml up -d --build
 | `GET /healthz` | публичный | liveness без БД |
 | `GET /readyz` | публичный | readiness с `SELECT 1` |
 | `GET /version` | публичный | версия, git sha, время сборки |
-| `GET /metrics` | публичный | заготовка Prometheus (M8) |
+| `GET /metrics` | публичный | метрики Prometheus (M8 T1.2) |
 | `POST /v1/scenarios` | `X-API-Key` | публикация сценария |
 | `GET /v1/scenarios/{id}` | публичный | скачивание `.acl.json`, `ETag` |
 | `GET /v1/scenarios` | публичный | список метаданных (`limit`, `offset`) |
@@ -347,6 +347,77 @@ docker compose -f docker-compose.cloud.yml logs migrate
 поэтому ошибку пользователя можно найти по `request_id` из problem+json.
 Тело crash-отчёта и API-ключи в журнал не пишутся.
 
+С M8 (T1.1) журнал сервиса — **JSON в stdout**, одна запись на строку:
+
+```json
+{"timestamp":"2026-11-13T10:00:00.000Z","level":"INFO","logger":"service.app.request_id","message":"HTTP-запрос","service":"clikit-cloud","version":"0.1.0","request_id":"…","trace_id":"-","event":"http_request","method":"GET","path":"/v1/scenarios","status":200,"duration_ms":12.4}
+```
+
+Обязательные поля: `timestamp`, `level`, `logger`, `message`, `service`,
+`version`, `request_id`, `trace_id` (вне запроса и трейса — `-`). Поиск по
+журналу идёт по полям, а не по тексту:
+
+```powershell
+# Найти все записи одного запроса (id — из заголовка ответа или problem+json)
+docker compose -f docker-compose.cloud.yml logs api | Select-String '"request_id":"<id>"'
+```
+
+Уровень — `CLICKIT_LOG_LEVEL`; ключи API и traceback с домашними каталогами
+маскируются форматтером (`service/app/observability/logging.py`).
+
+### 8.1.1. Метрики
+
+С M8 (T1.2) `GET /metrics` отдаёт метрики Prometheus: счётчик и гистограмму
+HTTP-запросов, gauge «в обработке», состояние пула БД и сведения о сборке
+(контракт — [`docs/api.md` §5.4](api.md#54-get-metrics--метрики-prometheus-текст),
+цифры SLO — [`docs/sre/slo.md`](sre/slo.md) §8).
+
+```powershell
+curl.exe -s http://localhost:8000/metrics | Select-String "clikit_http_requests_total"
+```
+
+Метка `route` — шаблон маршрута (`/v1/scenarios/{scenario_id}`), поэтому
+кардинальность не растёт с числом сценариев. Скрейп `/metrics` не пишет
+access-запись в журнал, но учитывается в метриках.
+
+### 8.1.2. Трейсы (OpenTelemetry → Tempo)
+
+С M8 (T1.3) каждый HTTP-запрос — трейс: корневой **HTTP-спан** (имя — шаблон
+маршрута, `GET /v1/scenarios/{scenario_id}`) и дочерние спаны запросов к БД.
+Экспорт — OTLP/HTTP (батчевый, фоновый) в Tempo, базовый адрес —
+`CLICKIT_OTEL_ENDPOINT` (`http://tempo:4318` в compose наблюдаемости; путь
+`/v1/traces` добавляется сам):
+
+```powershell
+# Трейс в Tempo ищется по trace_id из JSON-лога (см. §8.1),
+# либо по request_id из заголовка ответа — атрибут clikit.request_id спана.
+```
+
+`trace_id` в JSON-журнале и `trace_id` трейса в Tempo — одно и то же значение
+(ADR №41, №63), поэтому запись лога и спаны запроса соединяются без ручного
+клея. Текст SQL в атрибуты спанов **не пишется** (в нём данные сценария);
+масштабы сэмплирования — `CLICKIT_OTEL_SAMPLE_RATE` (по умолчанию 1.0 — все).
+
+Состав инструментаций и жизненный цикл — `service/app/observability/tracing.py`;
+настройки — [`docs/api.md` §9](api.md#9-конфигурация-сервиса-env).
+
+### 8.1.3. Стек наблюдаемости
+
+Prometheus, Grafana, Loki, Promtail, Tempo и Alertmanager поднимаются одной
+командой из [`docs/observability.md`](observability.md):
+
+```powershell
+docker compose -f docker-compose.observability.yml up -d --build
+```
+
+Этот файл включает `docker-compose.cloud.yml`, поэтому API и БД оказываются в
+той же Docker-сети: Prometheus скрейпит `/metrics`, Promtail собирает
+JSON-логи API в Loki, а спаны уходят в Tempo по `http://tempo:4318`.
+Порты UI (Prometheus 9090, Grafana 3000, Alertmanager 9093 и др.) публикуются
+только на `127.0.0.1`; retention — 40 дней для метрик (ADR №60), 30 дней для
+логов, 14 дней для трейсов.
+
+
 ### 8.2. Данные и резервная копия
 
 ```powershell
@@ -413,6 +484,10 @@ curl.exe -s http://localhost:8000/openapi.json | Out-Null   # 200
 
 - [`docs/api.md`](api.md) — нормативный контракт: эндпоинты, ошибки, лимиты,
   идемпотентность, схема PostgreSQL 16, конфигурация env.
+- [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget и политика
+  исчерпания бюджета (M8).
+- [`docs/observability.md`](observability.md) — локальный стек
+  наблюдаемости: Prometheus, Grafana, Loki, Promtail, Tempo, Alertmanager.
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач и журнал.
 - [`README.md`](../README.md) — обзор продукта и быстрый старт.

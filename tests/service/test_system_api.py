@@ -68,12 +68,12 @@ def test_version_reports_build_information(client: TestClient) -> None:
 
 
 def test_metrics_returns_prometheus_text(client: TestClient) -> None:
-    """Заготовка метрик — текст Prometheus с меткой сборки."""
+    """`/metrics` отвечает текстом Prometheus с меткой сборки (полный набор — T1.2)."""
     response = client.get("/metrics")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain")
-    assert "version=0.0.4" in response.headers["content-type"]
+    assert "version=1.0.0" in response.headers["content-type"]
     assert (
         f'clikit_build_info{{version="{SERVICE_VERSION}",git_sha="{GIT_SHA}"}} 1'
     ) in response.text

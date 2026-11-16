@@ -53,6 +53,8 @@
 - Сборка релиза: `pip install -r requirements-build.txt` и `python scripts/build_exe.py --both`
 - Запуск: `python -m app`
 - Проверки: `ruff check .` + `ruff format --check .` + `python -m pytest`
+- Стек наблюдаемости (M8): `docker compose -f docker-compose.observability.yml
+  up -d --build`; чекпоинт и диагностика — `docs/observability.md` §4/§7
 - Проверка релиза: `python scripts/verify_release.py --tag v<версия> --smoke`
 - Форматирование: `ruff format .`
 - Скриншоты для README: `python scripts/make_screenshots.py` (offscreen)

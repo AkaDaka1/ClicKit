@@ -178,7 +178,7 @@ def test_key_is_not_echoed_in_error(database: Database) -> None:
 def test_key_is_not_logged(
     client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Ключ не пишется в журнал; строка запроса коррелируется `request_id`."""
+    """Ключ не пишется в журнал; access-запись несёт `request_id` (T1.1)."""
     secret = "very-secret-key-0123456789"
     incoming = "log-check-request-id-0123456789ab"
 
@@ -189,9 +189,13 @@ def test_key_is_not_logged(
             headers={"X-API-Key": secret, "X-Request-ID": incoming},
         )
 
+    records = [item for item in caplog.records if item.name == "service.app.request_id"]
+    assert records, "нет access-записи журнала"
+    record = records[-1]
+    assert record.request_id == incoming
+    assert record.method == "POST"
+    assert record.path == "/v1/scenarios"
     assert secret not in caplog.text
-    assert incoming in caplog.text
-    assert "POST /v1/scenarios" in caplog.text
 
 
 def test_openapi_declares_api_key_security(client: TestClient) -> None:

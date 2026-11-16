@@ -1,0 +1,55 @@
+# Datasources Grafana как код (M8 T2.1).
+#
+# Дашборды — T2.2; здесь только источники данных, без которых Grafana UI
+# открывается «пустой» и не может проверить связность стека.
+#
+# Паролей и ключей нет: Prometheus, Loki и Tempo локальные, без аутентификации.
+# Grafana provisioning читает файл при старте; пароли datasource-ов, если
+# появятся, передаются через env/секреты, а не в YAML (ADR №64).
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Шаг скрейпа — 15 с (plans/M8-observability.md §3).
+      timeInterval: 15s
+      # POST снимает ограничение длины PromQL в URL у Grafana.
+      httpMethod: POST
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      # Корреляция лог → трейс (ADR №41): `trace_id` из JSON-строки журнала
+      # открывает трейс в Tempo тем же значением.
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id":"([A-Za-z0-9._-]+)"'
+          name: trace_id
+          url: "$${__value.raw}"
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      # Из трейса — в логи того же запроса по trace_id.
+      tracesToLogsV2:
+        datasourceUid: loki
+        filterByTraceID: true
+      # Граф сервисов и поиск по атрибутам — возможности datasource Tempo.
+      nodeGraph:
+        enabled: true

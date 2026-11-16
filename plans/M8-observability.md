@@ -1,6 +1,6 @@
 # M8 — Наблюдаемость и SLO
 
-> План создан 2026-11-01. Статус: 📋 запланировано.
+> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16).
 > Зависимость: M7 (работающий сервис и БД). Без сервиса метрикам нечего
 > измерять; M8 не добавляет новые продуктовые функции.
 
@@ -20,11 +20,11 @@
       `clikit_http_request_duration_seconds` (гистограмма),
       `clikit_http_requests_in_flight`, `clikit_db_pool_connections`,
       `clikit_build_info`.
-- [ ] Трейс запроса виден в Tempo: спаны HTTP и запроса к БД; `trace_id`
+- [x] Трейс запроса виден в Tempo: спаны HTTP и запроса к БД; `trace_id`
       из трейса совпадает с логом.
-- [ ] `docker compose -f docker-compose.observability.yml up -d` поднимает
+- [x] `docker compose -f docker-compose.observability.yml up -d` поднимает
       Prometheus, Grafana, Loki, Promtail, Tempo, Alertmanager.
-- [ ] Дашборд Grafana хранится JSON-файлом в репозитории: RPS, error rate,
+- [x] Дашборд Grafana хранится JSON-файлом в репозитории: RPS, error rate,
       p50/p95/p99, in-flight, БД, CPU/RAM; скриншот — в README.
 - [ ] Алерты: 5xx > 1% за 5 мин, p95 > 300 мс за 10 мин, target down 1 мин,
       быстрый/медленный burn rate error budget, пул БД, память.
@@ -44,7 +44,7 @@
 | SLO latency | p95 ≤ 300 мс для успешных `GET /v1/scenarios/{id}` и `POST /v1/scenarios` |
 | SLI | доля успешных ответов (2xx/3xx) от всех, кроме 4xx клиента; latency по 2xx/3xx |
 | Окно | 30 дней, rolling; быстрый burn rate — 1 ч, медленный — 6 ч |
-| Скрап | Prometheus каждые 15 с, retention 15 дней локально |
+| Скрап | Prometheus каждые 15 с, retention **40 дней** локально (30-дневное окно SLO + 10 дней запаса; уточнено 2026-11-13 в T0.1, исходно было 15 дней) |
 | Логи | JSON в stdout; в контейнере — stdout/stderr, сбор — Promtail → Loki |
 | Трейсы | OpenTelemetry SDK → OTLP HTTP → Tempo; sampling 100% локально |
 | Дашборды | Provisioning as code; JSON в `observability/grafana/dashboards/` |
@@ -58,9 +58,31 @@
 - `service/app/observability/logging.py` — JSON-форматтер, `request_id`,
   `trace_id`, уровень, длительность, статус; исключения без секретов.
 - `service/app/observability/metrics.py` — счётчики/гистограммы, `/metrics`.
+
+  Реализовано в T1.2: `ServiceMetrics` (приватный `CollectorRegistry`),
+  `HttpMetricsMiddleware` (счётчик, гистограмма, in-flight; запись ровно один
+  раз), `render_metrics` (текст Prometheus 1.0 + `clikit_db_pool_connections`
+  и `clikit_build_info` на момент скрейпа). Метки — `method`, `route`
+  (шаблон FastAPI), `status`; несовпавшие пути — `route="unmatched"`.
+  `Database.pool_samples()` отдаёт состояния пула SQLAlchemy.
 - `service/app/observability/tracing.py` — OTel, FastAPI/SQLAlchemy
   instrumentation, OTLP-экспортёр.
+
+  Реализовано в T1.3: `Tracing` создаёт `TracerProvider` на приложение
+  (свой реестр спанов, как `CollectorRegistry` в T1.2), HTTP-спан —
+  `FastAPIInstrumentor` с шаблоном маршрута в имени, спан БД — собственный
+  `SqlTracingListener` на событиях SQLAlchemy (`before/after_cursor_execute`):
+  официальная `opentelemetry-instrumentation-sqlalchemy` требует
+  `sqlalchemy < 2.1`. Текст SQL в атрибуты не пишется. `trace_id` в журнал
+  кладёт `TraceContextMiddleware` внутри HTTP-спана; экспорт — батчевый
+  OTLP/HTTP в Tempo (`/v1/traces`), настройки — `CLICKIT_OTEL_*`.
 - middleware: `X-Request-ID` (входящий или новый), запись в лог и ответ.
+
+  Реализовано в T1.1: `service/app/observability/logging.py` (`JsonFormatter`,
+  `CorrelationFilter`, `configure_logging`), контекст — `ContextVar`
+  `current_request_id`/`current_trace_id`, access-запись — в
+  `service/app/request_id.py` (`extra`: `event`, `method`, `path`, `status`,
+  `duration_ms`).
 
 ### 4.2. Инфраструктура наблюдаемости
 
@@ -68,18 +90,19 @@
 observability/
 ├── prometheus/
 │   ├── prometheus.yml
-│   ├── alerts.yml
+│   ├── alerts.yml       # T3.1
 │   └── recording_rules.yml
 ├── alertmanager/alertmanager.yml
 ├── grafana/
 │   ├── provisioning/datasources/datasources.yml
 │   ├── provisioning/dashboards/dashboards.yml
-│   └── dashboards/clikit-cloud.json
+│   └── dashboards/      # T2.2: clikit-cloud.json (дашборд «ClicKit Cloud — обзор»)
 ├── loki/loki-config.yml
 ├── promtail/promtail-config.yml
 └── tempo/tempo.yml
 docker-compose.observability.yml
-scripts/alert_sink.py        # локальный приёмник вебхуков Alertmanager
+docs/observability.md    # запуск и проверка стека (T2.1)
+scripts/alert_sink.py    # локальный приёмник вебхуков Alertmanager
 ```
 
 ### 4.3. Документы
@@ -101,17 +124,33 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
   «на глаз». Исчерпание бюджета останавливает рискованные изменения.
 - **ADR №41 — корреляция через request_id/trace_id.** Один идентификатор
   проходит HTTP → лог → трейс; без него разбор инцидента снова ручной.
+- **ADR №60 — границы SLI и retention 40 дней** (2026-11-13, T0.1): в SLI
+  входят только маршруты `/v1/...` (`route` — шаблон FastAPI, не сырой путь);
+  4xx клиента не жгут error budget; пустой трафик считается выполнением SLO.
+  Окно SLO — 30 дней, поэтому retention Prometheus поднят с 15 до 40 дней
+  (окно + 10 дней запаса): 30-дневный SLI нельзя посчитать из 15 дней данных.
+  Уточнено в T2.2: при уже существующих счётчиках с нулевым `rate` знаменатель
+  SLI отсекается через `> 0` — иначе `or vector(1)` не срабатывал и панели
+  дашборда показывали `NaN`; поведение зафиксировано promtool-сценарием.
+- **ADR №65 — дашборд как код, а не как состояние UI** (2026-11-16, T2.2):
+  `observability/grafana/dashboards/clikit-cloud.json` — единственный источник
+  дашборда; provisioning read-only, `editable: false`. Панели SLO читают
+  recording rules T0.1, а не копируют формулы: иначе правка порога в
+  `docs/sre/slo.md` и дашборде разъехалась бы. Метрики в панелях — только
+  низкой кардинальности (`route` — шаблон FastAPI); статический тест
+  `tests/service/test_grafana_dashboard.py` не даёт в JSON ни id сценариев,
+  ни секретов, ни неизвестных метрик.
 
 ## 6. Граф задач
 
 | ID | Задача | Зависимости | Чекпоинт (done = …) | Статус |
 |---|---|---|---|---|
-| T0.1 | SLI/SLO и PromQL-запросы, политика error budget | M7 | `docs/sre/slo.md` с формулами и цифрами; запросы проверены | ⬜ |
-| T1.1 | JSON-логи и `request_id` middleware | T0.1 | Логи парсятся, поля обязательны, секретов нет | ⬜ |
-| T1.2 | Prometheus-метрики и `/metrics` | T1.1 | Метрики scrapes, unit-тесты, имена стабильны | ⬜ |
-| T1.3 | OTel-трейсы и Tempo | T1.2 | Спан HTTP + БД, `trace_id` в логе | ⬜ |
-| T2.1 | Compose-стек наблюдаемости | T1.3 | Все targets UP, UI открываются | ⬜ |
-| T2.2 | Дашборд Grafana как код | T2.1 | JSON в Git, панели показывают трафик, скриншот | ⬜ |
+| T0.1 | SLI/SLO и PromQL-запросы, политика error budget | M7 | `docs/sre/slo.md` с формулами и цифрами; запросы проверены | ✅ |
+| T1.1 | JSON-логи и `request_id` middleware | T0.1 | Логи парсятся, поля обязательны, секретов нет | ✅ |
+| T1.2 | Prometheus-метрики и `/metrics` | T1.1 | Метрики scrapes, unit-тесты, имена стабильны | ✅ |
+| T1.3 | OTel-трейсы и Tempo | T1.2 | Спан HTTP + БД, `trace_id` в логе | ✅ |
+| T2.1 | Compose-стек наблюдаемости | T1.3 | Все targets UP, UI открываются | ✅ |
+| T2.2 | Дашборд Grafana как код | T2.1 | JSON в Git, панели показывают трафик, скриншот | ✅ |
 | T3.1 | Алерты и Alertmanager + приёмник | T2.2 | `stop api` → firing → resolved; `promtool test rules` | ⬜ |
 | T3.2 | Runbook и постмортем | T3.1 | 5 сценариев + реальный постмортем | ⬜ |
 | T4.1 | SLO/error budget и burn rate | T3.2 | Политика, алерты, расчёт на 30 дней | ⬜ |
@@ -129,7 +168,7 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 
 ## 7. Список коммитов
 
-1. `docs: план M8 — наблюдаемость и SLO` (T0.1)
+1. `docs: SLI/SLO, PromQL-запросы и recording rules` (T0.1)
 2. `feat: JSON-логи и request_id` (T1.1)
 3. `feat: метрики Prometheus в сервисе` (T1.2)
 4. `feat: трейсы OpenTelemetry` (T1.3)
@@ -154,7 +193,7 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 
 | Риск | Мера |
 |---|---|
-| Стек наблюдаемости «съест» память ноутбука | Лимиты контейнеров, retention 15 дней, профиль `observability` в compose |
+| Стек наблюдаемости «съест» память ноутбука | Лимиты контейнеров, retention 40 дней (≈2000 серий × 15 с), профиль `observability` в compose |
 | Кардинальность меток взорвётся | Метки только `method`, `route`, `status`; без id и query-параметров |
 | Логи с PII/секретами | Явный allowlist полей, тест схемы, gitleaks в M11 |
 | Алерты шумят | `for`, severity, burn rate; тесты правил; подавление дублей |
@@ -165,6 +204,12 @@ scripts/alert_sink.py        # локальный приёмник вебхук�
 | Дата | Задача | Результат | Commit |
 |---|---|---|---|
 | 2026-11-01 | — | План создан; SLO и стек согласованы | — |
+| 2026-11-13 | T0.1 | SLI/SLO зафиксированы: `docs/sre/slo.md` (99.5 % / 30 дней, бюджет 0.5 % = 216 мин, p95 ≤ 300 мс, burn rate 14.4/6, политика 50/75/100 %, границы SLI и ограничения), `observability/prometheus/recording_rules.yml` (11 записей), `observability/prometheus/tests/slo_rules_test.yml` (4 сценария promtool); retention Prometheus 15 → 40 дней — иначе 30-дневный SLO не посчитать (ADR №60, §3 обновлён); проверено `promtool check rules` (11 rules) и `promtool test rules` (SUCCESS) в `prom/prometheus:latest`; 8 статических тестов `tests/service/test_slo_docs.py`, полный прогон 515 passed | `58c34b7` |
+| 2026-11-13 | T1.1 | JSON-журнал и корреляция: `service/app/observability/logging.py` — `JsonFormatter` (обязательные поля `timestamp`, `level`, `logger`, `message`, `service`, `version`, `request_id`, `trace_id`; необязательные `event`/`method`/`path`/`route`/`status`/`duration_ms`/`error_type`), `CorrelationFilter` из `ContextVar` (`current_request_id`, `current_trace_id` для T1.3), `configure_logging(level, secrets=…)` переводит uvicorn-логгеры на общий обработчик, `_LateBoundStreamHandler` берёт поток при каждой записи (иначе записи терялись после подмены stdout); маскировка секретов (значения ключей → `***`, пары `X-API-Key: …`/`password=…`) и санитайзер PII в traceback; доступ-запись `RequestContextMiddleware` — структурированные поля вместо текстовой строки, `main.py` передаёт ключи в `configure_logging`. `docs/cloud.md` §8.1 — формат и поиск по журналу; ADR №61. Тесты: 10 новых (`tests/service/test_json_logging.py`: схема полей, контекст, маскировка, traceback, сквозной access-лог, отсутствие ключа), обновлены `test_request_id.py`/`test_auth.py` (поля записи вместо текста); service — 251 passed, `ruff check`/`format --check` чисто | `5f9f8cd` |
+| 2026-11-13 | T1.2 | Метрики Prometheus и `/metrics`: `service/app/observability/metrics.py` — `ServiceMetrics` (приватный `CollectorRegistry` на приложение, чтобы тестовые экземпляры не падали на `Duplicated timeseries`), `HttpMetricsMiddleware` (счётчик `clikit_http_requests_total`, гистограмма `clikit_http_request_duration_seconds` с корзиной `le="0.3"` — порогом SLO, gauge `clikit_http_requests_in_flight`; запись ровно один раз, в `http.response.start` и в `finally`), `render_metrics` (Prometheus 1.0 + `clikit_db_pool_connections` и `clikit_build_info` на момент скрейпа); `Database.pool_samples()` — состояния пула SQLAlchemy. Метки только `method`/`route`/`status`, `route` — шаблон FastAPI (`/v1/scenarios/{scenario_id}`), несовпавшие пути и 413 лимита тела — `unmatched`; 500 (ответ `ServerErrorMiddleware`) берёт маршрут из `scope` в `finally`, иначе 5xx выпадали бы из SLI. Скрейп `/metrics` не пишет access-запись и не считается в `in_flight`. Попутно: `unhandled_exception_handler` передаёт `request_id` в журнал явно (обработчик стоит выше `RequestContextMiddleware`), `CorrelationFilter` уважает явное поле. `docs/api.md` §5.4 и `docs/cloud.md` §8.1.1 обновлены; `prometheus-client>=0.20` в `requirements-service.txt`; ADR №62. Тесты: 18 новых (`tests/service/test_metrics.py`: форма серий, кардинальность, корзины, сквозной учёт 200/401/404/422/413/500, in-flight, подавление журнала, формат и пул БД) + 1 в `test_json_logging.py`; service — 271 passed, покрытие 96.44 %; полный прогон **545 passed**; проверено вживую `uvicorn` (`/healthz`, `/version`, `/metrics`, 404, 500; `route`-шаблоны, `in_flight 0`, `build_info`); `ruff check`/`format --check` чисто | `18e756c` |
+| 2026-11-16 | T1.3 | OTel-трейсы и Tempo: `service/app/observability/tracing.py` — `Tracing` (создаёт `TracerProvider` на приложение через `install_tracer_provider`, HTTP-спан `FastAPIInstrumentor`, спан БД — самописный `SqlTracingListener` на `before/after_cursor_execute`, потому что официальная instrumentation-sqlalchemy требует `sqlalchemy<2.1`; текст SQL не пишется), `TraceContextMiddleware` — `trace_id` в журнал (внутри HTTP-спана), `active_trace_id`, `otlp_traces_url`; настройки `CLICKIT_OTEL_*` в `config.py` (enabled/endpoint/sample_rate/service_name) + `_env_bool`/`_env_float`; `main.py` — флаг `enable_tracing` (при явных `Settings` трейсинг выключен, иначе тесты висели на OTLP-таймауте), старт/остановка в `lifespan` через `run_in_threadpool`. Попутно исправлен порядок middleware: в списке `middleware=[...]` первым идёт внешний слой (зеркально `add_middleware`) — из-за перевёрнутого порядка 413 обходил request_id и метрики. ADR №63; `docs/api.md` §9, `docs/cloud.md` §8.1.2; `requirements-service.txt`; 23 теста `tests/service/test_tracing.py`; service — 294 passed (~18 с), полный прогон 568 passed; сквозная проверка вживую: HTTP-спан + `sqlite INSERT` в одном трейсе, `trace_id` в логе совпадает с трейсом, `clikit.request_id` равен `X-Request-ID` | см. `git log --grep T1.3` |
+| 2026-11-16 | T2.1 | Compose-стек наблюдаемости: `docker-compose.observability.yml` (project `clikit-observability`, `include: docker-compose.cloud.yml` — общая Docker-сеть, pinned-образы, порты только `127.0.0.1`, volumes и лимиты CPU/RAM) поднимает `prometheus` (v3.16.0, scrape 15s, retention 40d, `--web.enable-lifecycle`, recording rules из T0.1, Alertmanager как приёмник), `grafana` (13.2.6, provisioning Prometheus/Loki/Tempo как код, анонимный Viewer), `loki` (3.6.11, retention `720h`, structured metadata), `promtail` (3.6.11, Docker API, фильтры `com.docker.compose.project=clikit-observability` + `com.docker.compose.service=api`; `request_id`/`trace_id` — не метки), `tempo` (3.1.1, OTLP/HTTP `:4318`), `alertmanager` (0.35.0 → локальный приёмник `alert-sink`) и `node-exporter` (`docker-host`). Конфиги: `observability/{prometheus,alertmanager,grafana,loki,promtail,tempo}/…`. `scripts/alert_sink.py` (stdlib HTTP-сервер: `POST /webhook`, `GET /alerts`, `GET /healthz`; журнал только `status`/`alertname`/`severity`/`summary` — остальные поля не утекают, ADR №41/№64; `_drain_body` для корректного 413 без RST на Windows). Документация: `docs/observability.md` (запуск, §4 чекпоинт targets/UI, §5 логи/метрики/трейсы/алерты, §7 диагностика), `docs/cloud.md` §8.1.3, `.env.example` — `CLICKIT_*_PORT`. Тесты: 8 в `tests/service/test_alert_sink.py` (включая 413/JSON/историю) + 18 в `tests/service/test_observability_stack.py` (include, pinned-образы, retention, OTLP/HTTP Tempo, localhost-порты, scrape-таргеты, правила→Alertmanager, 3 datasource, read-only провайдер дашбордов, политика меток Loki/Promtail, отсутствие секретов в YAML). Пройден живой чекпоинт `down`→`up -d --build`/`up -d --wait`: контейнеры healthy, **8/8 targets UP** (prometheus, clikit-api, alertmanager, loki, promtail, tempo, grafana, node-exporter), UI/API 200, Grafana отдаёт datasource prometheus/loki/tempo, HTTP-спан+SQL в одном трейсе Tempo (`da31ae9f…`), JSON-логи `{service="api"}` в Loki, ручной вебхук → `{"received":1}`; данные переживают `down`/`up` (сценарий `500486a7…`, логи, трейс). Полный прогон **595 passed**, service — 321 (94.22 %), `ruff check`/`format --check` чисто; `promtool check config` — SUCCESS (1 rule file, 11 rules). T2.1 ✅; T2.2 (дашборд) и T3.1 (алерты + приёмник) остаются ⬜ | `a441541` |
+| 2026-11-16 | T2.2 | Дашборд Grafana как код: `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`, 13 панелей: RPS, 5xx, доступность/бюджет за 30 дней, burn rate 1ч/6ч, in-flight, RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki; переменная маршрута, `editable: false`), provisioning read-only из Git. Скриншот `docs/img/screenshot-dashboard.png` добавлен в README (EN/RU), раздел «Наблюдаемость» и чекпоинт в `docs/observability.md` §4.1. Попутно исправлены recording rules T0.1: при существующих счётчиках с нулевым `rate` знаменатель SLI давал `NaN` — добавлено `> 0` и внешний `or vector(...)`; новый promtool-сценарий падает на старых правилах и проходит на новых (проверено оба). `promtool check rules` — 11 rules, `test rules` — SUCCESS (5 сценариев). Живой чекпоинт: дашборд в `/api/dashboards/uid/clikit-cloud` (13 панелей), 8/8 targets UP, панели показывают трафик, SLI = 1, burn rate = 0 (после перезапуска Prometheus с чистым TSDB). Тесты: 9 новых `tests/service/test_grafana_dashboard.py`; полный прогон **603 passed**, `ruff check`/`format --check` чисто | `3101ec2` |
 
 ## 11. Вне вехи
 

@@ -1,0 +1,77 @@
+# Конфигурация Prometheus ClicKit Cloud (M8 T2.1).
+#
+# Источники истины:
+#   * цифры SLI/SLO — docs/sre/slo.md;
+#   * recording rules — observability/prometheus/recording_rules.yml;
+#   * метрики сервиса — docs/api.md §5.4.
+#
+# Согласованные параметры (`plans/M8-observability.md` §3):
+#   * скрейп каждые 15 с (корзина гистограммы `le="0.3"` — порог p95 SLO);
+#   * retention 40 дней задаётся флагом `--storage.tsdb.retention.time=40d`
+#     в docker-compose.observability.yml (окно SLO 30 дней + запас, ADR №60);
+#   * `route` в метриках — шаблон FastAPI, не сырой путь (ADR №62);
+#   * 4xx клиента не жгут error budget — это заложено в recording rules.
+#
+# Alertmanager подключён уже в T2.1 (базовый маршрут на локальный приёмник
+# `alert-sink`), сами алерты приходят в T3.1.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: clikit-local
+
+rule_files:
+  # Recording rules SLO (T0.1). Файлы алертов (T3.1) добавятся сюда же.
+  - /etc/prometheus/recording_rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Сам Prometheus: собственные метрики и состояние скрейпов.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # ClicKit Cloud API: JSON-логи в Loki, /metrics — здесь (T1.2).
+  # `metrics_path` — /metrics; префикс `/v1` в контракте не участвует.
+  - job_name: clikit-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: clikit-cloud
+
+  # Alertmanager: видно, что узел жив и принимает алерты (T3.1).
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  # Loki и Promtail: путь логов «API → Promtail → Loki» виден целиком.
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+
+  - job_name: promtail
+    static_configs:
+      - targets: ["promtail:9080"]
+
+  # Tempo: трейсы (T1.3) и собственная телеметрия.
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]
+
+  # Grafana: метрики самого UI (GF_METRICS_ENABLED=1 в compose).
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  # Метрики Docker-хоста (Linux VM Docker Desktop) для панелей CPU/RAM T2.2.
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          instance: docker-host

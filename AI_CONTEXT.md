@@ -90,7 +90,8 @@ ClicKit/
 ├── .editorconfig          # единые настройки редактора (LF, отступы, CRLF для .bat)
 ├── docker-compose.yml     # Linux-тесты в контейнере (M6)
 ├── docker-compose.cloud.yml # ClicKit Cloud: API + PostgreSQL + том (M7 T4.1)
-├── .env.example           # шаблон локальных настроек Cloud (без секретов)
+├── docker-compose.observability.yml # стек наблюдаемости (M8 T2.1, include cloud)
+├── .env.example           # шаблон локальных настроек Cloud и портов стека
 ├── .github/workflows/     # CI (ci.yml) и релиз по тегу (release.yml)
 ├── .github/ISSUE_TEMPLATE/ # формы bug/feature + config.yml (contact links)
 ├── .github/PULL_REQUEST_TEMPLATE.md # чек-лист PR (проверки, документация)
@@ -156,10 +157,12 @@ ClicKit/
 │                          # Dockerfile.service (production-образ ClicKit Cloud, M7 T3.2)
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза,
-│                          # cloud_publish — клиент ClicKit Cloud, M7 T4.2)
+│                          # cloud_publish — клиент ClicKit Cloud, M7 T4.2;
+│                          # alert_sink.py — приёмник вебхуков Alertmanager, M8 T2.1)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
-│                          # img/ (скриншоты для README; scripts/make_screenshots.py)
+│                          # sre/ (slo.md — M8 T0.1), img/ (скриншоты для
+│                          # README; scripts/make_screenshots.py)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
 │   │                      # middleware (лимит тела), request_id (X-Request-ID
@@ -167,17 +170,29 @@ ClicKit/
 │   │                      # scenario_service (домен сценариев), repository
 │   │                      # (SQL-доступ), crash_service (домен crash-отчётов),
 │   │                      # healthcheck (liveness для Docker HEALTHCHECK),
+│   │                      # observability/ (logging.py — JSON-журнал M8 T1.1;
+│   │                      # metrics.py — метрики Prometheus M8 T1.2;
+│   │                      # tracing.py — T1.3),
 │   │                      # api/ (deps.py + v1/: health, scenarios,
 │   │                      # crash_reports)
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
+├── observability/         # стек наблюдаемости (M8): prometheus/ (prometheus.yml,
+│                          # recording_rules.yml, tests/), alertmanager/,
+│                          # grafana/provisioning (datasources/dashboards),
+│                          # dashboards/ — T2.2: clikit-cloud.json (дашборд),
+│                          # loki/, promtail/, tempo/ (T2.1); правила алертов — T3.1
 └── tests/
 ```
 
 Каталог `service/` создан в M7 (T1.1: скелет, T1.2: БД и миграции),
-`cloud/` — в T4.2 (клиент и CLI). Каталоги
-`observability/`, `infra/`, `deploy/`, `docs/sre/` появятся в M8–M11; их
-интерфейсы и критерии готовности зафиксированы в
+`cloud/` — в T4.2 (клиент и CLI), `observability/` и `docs/sre/` — в M8 T0.1
+(recording rules и контракт SLO), наполнен стеком наблюдаемости в M8 T2.1
+(Prometheus/Alertmanager/Grafana/Loki/Promtail/Tempo, `docker-compose.observability.yml`,
+`docs/observability.md`, `scripts/alert_sink.py`), дашборд Grafana добавлен в
+T2.2 (`observability/grafana/dashboards/clikit-cloud.json`); каталоги
+`infra/`, `deploy/` появятся в
+M9–M11; их интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
 структура выше — фактическая; плановые каталоги не считаются реализованными.
 
@@ -560,6 +575,125 @@ ClicKit/
        фиксируют разделение ролей, ссылки из README и обязательные переменные
        окружения.
 
+   60. **SLI считаются по метрикам, которые видел сам сервис**
+       (2026-11-13, M8 T0.1): в SLO входят только пользовательские маршруты
+       `/v1/...`; служебные (`/healthz`, `/readyz`, `/metrics`, `/version`,
+       `/docs`) и несовпавшие пути исключены, 4xx клиента не жгут error
+       budget, пустой трафик считается выполнением SLO (молчание ловит
+       отдельный алерт `up`). Формулы живут в recording rules
+       `observability/prometheus/recording_rules.yml`, а не в дашбордах;
+       цифры (99.5 % за 30 дней, p95 ≤ 300 мс, burn rate 14.4/6, политика
+       50/75/100 %) зафиксированы в `docs/sre/slo.md` и меняются только через
+       ADR. Retention Prometheus — **40 дней** вместо 15 из первоначального
+       плана: 30-дневное окно SLO не посчитать из 15 дней данных; параметр
+       плана M8 §3 обновлён. Запросы проверяются `promtool check rules` и
+       `promtool test rules` на синтетических сериях, статические тесты
+       `tests/service/test_slo_docs.py` держат документ и правила в согласии.
+       Уточнено в T2.2: у существующей, но неактивной серии счётчика `rate`
+       равен 0, и `or vector(1)` в знаменателе не подставлялся — SLI давал
+       `NaN` (панели дашборда это сразу показали). Теперь знаменатель проходит
+       через `> 0`, значение по умолчанию задаёт внешний `or vector(...)`;
+       регрессию ловит сценарий promtool «счётчики есть, трафика нет».
+
+   61. **Журнал сервиса — JSON-строки с корреляцией** (2026-11-13, M8 T1.1):
+       `service/app/observability/logging.py` — единственное место, где
+       задаётся формат журнала; обязательные поля `timestamp`, `level`,
+       `logger`, `message`, `service`, `version`, `request_id`, `trace_id`
+       (вне запроса/трейса — `-`), доступ-запись несёт `event`, `method`,
+       `path`, `status`, `duration_ms`. Идентификаторы берутся из `ContextVar`
+       (`request_id` — `request_id.py`, `trace_id` заполнит OTel в T1.3), а
+       логгеры uvicorn переводятся на общий обработчик, поэтому один лог
+       связывает HTTP-запрос, запись и будущий трейс (ADR №41). Секреты
+       **не попадают в журнал** двумя барьерами: значения ключей передаются
+       в `configure_logging` и заменяются на `***`, типовые пары
+       `X-API-Key: …`/`password=…` вырезаются регуляркой, traceback проходит
+       санитайзер PII. Если stdout контейнера ещё не готов при настройке,
+       обработчик берёт поток при каждой записи (`_LateBoundStreamHandler`),
+       иначе строки терялись бы после подмены `sys.stdout`. Формат наружу не
+       настраивается: парсится машиной (Promtail → Loki в T2.1), а не глазами.
+
+   62. **Метрики — собственный реестр на приложение, метки только шаблонные**
+       (2026-11-13, M8 T1.2): коллекторы живут в `ServiceMetrics` с приватным
+       `CollectorRegistry` (второй экземпляр — тесты — не падает на
+       `Duplicated timeseries`), учёт HTTP — единственный ASGI-слой
+       `HttpMetricsMiddleware` внутри лимита тела и внутри `RequestContextMiddleware`,
+       запись ровно один раз (`record()` защищён флагом: вызов в
+       `http.response.start` и в `finally` на случай обрыва/ответа мимо `send`).
+       Метки — только `method`, `route` (шаблон FastAPI, не сырой путь) и
+       `status`; несовпавшие пути и 413 лимита тела получают `route="unmatched"`.
+       Корзина `0.3` обязана быть в гистограмме — это порог задержки SLO.
+       `clikit_db_pool_connections` и `clikit_build_info` вычисляются на момент
+       скрейпа, а не регистрируются коллекторами: пул и сборка не события.
+       Скрейп `/metrics` не пишет access-запись (иначе шум каждые 15 с) и не
+       считается сам себя в `requests_in_flight`.
+
+   63. **Трейсы OTel — SDK включается в lifespan, спан БД самописный**
+       (2026-11-16, M8 T1.3): HTTP-спан создаёт
+       `opentelemetry-instrumentation-fastapi` (имя — шаблон маршрута,
+       кардинальность не растёт); спан запроса к БД строит собственный
+       `SqlTracingListener` на событии SQLAlchemy `before/after_cursor_execute`,
+       потому что официальная `opentelemetry-instrumentation-sqlalchemy`
+       ограничена `sqlalchemy < 2.1`, а проект на 2.x. Текст SQL (`db.statement`)
+       в атрибуты **не пишется** — там данные сценария (приватность, ADR №41).
+       `TracerProvider` назначается на каждое приложение (`create_app`) через
+       `install_tracer_provider`: публичный `set_tracer_provider` срабатывает
+       однократно на процесс, и второй экземпляр (тесты) остался бы без спанов;
+       как и метрики (ADR №62), трейсинг изолирован per-app. SDK включается
+       **только** в `Tracing.start` из `lifespan` (импорт модуля не требует ни
+       сети, ни окружения — принцип ADR №51); `trace_id` попадает в журнал
+       через `TraceContextMiddleware`, вставленный внутрь HTTP-спана
+       (`_insert_trace_middleware` пересобирает стек), атрибут
+       `clikit.request_id` связывает спан с `X-Request-ID`. Настройки —
+       `CLICKIT_OTEL_*` (enabled/endpoint/sample_rate/service_name),
+       сэмплирование — `ParentBased(TraceIdRatioBased(rate))`, экспорт —
+       батчевый OTLP/HTTP в Tempo; старт/остановка трейсинга идут в пуле
+       потоков, недоступный коллектор не задерживает ни ответ, ни shutdown
+       сервиса. В тестах `create_app(Settings(...))` трейсинг по умолчанию
+       **выключен** (флаг `enable_tracing`): иначе каждый тест при остановке
+       ждал бы OTLP-таймаут в отсутствующий коллектор.
+
+    64. **Локальный стек наблюдаемости — один compose, общая сеть, без
+        секретов в конфигах** (2026-11-16, M8 T2.1):
+        `docker-compose.observability.yml` использует
+        `include: docker-compose.cloud.yml` и project `clikit-observability`:
+        API, PostgreSQL и все компоненты наблюдаемости живут в одной Docker-сети,
+        поэтому Prometheus скрейпит `api:8000`, API шлёт OTLP в
+        `http://tempo:4318`, а Promtail читает stdout API через Docker socket —
+        путь `/var/lib/docker/containers` на Docker Desktop ведёт в Linux VM и
+        каталогом хоста не считается. Порты UI публикуются только на
+        `127.0.0.1`, образы pinned, у сервисов есть лимиты CPU/RAM и volumes;
+        данные переживают `down` и удаляются только `down -v`. Prometheus хранит
+        40 дней (30-дневное окно SLO + запас, ADR №60), Loki — 30 дней, Tempo —
+        14 дней (дефолтный `block_retention`; top-level `compactor` в Tempo 3.x
+        убран из схемы, и попытка его задать роняла контейнер). Loki/Tempo —
+        distroless, у Promtail нет `wget`, поэтому `CMD-SHELL`-healthcheck у них
+        не выразим: готовность проверяется снаружи (`GET /ready`) и target'ами
+        Prometheus, это осознанное исключение, а не забытый healthcheck. Метки
+        потока Loki — только `container`/`service`/`stream`/`level`;
+        `request_id`/`trace_id` кладутся в structured metadata (иначе индекс
+        Loki взорвётся на каждый запрос). Alertmanager в T2.1 имеет только
+        базовый маршрут `local-sink` → `scripts/alert_sink.py`: приёмник на
+        stdlib пишет в stdout только `status`/`alertname`/`severity`/`summary`
+        (метки и аннотации могут содержать что угодно), хранит историю в
+        `GET /alerts` и drain'ит тело > 1 МБ, чтобы клиент получил 413, а не
+        RST. Дашборды добавлены в T2.2; правила алертов (T3.1) сознательно
+        не добавлены.
+
+    65. **Дашборд — код в Git, а не состояние Grafana UI**
+        (2026-11-16, M8 T2.2): `observability/grafana/dashboards/clikit-cloud.json`
+        (UID `clikit-cloud`) провизионируется read-only (`allowUiUpdates: false`,
+        `editable: false`) и содержит 13 панелей: RPS, 5xx, доступность и остаток
+        error budget за 30 дней, burn rate 1/6 ч, in-flight, RPS по маршрутам,
+        p50/p95/p99, пул БД, CPU/RAM Docker-хоста, `up`, логи Loki. Панели SLO
+        читают recording rules T0.1, а не копируют формулы: порог живёт в
+        `docs/sre/slo.md` и правилах, поэтому правка не разъедется с дашбордом.
+        В запросах — только метки низкой кардинальности (`route` — шаблон
+        FastAPI); `tests/service/test_grafana_dashboard.py` не допускает в JSON
+        id сценариев, `request_id`, секретов и неизвестных метрик. Скриншот
+        реально работающего дашборда (`docs/img/screenshot-dashboard.png`)
+        входит в README: «дашборд как код» подтверждается не только файлом,
+        но и работающими панелями.
+
 ---
 
 ### 3.4. CI/CD
@@ -689,7 +823,34 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-12 (**M7 T6.1** — документация ClicKit Cloud:
+*Последнее обновление: 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
+`observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`,
+13 панелей: RPS, 5xx, доступность/бюджет 30 дней, burn rate 1/6 ч, in-flight,
+RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki;
+read-only provisioning, `editable: false`), скриншот `docs/img/screenshot-dashboard.png`
+в README, чекпоинт в `docs/observability.md` §4.1, 9 статических тестов
+`tests/service/test_grafana_dashboard.py`; попутно исправлены recording rules
+T0.1 — при существующем счётчике с нулевым `rate` SLI давал `NaN`, добавлены
+`> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
+**603 passed**, `ruff` чист; ADR №65. Следующая задача — T3.1, алерты и
+Alertmanager.)*
+
+*Ранее, 2026-11-16 (**M8 T2.1** — compose-стек наблюдаемости:
+`docker-compose.observability.yml` поднимает одной командой API/PostgreSQL
+(через `include`) и Prometheus/Grafana/Loki/Promtail/Tempo/Alertmanager с
+локальным приёмником алертов; конфиги `observability/`, руководство
+`docs/observability.md`, переменные портов в `.env.example`, ADR №64.
+Живой чекпоинт: 8/8 targets UP, UI/API 200, логи в Loki, трейсы в Tempo,
+ручной вебхук в `/alerts`, данные сохраняются при `down`/`up`. Тесты: 8
+алертов-приёмника + 18 статических проверок стека; полный прогон **595 passed**,
+`ruff` чист. Следующая задача — T2.2, дашборд Grafana как код.)*
+
+*Ранее, 2026-11-16 (**M8 T1.3** — трейсы OpenTelemetry в Tempo: `Tracing`
+в `service/app/observability/tracing.py`, HTTP-спан FastAPI и собственный спан
+SQLAlchemy без текста SQL, `trace_id` в JSON-журнале, батчевый OTLP/HTTP,
+настройки `CLICKIT_OTEL_*`; 23 теста, полный прогон 568 passed, §3.3 — ADR №63.)*
+
+*Ранее, 2026-11-12 (**M7 T6.1** — документация ClicKit Cloud:
 создан `docs/cloud.md` (зачем сервис, архитектура, запуск с чистой машины через
 compose, проверка `/healthz`/`/readyz`, публикация и скачивание через CLI,
 эндпоинты/коды/лимиты, миграции, тесты, эксплуатация, резервное копирование,

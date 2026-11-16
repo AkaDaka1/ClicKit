@@ -1,0 +1,231 @@
+# Локальный стек наблюдаемости ClicKit Cloud (M8 T2.1).
+#
+# Одна команда поднимает API, PostgreSQL и контур наблюдаемости:
+#   copy .env.example .env      # заполнить CLICKIT_API_KEY и POSTGRES_PASSWORD
+#   docker compose -f docker-compose.observability.yml up -d --build
+#
+# Почему `include`, а не две команды: Prometheus должен скрейпить живой API,
+# а трассировка API — отправлять спаны в Tempo. Включённый cloud-compose
+# гарантирует общую Docker-сеть и project name, поэтому `api:8000`,
+# `tempo:4318`, `loki:3100` резолвятся из контура без host.docker.internal и
+# без ручного `docker network connect`. Обратная сторона: не поднимайте этот
+# файл одновременно с `docker-compose.cloud.yml` — проект один и тот же,
+# порт 8000 занят (см. docs/observability.md §6).
+#
+# UI и API (все порты — только localhost; наружу стек не публикуется):
+#   API            http://127.0.0.1:8000
+#   Prometheus     http://127.0.0.1:9090
+#   Grafana        http://127.0.0.1:3000
+#   Alertmanager   http://127.0.0.1:9093
+#   Loki API       http://127.0.0.1:3100
+#   Tempo API      http://127.0.0.1:3200
+#   alert-sink     http://127.0.0.1:8080/alerts
+#
+# Volumes хранят данные и переживают `down` (удалить: `down -v`).
+# Лимиты памяти/CPU — мера риска «стек съест ноутбук» (plans/M8 §9);
+# retention Prometheus — 40 дней (ADR №60), Loki — 30 дней, Tempo — 14 дней.
+
+name: clikit-observability
+
+include:
+  - path: docker-compose.cloud.yml
+
+services:
+  # API получает адрес OTLP-коллектора в общей сети (T1.3, ADR №63);
+  # environment включённого файла сливается с этим блоком, а не заменяется.
+  api:
+    environment:
+      CLICKIT_OTEL_ENABLED: "1"
+      CLICKIT_OTEL_ENDPOINT: http://tempo:4318
+      CLICKIT_OTEL_SERVICE_NAME: clikit-cloud
+      CLICKIT_OTEL_SAMPLE_RATE: "1.0"
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    restart: unless-stopped
+    init: true
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 30-дневное окно SLO + 10 дней запаса (ADR №60).
+      - --storage.tsdb.retention.time=40d
+      # Reload правил без перезапуска (нужно T3.1/T5.1).
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${CLICKIT_PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - alertmanager
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+
+  alertmanager:
+    image: prom/alertmanager:v0.35.0
+    restart: unless-stopped
+    init: true
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./observability/alertmanager:/etc/alertmanager:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "127.0.0.1:${CLICKIT_ALERTMANAGER_PORT:-9093}:9093"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9093/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    mem_limit: 128m
+    cpus: 0.5
+
+  # Локальный приёмник алертов (T2.1): вебхук Alertmanager → stdout + /alerts.
+  # Правила алертов и проверка firing/resolved — T3.1.
+  alert-sink:
+    image: python:3.11-slim
+    restart: unless-stopped
+    init: true
+    command: ["python", "-u", "/app/scripts/alert_sink.py", "--host", "0.0.0.0", "--port", "8080"]
+    volumes:
+      - ./scripts/alert_sink.py:/app/scripts/alert_sink.py:ro
+    ports:
+      - "127.0.0.1:${CLICKIT_ALERT_SINK_PORT:-8080}:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    mem_limit: 128m
+    cpus: 0.25
+
+  grafana:
+    image: grafana/grafana:13.2.6
+    restart: unless-stopped
+    init: true
+    environment:
+      # UI только на localhost: анонимный просмотр, форма входа выключена,
+      # сохранять дашборды руками нельзя (они — код, ADR №39).
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      # Метрики самого UI нужны target'у grafana в Prometheus.
+      GF_METRICS_ENABLED: "true"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${CLICKIT_GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    stop_grace_period: 15s
+    mem_limit: 512m
+    cpus: 0.5
+
+  loki:
+    image: grafana/loki:3.6.11
+    restart: unless-stopped
+    init: true
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./observability/loki:/etc/loki:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:${CLICKIT_LOKI_PORT:-3100}:3100"
+    # Healthcheck не выразить: образ distroless (нет /bin/sh и HTTP-клиента).
+    # Готовность проверяется снаружи (`GET /ready`) и target'ом `loki` в
+    # Prometheus; так же устроен Tempo.
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+
+  # Логи API → Loki. Promtail читает stdout через Docker API (socket), поэтому
+  # каталог /var/lib/docker/containers монтировать не нужно — путь через
+  # Docker Desktop всё равно ведёт в Linux VM, а не в файловую систему хоста.
+  promtail:
+    image: grafana/promtail:3.6.11
+    restart: unless-stopped
+    init: true
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    volumes:
+      - ./observability/promtail:/etc/promtail:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-data:/var/lib/promtail
+    depends_on:
+      - loki
+    # Healthcheck не выразить: в образе есть /bin/sh, но нет wget/curl.
+    # Готовность видна target'ом `promtail` в Prometheus.
+    mem_limit: 256m
+    cpus: 0.5
+
+  tempo:
+    image: grafana/tempo:3.1.1
+    restart: unless-stopped
+    init: true
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./observability/tempo:/etc/tempo:ro
+      - tempo-data:/var/tempo
+    ports:
+      # OTLP/HTTP публикуется для запуска uvicorn на хосте (разработка).
+      - "127.0.0.1:${CLICKIT_TEMPO_PORT:-3200}:3200"
+      - "127.0.0.1:${CLICKIT_OTLP_HTTP_PORT:-4318}:4318"
+    # Healthcheck не выразить: образ distroless. Готовность — `GET /ready`
+    # снаружи и target `tempo` в Prometheus.
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+
+  # CPU/RAM Docker-хоста для дашборда T2.2. На Docker Desktop это Linux VM.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    init: true
+    pid: host
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    mem_limit: 64m
+    cpus: 0.25
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  promtail-data:
+  tempo-data:
+  alertmanager-data:

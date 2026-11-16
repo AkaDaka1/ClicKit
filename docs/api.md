@@ -149,17 +149,45 @@
 (`CLICKIT_GIT_SHA`, `CLICKIT_BUILD_TIME`, по умолчанию `"unknown"`/`""`).
 `ir_format_version` равен `core.ir.nodes.SCENARIO_VERSION`.
 
-### 5.4. `GET /metrics` — заготовка Prometheus (текст)
+### 5.4. `GET /metrics` — метрики Prometheus (текст)
 
-200, `Content-Type: text/plain; version=0.0.4`:
+200, `Content-Type: text/plain; version=1.0.0; charset=utf-8`. Формат —
+текстовый Prometheus 1.0 (OpenMetrics-совместимый), читается Prometheus
+≥ 2.40 и стандартным парсером `prometheus_client`.
+
+Метрики контракта (`docs/sre/slo.md` §8):
+
+| Метрика | Тип | Метки |
+|---|---|---|
+| `clikit_http_requests_total` | counter | `method`, `route`, `status` |
+| `clikit_http_request_duration_seconds` | histogram | `method`, `route`, `status`, `le` |
+| `clikit_http_requests_in_flight` | gauge | — |
+| `clikit_db_pool_connections` | gauge | `state` (`in_use`, `idle`, `overflow`) |
+| `clikit_build_info` | gauge | `version`, `git_sha` |
 
 ```text
 # HELP clikit_build_info Сведения о сборке ClicKit Cloud.
 # TYPE clikit_build_info gauge
 clikit_build_info{version="0.1.0",git_sha="unknown"} 1
+# HELP clikit_http_requests_total HTTP-запросы ClicKit Cloud: метод, шаблон маршрута, код ответа.
+# TYPE clikit_http_requests_total counter
+clikit_http_requests_total{method="GET",route="/v1/scenarios/{scenario_id}",status="200"} 3.0
 ```
 
-Полные метрики — M8.
+Правила:
+
+- `route` — **шаблон** маршрута FastAPI (`/v1/scenarios/{scenario_id}`), а не
+  сырой путь: id сценария в метки не попадает. Запрос, не совпавший ни с
+  одним маршрутом (включая 413 лимита тела, который отвечает до
+  маршрутизации), получает `route="unmatched"`.
+- Корзина `le="0.3"` гистограммы — порог задержки SLO; набор корзин
+  фиксирован в `service/app/observability/metrics.py`.
+- `clikit_http_requests_in_flight` не считает сам скрейп `/metrics`, иначе
+  gauge в теле ответа всегда был бы ≥ 1.
+- `clikit_db_pool_connections` появляется только при настоящем пуле
+  SQLAlchemy (PostgreSQL); на `NullPool`/`StaticPool` метрики нет.
+- Скрейп `/metrics` не пишет access-запись в журнал (иначе журнал состоял бы
+  из шума одного эндпоинта), но учитывается в счётчике и гистограмме.
 
 ### 5.5. `POST /v1/scenarios` — публикация сценария
 
@@ -385,9 +413,30 @@ CREATE INDEX ix_crash_reports_created_at ON crash_reports (created_at);
 | `CLICKIT_GIT_SHA` | нет | `unknown` | sha сборки для `/version` |
 | `CLICKIT_BUILD_TIME` | нет | `""` | время сборки для `/version` |
 | `CLICKIT_LOG_LEVEL` | нет | `INFO` | уровень журнала сервиса |
+| `CLICKIT_OTEL_ENABLED` | нет | `1` | трейсы OpenTelemetry (M8 T1.3); `0` — трейсы выключены, `trace_id` в журнале — `-` |
+| `CLICKIT_OTEL_ENDPOINT` | нет | `http://localhost:4318` | базовый адрес OTLP/HTTP (Tempo); путь `/v1/traces` добавляется сам |
+| `CLICKIT_OTEL_SAMPLE_RATE` | нет | `1.0` | доля сэмплируемых трейсов, `0 < x ≤ 1` |
+| `CLICKIT_OTEL_SERVICE_NAME` | нет | имя сервиса | `service.name` ресурса трейса в Tempo |
 
 Секреты — только в env/`.env`; в Git — `.env.example` без значений (ключи
 маскируются при логировании и в ответах).
+
+С M8 журнал сервиса — JSON-строки в stdout с обязательными полями
+`timestamp`, `level`, `logger`, `message`, `service`, `version`, `request_id`,
+`trace_id` (ADR №61); ключи API и пути пользователя в traceback маскируются.
+Формат и поиск по журналу — `docs/cloud.md` §8.1.
+
+С M8 (T1.3) каждый запрос — трейс OpenTelemetry, экспортируемый по OTLP/HTTP
+(Tempo): HTTP-спан с шаблоном маршрута и дочерние спаны запросов к БД;
+`trace_id` в JSON-журнале совпадает с трейсом, атрибут `clikit.request_id`
+связывает спан с `X-Request-ID` (ADR №41, №63). Текст SQL в атрибуты спанов
+**не пишется**: в нём данные сценария. Если коллектор недоступен, экспорт
+батчевый и фоновый — ответы не задерживаются.
+
+Трейсинг включается в `lifespan` и только если трейсинг запрошен и включается
+настройками. Явные `Settings(...)` в тестах трейсинг по умолчанию **не**
+включают (второй признак `enable_tracing`), иначе каждый тест при остановке
+ждал бы таймаут экспорта в отсутствующий коллектор.
 
 Схема БД меняется только миграциями Alembic (модели — `service/app/models.py`,
 миграции — `service/migrations`); URL для миграций читается из того же
@@ -508,6 +557,8 @@ curl -s -X DELETE localhost:8000/v1/scenarios/<id> \
 ## 13. Связанные документы
 
 - [`docs/cloud.md`](cloud.md) — запуск, эксплуатация, CLI и диагностика.
+- [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget и политика
+  надёжности (M8).
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач T0.1–T6.1 и журнал.
 - [`README.md`](../README.md) — обзор продукта и точка входа в документацию.

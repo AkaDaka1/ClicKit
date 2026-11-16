@@ -158,12 +158,20 @@ def test_unhandled_error_is_500_problem_json(
 def test_request_log_contains_request_id(
     client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Строка access-журнала содержит идентификатор запроса."""
+    """Access-запись содержит идентификатор и структурированные поля (T1.1)."""
     with caplog.at_level(logging.INFO):
         client.get("/healthz", headers={"X-Request-ID": VALID_ID})
 
-    assert VALID_ID in caplog.text
-    assert "GET /healthz" in caplog.text
+    records = [item for item in caplog.records if item.name == "service.app.request_id"]
+    assert records, "нет access-записи журнала"
+    record = records[-1]
+    assert record.request_id == VALID_ID
+    assert record.trace_id == "-"
+    assert record.event == "http_request"
+    assert record.method == "GET"
+    assert record.path == "/healthz"
+    assert record.status == 200
+    assert isinstance(record.duration_ms, float)
 
 
 def test_publish_success_keeps_request_id(client: TestClient) -> None:

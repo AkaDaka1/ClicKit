@@ -91,6 +91,30 @@ class Database:
         finally:
             session.close()
 
+    def pool_samples(self) -> dict[str, float]:
+        """Состояние пула соединений для `clikit_db_pool_connections` (T1.2).
+
+        Читается на момент скрейпа `/metrics`, без запросов к серверу БД:
+        `QueuePool` даёт `checkedout`, `checkedin` и `overflow`.
+        `overflow` может быть отрицательным — это штатное «сужение» пула
+        (часть соединений уже закрыта после пика).
+
+        Returns:
+            Подписи метки `state` и значения: `in_use`, `idle`, `overflow`.
+        """
+        pool = getattr(self._engine, "pool", None)
+        checkedout = getattr(pool, "checkedout", None)
+        checkedin = getattr(pool, "checkedin", None)
+        overflow = getattr(pool, "overflow", None)
+        if not all(callable(getter) for getter in (checkedout, checkedin, overflow)):
+            # `NullPool`/`StaticPool` (SQLite в тестах) не считают соединения.
+            return {}
+        return {
+            "in_use": float(checkedout()),
+            "idle": float(checkedin()),
+            "overflow": float(overflow()),
+        }
+
     def check(self) -> bool:
         """Выполнить `SELECT 1` и сообщить, доступна ли БД.
 

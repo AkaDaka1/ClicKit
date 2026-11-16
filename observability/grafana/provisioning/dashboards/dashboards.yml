@@ -1,0 +1,20 @@
+# Провижининг дашбордов Grafana как код (M8 T2.1, дашборд — T2.2).
+#
+# `clikit-cloud.json` лежит рядом в `observability/grafana/dashboards/` и
+# подключается только для чтения: правки в UI не сохраняются, дашборд
+# восстанавливается из Git (ADR №39, №65). Другой дашборд — новый JSON-файл
+# в том же каталоге, без ручных действий в Grafana.
+
+apiVersion: 1
+
+providers:
+  - name: ClicKit
+    orgId: 1
+    folder: ClicKit
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

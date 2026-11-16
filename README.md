@@ -36,6 +36,14 @@ together to script clicks, moves and delays — no coding required.
   <sub>Simple mode (left) and the block scenario editor with the starter click scenario (right), dark theme.</sub>
 </p>
 
+<p align="center">
+  <img src="docs/img/screenshot-dashboard.png" width="100%" alt="Grafana dashboard: RPS, error rate, latency percentiles, in-flight requests, database pool, host CPU/RAM and API logs" />
+</p>
+
+<p align="center">
+  <sub>ClicKit Cloud observability dashboard — provisioned from Git (M8 T2.2).</sub>
+</p>
+
 ## 🏗️ Architecture at a glance
 
 ```mermaid
@@ -139,7 +147,7 @@ want to automate a few clicks.
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 | **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
 | **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | ✅ Done |
-| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 📋 Planned |
+| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 🚧 In progress |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
 | **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
 | **M11** | Security & resilience: scanning, load, backups, chaos | 📋 Planned |
@@ -311,6 +319,24 @@ python scripts/cloud_publish.py list
   [`docs/cloud.md`](docs/cloud.md);
 - API contract, error codes and limits: [`docs/api.md`](docs/api.md).
 
+### Observability (M8)
+
+The local stack adds Prometheus, Grafana, Loki, Tempo and Alertmanager in one
+Compose file. The Grafana dashboard lives in Git as JSON
+(`observability/grafana/dashboards/clikit-cloud.json`) and is provisioned
+read-only — it shows RPS, 5xx, p50/p95/p99, in-flight requests, the DB pool,
+host CPU/RAM and Loki logs. The formulas behind SLO panels are Prometheus
+recording rules, so the dashboard never duplicates them.
+
+```bash
+cp .env.example .env                 # fill CLICKIT_API_KEY and POSTGRES_PASSWORD
+docker compose -f docker-compose.observability.yml up -d --build
+# open http://127.0.0.1:3000/d/clikit-cloud
+```
+
+See [`docs/observability.md`](docs/observability.md) for the checkpoint and
+troubleshooting, and [`docs/sre/slo.md`](docs/sre/slo.md) for the SLO contract.
+
 ## 🗂️ Repository map
 
 ```text
@@ -480,7 +506,7 @@ flowchart LR
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 | **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
 | **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | ✅ Готово |
-| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 📋 Запланировано |
+| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 🚧 В работе |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
 | **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
 | **M11** | Безопасность и устойчивость: сканирование, нагрузка, бэкапы, chaos | 📋 Запланировано |
@@ -654,6 +680,24 @@ python scripts/cloud_publish.py list
 - подробное руководство (команды PowerShell, тесты, резервная копия,
   диагностика): [`docs/cloud.md`](docs/cloud.md);
 - контракт API, коды ошибок и лимиты — [`docs/api.md`](docs/api.md).
+
+### Наблюдаемость (M8)
+
+Локальный стек поднимает Prometheus, Grafana, Loki, Tempo и Alertmanager одним
+Compose-файлом. Дашборд Grafana хранится в Git как JSON
+(`observability/grafana/dashboards/clikit-cloud.json`) и подключается только
+для чтения: RPS, 5xx, p50/p95/p99, запросы в обработке, пул БД, CPU/RAM хоста
+и логи Loki. Формулы SLO-панелей — recording rules Prometheus, дашборд их не
+дублирует.
+
+```bash
+cp .env.example .env                 # заполните CLICKIT_API_KEY и POSTGRES_PASSWORD
+docker compose -f docker-compose.observability.yml up -d --build
+# открыть http://127.0.0.1:3000/d/clikit-cloud
+```
+
+Чекпоинт и диагностика — [`docs/observability.md`](docs/observability.md),
+контракт SLO — [`docs/sre/slo.md`](docs/sre/slo.md).
 
 ## 🗂️ Карта репозитория
 
