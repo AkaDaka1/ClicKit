@@ -137,8 +137,10 @@ production-образ (non-root, healthcheck), локальный compose, кл�
 **T0.1 ✅** — SLI/SLO и PromQL, **T1.1 ✅** — JSON-логи, **T1.2 ✅** —
 метрики, **T1.3 ✅** — OTel-трейсы в Tempo, **T2.1 ✅** — compose-стек
 наблюдаемости (`docker-compose.observability.yml`, `docs/observability.md`):
-8/8 targets UP, UI открываются, логи/метрики/трейсы сквозные. Остались
-T2.2 (дашборд), T3.1 (алерты) и T3.2/T4.1/T5.1 (runbook, SLO, демо).
+8/8 targets UP, UI открываются, логи/метрики/трейсы сквозные, **T2.2 ✅** —
+дашборд Grafana как код (`observability/grafana/dashboards/clikit-cloud.json`,
+13 панелей, скриншот в README). Остались T3.1 (алерты) и
+T3.2/T4.1/T5.1 (runbook, SLO, демо).
 
 ## M9 — Инфраструктура как код
 **Цель:** воспроизводимое облако и кластер: `terraform apply` с нуля,

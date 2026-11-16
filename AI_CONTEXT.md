@@ -178,8 +178,9 @@ ClicKit/
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
 ├── observability/         # стек наблюдаемости (M8): prometheus/ (prometheus.yml,
-│                          # recording_rules.yml, tests/), alertmanager/, grafana/
-│                          # (provisioning datasources/dashboards, dashboards/ — T2.2),
+│                          # recording_rules.yml, tests/), alertmanager/,
+│                          # grafana/provisioning (datasources/dashboards),
+│                          # dashboards/ — T2.2: clikit-cloud.json (дашборд),
 │                          # loki/, promtail/, tempo/ (T2.1); правила алертов — T3.1
 └── tests/
 ```
@@ -188,7 +189,9 @@ ClicKit/
 `cloud/` — в T4.2 (клиент и CLI), `observability/` и `docs/sre/` — в M8 T0.1
 (recording rules и контракт SLO), наполнен стеком наблюдаемости в M8 T2.1
 (Prometheus/Alertmanager/Grafana/Loki/Promtail/Tempo, `docker-compose.observability.yml`,
-`docs/observability.md`, `scripts/alert_sink.py`). Каталоги `infra/`, `deploy/` появятся в
+`docs/observability.md`, `scripts/alert_sink.py`), дашборд Grafana добавлен в
+T2.2 (`observability/grafana/dashboards/clikit-cloud.json`); каталоги
+`infra/`, `deploy/` появятся в
 M9–M11; их интерфейсы и критерии готовности зафиксированы в
 `plans/M7-cloud-service.md` … `plans/M11-security-resilience.md`. Текущая
 структура выше — фактическая; плановые каталоги не считаются реализованными.
@@ -586,6 +589,11 @@ M9–M11; их интерфейсы и критерии готовности з�
        плана M8 §3 обновлён. Запросы проверяются `promtool check rules` и
        `promtool test rules` на синтетических сериях, статические тесты
        `tests/service/test_slo_docs.py` держат документ и правила в согласии.
+       Уточнено в T2.2: у существующей, но неактивной серии счётчика `rate`
+       равен 0, и `or vector(1)` в знаменателе не подставлялся — SLI давал
+       `NaN` (панели дашборда это сразу показали). Теперь знаменатель проходит
+       через `> 0`, значение по умолчанию задаёт внешний `or vector(...)`;
+       регрессию ловит сценарий promtool «счётчики есть, трафика нет».
 
    61. **Журнал сервиса — JSON-строки с корреляцией** (2026-11-13, M8 T1.1):
        `service/app/observability/logging.py` — единственное место, где
@@ -668,9 +676,23 @@ M9–M11; их интерфейсы и критерии готовности з�
         stdlib пишет в stdout только `status`/`alertname`/`severity`/`summary`
         (метки и аннотации могут содержать что угодно), хранит историю в
         `GET /alerts` и drain'ит тело > 1 МБ, чтобы клиент получил 413, а не
-        RST. Дашборды (T2.2) и правила алертов (T3.1) сознательно не добавлены:
-        provisioning настроен, каталог `observability/grafana/dashboards/`
-        подготовлен.
+        RST. Дашборды добавлены в T2.2; правила алертов (T3.1) сознательно
+        не добавлены.
+
+    65. **Дашборд — код в Git, а не состояние Grafana UI**
+        (2026-11-16, M8 T2.2): `observability/grafana/dashboards/clikit-cloud.json`
+        (UID `clikit-cloud`) провизионируется read-only (`allowUiUpdates: false`,
+        `editable: false`) и содержит 13 панелей: RPS, 5xx, доступность и остаток
+        error budget за 30 дней, burn rate 1/6 ч, in-flight, RPS по маршрутам,
+        p50/p95/p99, пул БД, CPU/RAM Docker-хоста, `up`, логи Loki. Панели SLO
+        читают recording rules T0.1, а не копируют формулы: порог живёт в
+        `docs/sre/slo.md` и правилах, поэтому правка не разъедется с дашбордом.
+        В запросах — только метки низкой кардинальности (`route` — шаблон
+        FastAPI); `tests/service/test_grafana_dashboard.py` не допускает в JSON
+        id сценариев, `request_id`, секретов и неизвестных метрик. Скриншот
+        реально работающего дашборда (`docs/img/screenshot-dashboard.png`)
+        входит в README: «дашборд как код» подтверждается не только файлом,
+        но и работающими панелями.
 
 ---
 
@@ -801,7 +823,19 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-16 (**M8 T2.1** — compose-стек наблюдаемости:
+*Последнее обновление: 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
+`observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`,
+13 панелей: RPS, 5xx, доступность/бюджет 30 дней, burn rate 1/6 ч, in-flight,
+RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki;
+read-only provisioning, `editable: false`), скриншот `docs/img/screenshot-dashboard.png`
+в README, чекпоинт в `docs/observability.md` §4.1, 9 статических тестов
+`tests/service/test_grafana_dashboard.py`; попутно исправлены recording rules
+T0.1 — при существующем счётчике с нулевым `rate` SLI давал `NaN`, добавлены
+`> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
+**603 passed**, `ruff` чист; ADR №65. Следующая задача — T3.1, алерты и
+Alertmanager.)*
+
+*Ранее, 2026-11-16 (**M8 T2.1** — compose-стек наблюдаемости:
 `docker-compose.observability.yml` поднимает одной командой API/PostgreSQL
 (через `include`) и Prometheus/Grafana/Loki/Promtail/Tempo/Alertmanager с
 локальным приёмником алертов; конфиги `observability/`, руководство

@@ -38,6 +38,37 @@ tests:
           - labels: "{}"
             value: 0
 
+  - name: счётчики exist, но трафика нет — SLI не становится NaN
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "5x20"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios",status="200",le="0.3"}'
+        values: "5x20"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios",status="200",le="+Inf"}'
+        values: "5x20"
+    promql_expr_test:
+      - expr: round(clikit:http_errors:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: round(clikit:sli_availability:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: round(clikit:sli_latency:ratio_rate5m, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: round(clikit:slo_burn_rate:ratio_1h, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+
   - name: 1 % ошибок и 10 % медленных запросов
     interval: 1m
     input_series:

@@ -65,7 +65,7 @@ PostgreSQL: Prometheus должен видеть живой `/metrics`, а API �
 |---|---|---|
 | API | <http://127.0.0.1:8000> | `/healthz`, `/readyz`, `/metrics`, `/docs` |
 | Prometheus | <http://127.0.0.1:9090> | `/targets`, `/graph`, `/rules` |
-| Grafana | <http://127.0.0.1:3000> | источники данных, Explore (T2.2 — дашборд) |
+| Grafana | <http://127.0.0.1:3000> | дашборд `ClicKit Cloud — обзор`, источники данных, Explore |
 | Alertmanager | <http://127.0.0.1:9093> | принятые алерты, silences (T3.1) |
 | Loki | <http://127.0.0.1:3100> | `/ready`, `/metrics` (UI — в Grafana) |
 | Tempo | <http://127.0.0.1:3200> | `/ready`, `/metrics` (UI — в Grafana) |
@@ -109,6 +109,38 @@ Viewer, а дашборды приходят из Git, а не создаютс�
 Loki сразу после старта контейнера отвечает на `/ready` 503 — это штатный
 прогрев ring/WAL, а не ошибка конфигурации. Проверяйте повторно в течение
 1–2 минут; healthcheck у Loki намеренно нет (образ distroless).
+
+### 4.1. Дашборд Grafana (чекпоинт T2.2)
+
+Grafana поднимается с готовым дашбордом `ClicKit Cloud — обзор`
+(UID `clikit-cloud`): он провизионируется как код из
+`observability/grafana/dashboards/clikit-cloud.json`, правки из UI запрещены
+(`allowUiUpdates: false`), поэтому «как на картинке» воспроизводится из Git.
+Проверка после `up -d`:
+
+```powershell
+# 1. Дашборд в API (uid, 13 панелей)
+Invoke-RestMethod http://127.0.0.1:3000/api/dashboards/uid/clikit-cloud |
+  ForEach-Object { "$($_.dashboard.uid): $(@($_.dashboard.panels).Count) panels" }
+
+# 2. Открыть в браузере
+# http://127.0.0.1:3000/d/clikit-cloud
+```
+
+Панели: RPS и 5xx за 5 мин, доступность за 30 дней и остаток error budget,
+burn rate за 1/6 ч, in-flight, RPS по маршрутам, p50/p95/p99 задержки,
+пул БД, CPU/RAM Docker-хоста, состояние targets и логи API из Loki.
+Скриншот дашборда — в `README.md`.
+
+**Формулы SLO не копируются в JSON.** Панели читают записи
+`clikit:http_requests:rate5m`, `clikit:http_errors:ratio_rate5m`,
+`clikit:sli_availability:ratio_rate30d`, `clikit:slo_burn_rate:ratio_*` и
+`clikit:slo_error_budget:consumed_ratio_30d` из recording rules (T0.1).
+В T2.2 исправлена их обработка пустого трафика: когда счётчики уже
+существуют, но `rate` равен нулю, `or vector(1)` в знаменателе не срабатывал,
+и SLI становился `NaN`. Теперь знаменатель проходит через `> 0`, а значение
+по умолчанию подставляется внешним `or vector(...)`; новый сценарий
+`promtool test rules` проверяет именно этот случай.
 
 ## 5. Логи, метрики, трейсы: сквозная проверка
 

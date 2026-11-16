@@ -1,4 +1,4 @@
-# Recording rules SLO ClicKit Cloud (M8 T0.1).
+# Recording rules SLO ClicKit Cloud (M8 T0.1, уточнено в T2.2).
 #
 # Источник истины по цифрам — docs/sre/slo.md. Здесь только вычисления,
 # чтобы дашборды и алерты (T3.1/T4.1) читали одни и те же SLI, а не
@@ -14,9 +14,13 @@
 #   * в SLI входят только пользовательские маршруты `/v1/...`; служебные
 #     `/healthz`, `/readyz`, `/metrics`, `/docs` и несовпавшие пути исключены;
 #   * 4xx клиента не жгут error budget: знаменатель их не содержит;
-#   * на пустом трафике SLI считается выполненным: `or vector(0)` в числителе
-#     и `or vector(1)` в знаменателе убирают NaN при делении 0/0.
-#     Молчание сервиса ловит отдельный алерт `up` (T3.1), а не SLI.
+#   * на пустом трафике SLI считается выполненным. Одного `or vector(1)`
+#     в знаменателе недостаточно: после первого запроса серии счётчика уже
+#     существуют, а `rate` по ним равен 0 — `or` не подставляет 1, и деление
+#     0/0 даёт NaN (замечено при проверке дашборда T2.2). Поэтому знаменатель
+#     пропускается только при положительном значении (`> 0`), а внешний
+#     `or vector(...)` задаёт значение по умолчанию. Молчание сервиса ловит
+#     отдельный алерт `up` (T3.1), а не SLI.
 
 groups:
   - name: clikit-sli
@@ -30,9 +34,12 @@ groups:
       # Доля 5xx среди запросов, которые считаются в SLI (без 4xx).
       - record: clikit:http_errors:ratio_rate5m
         expr: |
-          (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[5m])) or vector(0))
-          /
-          (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[5m])) or vector(1))
+          (
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[5m])) or vector(0))
+            /
+            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[5m])) > 0)
+          )
+          or vector(0)
 
       # Доступность SLI: 1 − доля 5xx. Окна — для политики burn rate.
       - record: clikit:sli_availability:ratio_rate5m
@@ -40,37 +47,53 @@ groups:
       - record: clikit:sli_availability:ratio_rate1h
         expr: |
           1 - (
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[1h])) or vector(0))
-            /
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[1h])) or vector(1))
+            (
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[1h])) or vector(0))
+              /
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[1h])) > 0)
+            )
+            or vector(0)
           )
       - record: clikit:sli_availability:ratio_rate6h
         expr: |
           1 - (
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[6h])) or vector(0))
-            /
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[6h])) or vector(1))
+            (
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[6h])) or vector(0))
+              /
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[6h])) > 0)
+            )
+            or vector(0)
           )
       - record: clikit:sli_availability:ratio_rate30d
         expr: |
           1 - (
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[30d])) or vector(0))
-            /
-            (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[30d])) or vector(1))
+            (
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status=~"5.."}[30d])) or vector(0))
+              /
+              (sum(rate(clikit_http_requests_total{route=~"/v1/.*", status!~"4.."}[30d])) > 0)
+            )
+            or vector(0)
           )
 
       # Задержка SLI: доля успешных запросов к сценариям не дольше 300 мс.
-      # На пустом трафике считаем SLI выполненным (`or vector(1)` в числителе).
+      # На пустом трафике считаем SLI выполненным: нулевой rate в знаменателе
+      # отсекается, а внешнее `or vector(1)` возвращает 1.
       - record: clikit:sli_latency:ratio_rate5m
         expr: |
-          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[5m])) or vector(1))
-          /
-          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[5m])) or vector(1))
+          (
+            (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[5m])) or vector(1))
+            /
+            (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[5m])) > 0)
+          )
+          or vector(1)
       - record: clikit:sli_latency:ratio_rate30d
         expr: |
-          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[30d])) or vector(1))
-          /
-          (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[30d])) or vector(1))
+          (
+            (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="0.3"}[30d])) or vector(1))
+            /
+            (sum(rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3..", le="+Inf"}[30d])) > 0)
+          )
+          or vector(1)
 
   - name: clikit-slo
     interval: 1m
