@@ -1,0 +1,57 @@
+# Конфигурация Loki ClicKit Cloud (M8 T2.1).
+#
+# Один процесс (single binary), файловое хранилище в именованном томе
+# `loki-data`, без аутентификации — локальный стек. Логи приходят только
+# от Promtail (API в JSON, ADR №61), наружу Loki не публикуется.
+#
+# Retention 30 дней, как и у SLO-окна (docs/sre/slo.md): старые логи не
+# должны бесконечно занимать диск ноутбука. Удалением занимается compactor;
+# `delete_request_store` для файлового хранилища — `filesystem` (Loki 3.x).
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Окно хранения логов — 30 дней.
+  retention_period: 720h
+  # Structured metadata нужен, чтобы Promtail мог приложить `trace_id` к строке
+  # без превращения его в метку потока (иначе кардинальность взорвётся).
+  allow_structured_metadata: true
+  # Старые строки (больше 7 дней) не принимаются: защита от «часов назад».
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  compaction_interval: 10m
+
+analytics:
+  reporting_enabled: false

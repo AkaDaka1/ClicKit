@@ -1,0 +1,20 @@
+# Провижининг дашбордов Grafana как код (M8 T2.2 заготовка, включён в T2.1).
+#
+# Пустой каталог на старте — это нормально: Grafana просто не находит
+# JSON-файлов. T2.2 кладёт `observability/grafana/dashboards/clikit-cloud.json`,
+# и дашборд появляется после перезапуска контейнера — руками в UI ничего
+# не создаётся (ADR №39: дашборды и правила — в Git).
+
+apiVersion: 1
+
+providers:
+  - name: ClicKit
+    orgId: 1
+    folder: ClicKit
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

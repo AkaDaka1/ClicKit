@@ -401,6 +401,23 @@ access-запись в журнал, но учитывается в метрик
 Состав инструментаций и жизненный цикл — `service/app/observability/tracing.py`;
 настройки — [`docs/api.md` §9](api.md#9-конфигурация-сервиса-env).
 
+### 8.1.3. Стек наблюдаемости
+
+Prometheus, Grafana, Loki, Promtail, Tempo и Alertmanager поднимаются одной
+командой из [`docs/observability.md`](observability.md):
+
+```powershell
+docker compose -f docker-compose.observability.yml up -d --build
+```
+
+Этот файл включает `docker-compose.cloud.yml`, поэтому API и БД оказываются в
+той же Docker-сети: Prometheus скрейпит `/metrics`, Promtail собирает
+JSON-логи API в Loki, а спаны уходят в Tempo по `http://tempo:4318`.
+Порты UI (Prometheus 9090, Grafana 3000, Alertmanager 9093 и др.) публикуются
+только на `127.0.0.1`; retention — 40 дней для метрик (ADR №60), 30 дней для
+логов, 14 дней для трейсов.
+
+
 ### 8.2. Данные и резервная копия
 
 ```powershell
@@ -469,6 +486,8 @@ curl.exe -s http://localhost:8000/openapi.json | Out-Null   # 200
   идемпотентность, схема PostgreSQL 16, конфигурация env.
 - [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget и политика
   исчерпания бюджета (M8).
+- [`docs/observability.md`](observability.md) — локальный стек
+  наблюдаемости: Prometheus, Grafana, Loki, Promtail, Tempo, Alertmanager.
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач и журнал.
 - [`README.md`](../README.md) — обзор продукта и быстрый старт.

@@ -1,0 +1,27 @@
+# Alertmanager ClicKit Cloud (M8 T2.1).
+#
+# В T2.1 Alertmanager только стартует и принимает алерты в локальный
+# приёмник `scripts/alert_sink.py`; правила алертов, severity и маршрутизация
+# по критичности добавляются в T3.1 (`prometheus/alerts.yml`).
+#
+# Секретов здесь нет: приёмник локальный (Docker-сеть), внешние интеграции
+# (почта, Telegram, PagerDuty) — вне вехи M8 (plans/M8-observability.md §11).
+
+route:
+  # Единственный получатель: локальный вебхук-приёмник из compose.
+  receiver: local-sink
+  group_by: [alertname, severity]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  - name: local-sink
+    webhook_configs:
+      # Контракт: scripts/alert_sink.py, POST /webhook (формат Alertmanager v4).
+      - url: http://alert-sink:8080/webhook
+        # resolved-уведомления нужны для демо T3.1/T5.1 «сломай и почини».
+        send_resolved: true
+
+# Подавление шума включается вместе с правилами алертов в T3.1.
+inhibit_rules: []

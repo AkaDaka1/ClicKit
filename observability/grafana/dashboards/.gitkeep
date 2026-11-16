@@ -1,0 +1,3 @@
+# Каталог дашбордов Grafana (T2.2). Файл держит пустой каталог в Git:
+# provisioning из `provisioning/dashboards/dashboards.yml` указывает сюда.
+# T2.2 положит сюда clikit-cloud.json — без правок compose и provisioning.
