@@ -614,6 +614,31 @@ M9–M11; их интерфейсы и критерии готовности з�
        Скрейп `/metrics` не пишет access-запись (иначе шум каждые 15 с) и не
        считается сам себя в `requests_in_flight`.
 
+   63. **Трейсы OTel — SDK включается в lifespan, спан БД самописный**
+       (2026-11-16, M8 T1.3): HTTP-спан создаёт
+       `opentelemetry-instrumentation-fastapi` (имя — шаблон маршрута,
+       кардинальность не растёт); спан запроса к БД строит собственный
+       `SqlTracingListener` на событии SQLAlchemy `before/after_cursor_execute`,
+       потому что официальная `opentelemetry-instrumentation-sqlalchemy`
+       ограничена `sqlalchemy < 2.1`, а проект на 2.x. Текст SQL (`db.statement`)
+       в атрибуты **не пишется** — там данные сценария (приватность, ADR №41).
+       `TracerProvider` назначается на каждое приложение (`create_app`) через
+       `install_tracer_provider`: публичный `set_tracer_provider` срабатывает
+       однократно на процесс, и второй экземпляр (тесты) остался бы без спанов;
+       как и метрики (ADR №62), трейсинг изолирован per-app. SDK включается
+       **только** в `Tracing.start` из `lifespan` (импорт модуля не требует ни
+       сети, ни окружения — принцип ADR №51); `trace_id` попадает в журнал
+       через `TraceContextMiddleware`, вставленный внутрь HTTP-спана
+       (`_insert_trace_middleware` пересобирает стек), атрибут
+       `clikit.request_id` связывает спан с `X-Request-ID`. Настройки —
+       `CLICKIT_OTEL_*` (enabled/endpoint/sample_rate/service_name),
+       сэмплирование — `ParentBased(TraceIdRatioBased(rate))`, экспорт —
+       батчевый OTLP/HTTP в Tempo; старт/остановка трейсинга идут в пуле
+       потоков, недоступный коллектор не задерживает ни ответ, ни shutdown
+       сервиса. В тестах `create_app(Settings(...))` трейсинг по умолчанию
+       **выключен** (флаг `enable_tracing`): иначе каждый тест при остановке
+       ждал бы OTLP-таймаут в отсутствующий коллектор.
+
 ---
 
 ### 3.4. CI/CD

@@ -413,6 +413,10 @@ CREATE INDEX ix_crash_reports_created_at ON crash_reports (created_at);
 | `CLICKIT_GIT_SHA` | нет | `unknown` | sha сборки для `/version` |
 | `CLICKIT_BUILD_TIME` | нет | `""` | время сборки для `/version` |
 | `CLICKIT_LOG_LEVEL` | нет | `INFO` | уровень журнала сервиса |
+| `CLICKIT_OTEL_ENABLED` | нет | `1` | трейсы OpenTelemetry (M8 T1.3); `0` — трейсы выключены, `trace_id` в журнале — `-` |
+| `CLICKIT_OTEL_ENDPOINT` | нет | `http://localhost:4318` | базовый адрес OTLP/HTTP (Tempo); путь `/v1/traces` добавляется сам |
+| `CLICKIT_OTEL_SAMPLE_RATE` | нет | `1.0` | доля сэмплируемых трейсов, `0 < x ≤ 1` |
+| `CLICKIT_OTEL_SERVICE_NAME` | нет | имя сервиса | `service.name` ресурса трейса в Tempo |
 
 Секреты — только в env/`.env`; в Git — `.env.example` без значений (ключи
 маскируются при логировании и в ответах).
@@ -421,6 +425,18 @@ CREATE INDEX ix_crash_reports_created_at ON crash_reports (created_at);
 `timestamp`, `level`, `logger`, `message`, `service`, `version`, `request_id`,
 `trace_id` (ADR №61); ключи API и пути пользователя в traceback маскируются.
 Формат и поиск по журналу — `docs/cloud.md` §8.1.
+
+С M8 (T1.3) каждый запрос — трейс OpenTelemetry, экспортируемый по OTLP/HTTP
+(Tempo): HTTP-спан с шаблоном маршрута и дочерние спаны запросов к БД;
+`trace_id` в JSON-журнале совпадает с трейсом, атрибут `clikit.request_id`
+связывает спан с `X-Request-ID` (ADR №41, №63). Текст SQL в атрибуты спанов
+**не пишется**: в нём данные сценария. Если коллектор недоступен, экспорт
+батчевый и фоновый — ответы не задерживаются.
+
+Трейсинг включается в `lifespan` и только если трейсинг запрошен и включается
+настройками. Явные `Settings(...)` в тестах трейсинг по умолчанию **не**
+включают (второй признак `enable_tracing`), иначе каждый тест при остановке
+ждал бы таймаут экспорта в отсутствующий коллектор.
 
 Схема БД меняется только миграциями Alembic (модели — `service/app/models.py`,
 миграции — `service/migrations`); URL для миграций читается из того же

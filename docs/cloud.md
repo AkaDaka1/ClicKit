@@ -380,6 +380,27 @@ curl.exe -s http://localhost:8000/metrics | Select-String "clikit_http_requests_
 кардинальность не растёт с числом сценариев. Скрейп `/metrics` не пишет
 access-запись в журнал, но учитывается в метриках.
 
+### 8.1.2. Трейсы (OpenTelemetry → Tempo)
+
+С M8 (T1.3) каждый HTTP-запрос — трейс: корневой **HTTP-спан** (имя — шаблон
+маршрута, `GET /v1/scenarios/{scenario_id}`) и дочерние спаны запросов к БД.
+Экспорт — OTLP/HTTP (батчевый, фоновый) в Tempo, базовый адрес —
+`CLICKIT_OTEL_ENDPOINT` (`http://tempo:4318` в compose наблюдаемости; путь
+`/v1/traces` добавляется сам):
+
+```powershell
+# Трейс в Tempo ищется по trace_id из JSON-лога (см. §8.1),
+# либо по request_id из заголовка ответа — атрибут clikit.request_id спана.
+```
+
+`trace_id` в JSON-журнале и `trace_id` трейса в Tempo — одно и то же значение
+(ADR №41, №63), поэтому запись лога и спаны запроса соединяются без ручного
+клея. Текст SQL в атрибуты спанов **не пишется** (в нём данные сценария);
+масштабы сэмплирования — `CLICKIT_OTEL_SAMPLE_RATE` (по умолчанию 1.0 — все).
+
+Состав инструментаций и жизненный цикл — `service/app/observability/tracing.py`;
+настройки — [`docs/api.md` §9](api.md#9-конфигурация-сервиса-env).
+
 ### 8.2. Данные и резервная копия
 
 ```powershell
