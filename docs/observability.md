@@ -296,5 +296,10 @@ docker compose -f docker-compose.observability.yml down -v
 - [`docs/api.md`](api.md) — контракт API, `GET /metrics`, конфигурация env.
 - [`docs/cloud.md`](cloud.md) — запуск и эксплуатация сервиса без стека.
 - [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget, retention 40 дней.
+- [`docs/sre/runbook.md`](sre/runbook.md) — что делать по каждому алерту
+  (T3.2): 8 сценариев с командами и критериями восстановления.
+- [`docs/sre/postmortem-template.md`](sre/postmortem-template.md) — шаблон
+  blameless-разбора; реальный пример —
+  [`docs/sre/postmortems/2026-10-29-release-pipeline.md`](sre/postmortems/2026-10-29-release-pipeline.md).
 - [`plans/M8-observability.md`](../plans/M8-observability.md) — план вехи и
   журнал задач.

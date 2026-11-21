@@ -161,7 +161,9 @@ ClicKit/
 │                          # alert_sink.py — приёмник вебхуков Alertmanager, M8 T2.1)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
-│                          # sre/ (slo.md — M8 T0.1), img/ (скриншоты для
+│                          # observability.md (локальный стек, M8 T2.1),
+│                          # sre/ (slo.md — T0.1; runbook.md, postmortem-template.md
+│                          # и postmortems/ — M8 T3.2), img/ (скриншоты для
 │                          # README; scripts/make_screenshots.py)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
@@ -719,6 +721,22 @@ M9–M11; их интерфейсы и критерии готовности з�
         требует `for`/`severity` у каждого алерта и проверяет inhibition.
         Живой чекпоинт: `stop api` → `ClikitApiDown` firing (~90 с) в Prometheus,
         Alertmanager и приёмнике; `start api` → resolved, `send_resolved` в деле.
+    67. **Runbook привязан к алертам, постмортем — к фактам CI**
+        (2026-11-21, M8 T3.2): `docs/sre/runbook.md` — процедура на момент
+        инцидента, а не пересказ SLO: у каждого из 7 алертов есть сценарий с
+        «первыми 3 минутами», копируемыми командами и критерием
+        восстановления, плюс сценарии «диск» и «пайплайн релиза упал».
+        Пороги не дублируются — единственный источник `docs/sre/slo.md` и
+        `alerts.yml`; статический тест `tests/service/test_runbook.py` ломает
+        сборку, если алерт переименован без правки инструкции, сценариев
+        меньше пяти, ссылка битая или в документе появился секрет.
+        Постмортем — blameless-шаблон (`postmortem-template.md`) с
+        таймлайном UTC и обязательными «действие → владелец → срок → тип»;
+        невыполненные действия остаются `⬜ открыто`, а не выдаются за
+        сделанные. Разборы живут в Git (`docs/sre/postmortems/`) и опираются
+        на машинные факты (ID прогонов Actions, SHA коммитов, строки ошибок):
+        реальный `2026-10-29-release-pipeline` восстановлен по трём красным
+        прогонам Release и одному CI, а не по памяти (продолжение ADR №41).
 
 ---
 
@@ -852,7 +870,7 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
+*Ранее, 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
 `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`,
 13 панелей: RPS, 5xx, доступность/бюджет 30 дней, burn rate 1/6 ч, in-flight,
 RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki;
@@ -863,7 +881,21 @@ T0.1 — при существующем счётчике с нулевым `rat
 `> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
 **603 passed**, `ruff` чист; ADR №65.)*
 
-*Последнее обновление: 2026-11-16 (**M8 T3.1** — алерты и Alertmanager:
+*Последнее обновление: 2026-11-21 (**M8 T3.2** — runbook и постмортем:
+`docs/sre/runbook.md` — 8 сценариев (все 7 алертов, диск, падение пайплайна
+релиза) с «первыми 3 минутами», копируемыми командами и критерием
+восстановления; пороги не дублируются, а ссылаются на `slo.md`.
+`docs/sre/postmortem-template.md` — blameless-шаблон с таймлайном UTC и
+обязательными «действие → владелец → срок → тип».
+`docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор трёх
+красных прогонов Release по фактам GitHub Actions (NOTICE не в корне `dist/`
+после `--zip` — локально маскировалось остатком от `--onefile`;
+`upload-artifact` сохранил префикс `dist/`, публикация искала плоские
+`assets/`), открытые действия A4/A5/A7 помечены `⬜`; 9 тестов
+`tests/service/test_runbook.py`. Связаны `docs/observability.md` §8,
+`docs/cloud.md` §10, README (EN/RU), `slo.md`; ADR №67.)*
+
+*Ранее, 2026-11-16 (**M8 T3.1** — алерты и Alertmanager:
 `observability/prometheus/alerts.yml` — 7 правил с `severity` и `for`;
 recording rule `clikit:sli_latency:p95_rate5m` (12 записей), Alertmanager —
 маршрутизация по критичности и inhibition `ClikitApiDown` → следствия,

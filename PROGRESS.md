@@ -66,6 +66,7 @@
 | 2026-11-16 | **T2.1 (M8) выполнена — compose-стек наблюдаемости:** `docker-compose.observability.yml` (`name: clikit-observability`, `include: docker-compose.cloud.yml` — API и PostgreSQL в общей Docker-сети; pinned-образы; порты только `127.0.0.1`; volumes, лимиты CPU/RAM) одной командой поднимает Prometheus+Grafana+Loki+Promtail+Tempo+Alertmanager+alert-sink+node-exporter. Prometheus (`prom/prometheus:v3.16.0`) — scrape 15 s, retention 40 d, `--web.enable-lifecycle`, recording rules T0.1, Alertmanager (`prom/alertmanager:v0.35.0`) как приёмник; Grafana (`13.2.6`) — datasources Prometheus/Loki/Tempo provisioned as code, анонимный Viewer, провайдер дашбордов read-only (JSON появится в T2.2); Loki (`3.6.11`) — `720h`, structured metadata; Promtail (`3.6.11`) — Docker API, фильтры `com.docker.compose.project=clikit-observability` + `com.docker.compose.service=api`, `request_id`/`trace_id` — structured metadata, не метки (иначе взрыв кардинальности); Tempo (`3.1.1`) — OTLP/HTTP `:4318`, retention 14 d дефолтом (top-level `compactor` удалён в 3.x); healthcheck у Loki/Tempo/Promtail убран (distroless/нет `wget`) — готовность через `/ready` и targets. `scripts/alert_sink.py` — stdlib HTTP-сервер: `POST /webhook` (формат Alertmanager v4), `GET /alerts` (история), `GET /healthz`; в stdout только `status`/`alertname`/`severity`/`summary` (ADR №41/№64), `_drain_body` даёт корректный 413 без `WinError 10053`. Документация: `docs/observability.md` (запуск, чекпоинт, логи/метрики/трейсы/алерты, диагностика; `Invoke-RestMethod` для кириллицы — `curl.exe` в PowerShell 5.1 рвёт JSON), `docs/cloud.md` §8.1.3, `.env.example` (7 `CLICKIT_*_PORT`). Тесты: 8 (`tests/service/test_alert_sink.py`) + 18 статических (`tests/service/test_observability_stack.py`). Живой чекпоинт: `down` → `up -d --wait` — все контейнеры healthy, **8/8 targets UP**, UI/API 200, Grafana datasource prometheus/loki/tempo, `/api/v2/status` Alertmanager 200, ручной вебхук → `{"received":1}`; published scenario `500486a7…`, Loki-логи API, Tempo-трейс `da31ae9f…`; данные переживают `down`/`up`. `ruff check`/`format --check` чисто, полный прогон **595 passed** (service 321, 94.22 %), `promtool check config` — SUCCESS (11 rules). T2.2/T3.1 остаются отдельными задачами | `a441541` |
 | 2026-11-16 | **T2.2 (M8) выполнена — дашборд Grafana как код:** `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`, 13 панелей: RPS, 5xx за 5 мин, доступность и остаток error budget за 30 дней, burn rate 1/6 ч, in-flight, RPS по маршрутам, p50/p95/p99 задержки, пул БД, CPU/RAM Docker-хоста, состояние targets, логи Loki; `editable: false`, переменная маршрута), провизионируется read-only из Git. Скриншот `docs/img/screenshot-dashboard.png` добавлен в README (EN/RU) вместе с разделом «Наблюдаемость»; чекпоинт и диагностика — `docs/observability.md` §4.1; ADR №65. Попутно исправлены recording rules T0.1: на существующих, но неактивных счётчиках `or vector(1)` в знаменателе не срабатывал и SLI давал `NaN` — знаменатель проходит через `> 0`, пятый promtool-сценарий ловит регрессию (проверено: на старых правилах падает, на новых SUCCESS; `check rules` — 11 правил). Живой чекпоинт: дашборд открывается в Grafana, 13 панелей в API, 8/8 targets UP, панели показывают трафик, SLI = 1, burn rate = 0. Тесты: 9 новых (`tests/service/test_grafana_dashboard.py`), полный прогон **603 passed**, `ruff check`/`format --check` чисто | ✅ Готово |
 | 2026-11-16 | **T3.1 (M8) выполнена — алерты и Alertmanager:** `observability/prometheus/alerts.yml` — 7 алертов (API down, быстрый/медленный burn rate, 5xx, p95 latency, пул БД, память хоста) с обязательными `severity` и `for`; новая запись `clikit:sli_latency:p95_rate5m` в recording rules (12 правил, ADR №66). Alertmanager получил маршрутизацию по `severity` (critical — повтор 1 ч, warning — 4 ч, `send_resolved: true`) и inhibition: `ClikitApiDown` подавляет алерты-следствия. Добавлены CI-job `observability-rules` (`promtool check/test rules` на `prom/prometheus:v3.16.0`), promtool-сценарии `tests/alerts_test.yml` (6 сценариев) и 12 статических тестов `tests/service/test_alerts.py`; обновлены `test_slo_docs.py`, `test_observability_stack.py`, `docs/sre/slo.md` §11, `docs/observability.md` §5.4/§7. Живой чекпоинт пройден: `stop api` → `ClikitApiDown` firing за ~90 с (виден в Prometheus, Alertmanager и приёмнике), `start api` → resolved (приёмник получил `resolved`). Полный прогон **614 passed**, `ruff` чисто | ✅ Готово |
+| 2026-11-21 | **T3.2 (M8) выполнена — runbook и постмортем:** `docs/sre/runbook.md` — 8 сценариев на каждый алерт и смежные операции: `ClikitApiDown`, 5xx/`FastErrorBudgetBurn`, `HighScenarioLatency`, `DbPoolExhausted`, `HostMemoryLow`, `SlowErrorBudgetBurn`, заполненный диск (без алерта — честное ограничение) и упавший пайплайн релиза; у каждого — признаки, «первые 3 минуты», копируемые команды PowerShell, действия, критерий восстановления и «не делать»; общие правила «сначала улики, потом рестарт», заморозка при burn rate ≥ 75 %, объявление/закрытие инцидента, проверка runbook в T5.1/M11. `docs/sre/postmortem-template.md` — blameless-шаблон (метаданные, таймлайн UTC со ссылками, влияние, причины + 5 why, действия с владельцем/сроком/типом, уроки, чек-лист). `docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор по данным GitHub Actions: прогоны 40934279478 и 40936253756 (`нет файла: dist\NOTICE.txt`: `build_exe.py --zip` клал NOTICE в `dist/ClicKit/`, а локальный `--both` маскировал это остатком от `--onefile`), прогон 40937694525 (`no matches found for assets/ClicKit-win64.zip`: `upload-artifact` сохранил префикс `dist/`), успешный 40944319704; коммиты `02d873c`, `c54db02`; открытые действия A4/A5/A7 честно помечены `⬜`, тег `v1.0.0` перевешивался — зафиксировано как урок. Попутно: ссылки на runbook/постмортем в `docs/observability.md` §8, `docs/cloud.md` §10, README (EN/RU) и `slo.md` §12. Тесты: 9 новых `tests/service/test_runbook.py` (все 7 алертов покрыты, ≥5 сценариев, живые ссылки, факты прогонов и коммитов, владельцы действий, нет секретов), полный прогон **623 passed**, `ruff check`/`format --check` чисто; ADR №67 | ✅ Готово |
 
 
 - **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
@@ -78,7 +79,8 @@
   T2.1 ✅ — compose-стек наблюдаемости: 8/8 targets UP, UI открываются,
   T2.2 ✅ — дашборд Grafana как код (13 панелей, скриншот в README),
   T3.1 ✅ — алерты и Alertmanager: 7 правил, `stop api` → firing → resolved,
-  promtool в CI),
+  promtool в CI, T3.2 ✅ — runbook (8 сценариев) и реальный постмортем
+  инцидента публикации 1.0.0),
   M9–M11 запланированы.
   Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
@@ -199,7 +201,10 @@
   **T2.2 ✅** (2026-11-16): дашборд Grafana как код (13 панелей, скриншот в
   README, 9 тестов). **T3.1 ✅** (2026-11-16): 7 алертов, recording rule p95,
   Alertmanager-маршрутизация и inhibition, promtool в CI; `stop api` → firing
-  → resolved. Следующая задача — **T3.2** (runbook и постмортем).
+  → resolved. **T3.2 ✅** (2026-11-21): `docs/sre/runbook.md` (8 сценариев),
+  blameless-шаблон и реальный постмортем трёх упавших прогонов Release
+  2026-10-29; 9 статических тестов. Следующая задача — **T4.1**
+  (SLO/error budget и burn rate: политика, алерты, расчёт на 30 дней).
   M7 завершён: контракт `docs/api.md`, скелет сервиса, БД и Alembic, CRUD
   сценариев, crash-отчёты, API-ключи и `X-Request-ID`, production-образ,
   локальный compose, клиент/CLI, тесты и CI, документация `docs/cloud.md`.
@@ -238,8 +243,10 @@
    UP, UI открываются, логи/метрики/трейсы сквозные; **T2.2 ✅** — дашборд
    Grafana как код (13 панелей); **T3.1 ✅** — 7 алертов и Alertmanager
    (`observability/prometheus/alerts.yml`, `tests/alerts_test.yml`, CI-job
-   `observability-rules`), `stop api` → firing → resolved. Следующая задача —
-   **T3.2** (runbook и постмортем).
+   `observability-rules`), `stop api` → firing → resolved; **T3.2 ✅** —
+   runbook и постмортем (`docs/sre/runbook.md`,
+   `docs/sre/postmortem-template.md`, `docs/sre/postmortems/`). Следующая
+   задача — **T4.1** (SLO/error budget и burn rate).
 6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,
    `plans/M10-delivery.md`): после M7 и M6 T3.2; Terraform → k3s/Helm/TLS →
    CD staging/prod с откатом и DORA.
