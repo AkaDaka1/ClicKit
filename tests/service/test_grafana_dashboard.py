@@ -36,7 +36,7 @@ DATASOURCES = (
 RECORDING_RULES = ROOT / "observability" / "prometheus" / "recording_rules.yml"
 README = ROOT / "README.md"
 
-#: Панели, без которых дашборд не выполняет чекпоинт T2.2.
+#: Панели, без которых дашборд не выполняет чекпоинт T2.2/T4.1.
 REQUIRED_TITLES = (
     "RPS по маршрутам",
     "Error rate (5xx)",
@@ -44,7 +44,8 @@ REQUIRED_TITLES = (
     "In-flight и пул БД",
     "CPU и память Docker-хоста",
     "Доступность 30 дней",
-    "Бюджет ошибки осталось",
+    "Остаток бюджета, мин",
+    "Режим политики бюджета",
 )
 #: Datasource, которые реально провизионируются в T2.1.
 DATASOURCE_UIDS = {"prometheus", "loki", "tempo"}
@@ -63,7 +64,8 @@ SLO_METRICS = {
     "clikit:sli_availability:ratio_rate30d",
     "clikit:slo_burn_rate:ratio_1h",
     "clikit:slo_burn_rate:ratio_6h",
-    "clikit:slo_error_budget:consumed_ratio_30d",
+    "clikit:slo_error_budget:remaining_minutes_30d",
+    "clikit:slo_error_budget:policy_state_30d",
 }
 _METRIC = re.compile(r"\bclikit_[a-z0-9_]+\b")
 _RECORD = re.compile(r"\bclikit:[a-z0-9_:]+\b")

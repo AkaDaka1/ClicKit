@@ -1,6 +1,6 @@
 # M8 — Наблюдаемость и SLO
 
-> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16, T3.1 ✅ — 2026-11-16, T3.2 ✅ — 2026-11-21).
+> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16, T3.1 ✅ — 2026-11-16, T3.2 ✅ — 2026-11-21, T4.1 ✅ — 2026-11-21).
 > Зависимость: M7 (работающий сервис и БД). Без сервиса метрикам нечего
 > измерять; M8 не добавляет новые продуктовые функции.
 
@@ -91,6 +91,7 @@ observability/
 ├── prometheus/
 │   ├── prometheus.yml
 │   ├── alerts.yml       # T3.1: 7 алертов (availability/latency/resources)
+│   │                    # + T4.1: ErrorBudgetFreeze/ErrorBudgetExhausted
 │   ├── tests/           # T0.1/T3.1: slo_rules_test.yml, alerts_test.yml
 │   └── recording_rules.yml
 ├── alertmanager/alertmanager.yml  # T3.1: маршрутизация по severity + inhibition
@@ -104,6 +105,7 @@ observability/
 docker-compose.observability.yml
 docs/observability.md    # запуск и проверка стека (T2.1)
 scripts/alert_sink.py    # локальный приёмник вебхуков Alertmanager
+scripts/slo_report.py    # T4.1: расчёт error budget и режим политики в терминале
 ```
 
 ### 4.3. Документы
@@ -167,6 +169,18 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
   нельзя). Реальный разбор `2026-10-29-release-pipeline` опирается на номера
   прогонов GitHub Actions, коммиты и машинные строки ошибок, а не на память.
 
+- **ADR №68 — error budget как вычисляемая величина, а не таблица**
+  (2026-11-21, T4.1): режимы политики §7 (`normal`/`careful`/`freeze`/
+  `exhausted`) считаются recording rules (`remaining_ratio_30d`,
+  `remaining_minutes_30d`, `policy_state_30d`), алерты
+  `ErrorBudgetFreeze`/`ErrorBudgetExhausted` читают `consumed_ratio_30d`,
+  а `scripts/slo_report.py` воспроизводит тот же расчёт в терминале с кодом
+  выхода 0/1/2/3 (задел для гейта деплоя M10). Пороги 50/75/100 % и бюджет
+  216 мин заданы в одном месте — `docs/sre/slo.md`; копия формулы в дашборде,
+  алерте, скрипте или runbook расценивается как дефект. Алерты политики
+  не подавляются `ClikitApiDown` (простой API сам жжёт бюджет), а «нет
+  данных» — код 3, а не 0: отсутствие измерения не равно выполнению SLO.
+
 ## 6. Граф задач
 
 | ID | Задача | Зависимости | Чекпоинт (done = …) | Статус |
@@ -179,7 +193,7 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
 | T2.2 | Дашборд Grafana как код | T2.1 | JSON в Git, панели показывают трафик, скриншот | ✅ |
 | T3.1 | Алерты и Alertmanager + приёмник | T2.2 | `stop api` → firing → resolved; `promtool test rules` | ✅ |
 | T3.2 | Runbook и постмортем | T3.1 | 5 сценариев + реальный постмортем | ✅ |
-| T4.1 | SLO/error budget и burn rate | T3.2 | Политика, алерты, расчёт на 30 дней | ⬜ |
+| T4.1 | SLO/error budget и burn rate | T3.2 | Политика, алерты, расчёт на 30 дней | ✅ |
 | T5.1 | Демо «сломай и почини» + README | T4.1 | 5-минутный сценарий воспроизводим с чистой машины | ⬜ |
 
 ### Волны
@@ -238,6 +252,7 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
 | 2026-11-16 | T2.2 | Дашборд Grafana как код: `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`, 13 панелей: RPS, 5xx, доступность/бюджет за 30 дней, burn rate 1ч/6ч, in-flight, RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki; переменная маршрута, `editable: false`), provisioning read-only из Git. Скриншот `docs/img/screenshot-dashboard.png` добавлен в README (EN/RU), раздел «Наблюдаемость» и чекпоинт в `docs/observability.md` §4.1. Попутно исправлены recording rules T0.1: при существующих счётчиках с нулевым `rate` знаменатель SLI давал `NaN` — добавлено `> 0` и внешний `or vector(...)`; новый promtool-сценарий падает на старых правилах и проходит на новых (проверено оба). `promtool check rules` — 11 rules, `test rules` — SUCCESS (5 сценариев). Живой чекпоинт: дашборд в `/api/dashboards/uid/clikit-cloud` (13 панелей), 8/8 targets UP, панели показывают трафик, SLI = 1, burn rate = 0 (после перезапуска Prometheus с чистым TSDB). Тесты: 9 новых `tests/service/test_grafana_dashboard.py`; полный прогон **603 passed**, `ruff check`/`format --check` чисто | `3101ec2` |
 | 2026-11-16 | T3.1 | Алерты и Alertmanager: `observability/prometheus/alerts.yml` — 7 правил в 3 группах (`ClikitApiDown` 1 мин, `FastErrorBudgetBurn` 14.4/1ч, `SlowErrorBudgetBurn` 6/6ч, `High5xxRate` > 1 %/5 мин, `HighScenarioLatency` p95 > 300 мс/10 мин, `DbPoolExhausted` in_use ≥ 5, `HostMemoryLow` < 10 %); новая recording rule `clikit:sli_latency:p95_rate5m` (12 записей всего, ADR №66), чтобы алерт не дублировал `histogram_quantile`. Alertmanager: маршрутизация по severity (critical — repeat 1 ч, warning — 4 ч, оба в `local-sink` с `send_resolved: true`) и inhibition: `ClikitApiDown` подавляет 5 из 6 алертов-следствий. `prometheus.yml` грузит оба файла правил; CI-job `observability-rules` гоняет `promtool check rules` (12 + 7 rules) и оба `test rules` на `prom/prometheus:v3.16.0`. promtool-сценарии `tests/alerts_test.yml` (6: падение API с firing→resolved, 5xx, p95, burn rate, пул, память) и 12 статических тестов `tests/service/test_alerts.py`; обновлены `test_slo_docs.py`, `test_observability_stack.py`, `docs/sre/slo.md` §11 и `docs/observability.md` §5.4/§7. Живой чекпоинт: reload Prometheus/Alertmanager → 12 recording + 7 alerting rules загружены; `docker compose stop api` → `ClikitApiDown` pending (30–75 с) → **firing** (~90 с), виден в `/api/v1/alerts`, Alertmanager и в `GET /alerts` приёмника (`severity=critical`); `start api` → промет `up=1`, алерт исчез из Prometheus (~30 с), приёмник получил **resolved**; inhibition проверен статическими тестами. Полный прогон **614 passed**, `ruff check`/`format --check` чисто | `57323a1` |
 | 2026-11-21 | T3.2 | Runbook и постмортем: `docs/sre/runbook.md` — 8 сценариев (ClikitApiDown, 5xx/быстрый burn, latency, пул БД, память хоста, медленный burn, диск, падение пайплайна релиза) с «первыми 3 минутами», копируемыми командами, критерием восстановления и правилами «сначала улики, потом рестарт»; пороги не дублируются — ссылки на `slo.md` и `alerts.yml`. `docs/sre/postmortem-template.md` — blameless-шаблон (метаданные, таймлайн UTC, влияние, причины + 5 why, действия с владельцем/сроком/типом, уроки, чек-лист). `docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор по фактам GitHub Actions: прогоны 40934279478 и 40936253756 (`нет файла: dist\NOTICE.txt` — `build_exe.py --zip` клал NOTICE внутрь onedir, локально маскировалось остатком от `--onefile`), 40937694525 (`no matches found for assets/ClicKit-win64.zip` — `upload-artifact` сохранил префикс `dist/`), успешный 40944319704; коммиты `02d873c`, `c54db02`; открытые действия A4/A5/A7 помечены `⬜`. Попутно `docs/observability.md` §8, `docs/cloud.md` §10, README (EN/RU) и `slo.md` связаны с runbook. Тесты: 9 новых `tests/service/test_runbook.py` (покрытие всех 7 алертов, ≥5 сценариев, живые ссылки, факты прогонов, владельцы действий, отсутствие секретов); `ruff` чисто | `4c7de57` |
+| 2026-11-21 | T4.1 | SLO/error budget и burn rate: `observability/prometheus/recording_rules.yml` — `remaining_ratio_30d` (`1 − consumed`), `remaining_minutes_30d` (`(1 − consumed) · 216`, где 216 = 30 дней · 0.5 %) и `policy_state_30d` — режим политики §7 меткой `state` (`normal` < 50 %, `careful` 50–75 %, `freeze` 75–100 %, `exhausted` ≥ 100 %), значение `1` (`count by (state)`), чтобы режим нельзя было спутать с процентом бюджета. `alerts.yml` — группа `clikit-error-budget`: `ErrorBudgetFreeze` (≥ 0.75, warning, `for` 10 мин) и `ErrorBudgetExhausted` (≥ 1, critical, `for` 10 мин); оба читают `consumed_ratio_30d` и **не подавляются** `ClikitApiDown` (простой API сам жжёт бюджет). `scripts/slo_report.py` — отчёт в терминале (`--json`, `--prometheus-url`/`$CLICKIT_PROMETHEUS_URL`): доступность, % бюджета, остаток («3 ч 36 мин»), режим и burn rate; коды выхода 0/1/2/3 — задел для гейта деплоя M10 («нет данных» ≠ «всё хорошо»). promtool: 6 новых сценариев в `slo_rules_test.yml` (0.2/0.3/0.4/1 % ошибок → 129.6/86.4/43.2/−216 мин и `normal`/`careful`/`freeze`/`exhausted`, пустой трафик → 216 мин, `normal`) и 3 в `alerts_test.yml` (60 % — тишина, 80 % — только `ErrorBudgetFreeze`, 100 % — `ErrorBudgetExhausted`). Дашборд: панель остатка переведена на запись в минутах, добавлена панель «Режим политики бюджета» (14 панелей). Документация: `docs/sre/slo.md` §6.1/§7/§8/§9/§11, `docs/sre/runbook.md` §12 «Политика бюджета: заморозка и нарушение SLO», `docs/observability.md` §5.4/§5.5, README (EN/RU), ADR №68. Живой чекпоинт на поднятом стеке: reload Prometheus → 15 записей + 9 алертов загружены, `remaining_minutes_30d = 216`, `policy_state_30d{state="normal"} = 1`, `slo_report.py` печатает «3 ч 36 мин», `normal`, код 0; дашборд отдаёт 14 панелей с новыми записями. Тесты: 38 новых `tests/service/test_slo_report.py`, обновлены `test_slo_docs.py`/`test_alerts.py`/`test_grafana_dashboard.py`/`test_runbook.py`; service — 388 passed, полный прогон **662 passed** (покрытие сервиса 95.04 %); `ruff check`/`format --check` чисто; `promtool check rules` (15 + 9) и оба `test rules` — `SUCCESS` | см. `git log --grep T4.1` |
 
 ## 11. Вне вехи
 

@@ -1,4 +1,4 @@
-# Unit-тесты правил алертов ClicKit Cloud (M8 T3.1).
+# Unit-тесты правил алертов ClicKit Cloud (M8 T3.1, дополнено в T4.1).
 #
 # Запуск:
 #   docker run --rm --entrypoint promtool \
@@ -10,6 +10,8 @@
 #   * 5xx > 1 % за 5 минут → High5xxRate;
 #   * p95 > 300 мс → HighScenarioLatency;
 #   * burn rate 14.4/1ч и 6/6ч → соответствующие алерты;
+#   * исчерпание бюджета за 30 дней: 60 % — тишина, 80 % — ErrorBudgetFreeze
+#     (но не ErrorBudgetExhausted), 100 % — ErrorBudgetExhausted (T4.1);
 #   * пул БД in_use >= 5 → DbPoolExhausted;
 #   * память хоста < 10 % → HostMemoryLow.
 # Окна `for` проверяются на момент сразу до и после порога, чтобы убедиться:
@@ -156,3 +158,62 @@ tests:
             exp_annotations:
               summary: "На Docker-хосте меньше 10 % свободной памяти"
               description: "node-exporter сообщает о нехватке памяти. Проверить потребление контейнеров: docker stats; возможно, память съедает сам стек наблюдаемости."
+
+  - name: израсходовано 80 % бюджета — ErrorBudgetFreeze, но не ErrorBudgetExhausted
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="201"}'
+        values: "0+996x20"
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="503"}'
+        values: "0+4x20"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ErrorBudgetFreeze
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: ErrorBudgetFreeze
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Израсходовано >= 75 % error budget за 30 дней"
+              description: "Режим заморозки: релизы и рискованные изменения отложены до восстановления бюджета (docs/sre/slo.md §7, docs/sre/runbook.md §11). Проверить остаток: python scripts/slo_report.py."
+      # 80 % < 100 % — SLO ещё не нарушен, critical-алерта быть не должно.
+      - eval_time: 11m
+        alertname: ErrorBudgetExhausted
+        exp_alerts: []
+
+  - name: израсходовано 60 % бюджета — заморозки ещё нет
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+997x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+3x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ErrorBudgetFreeze
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: ErrorBudgetExhausted
+        exp_alerts: []
+
+  - name: бюджет исчерпан — ErrorBudgetExhausted после 10 минут
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+994x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+6x20"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ErrorBudgetExhausted
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: ErrorBudgetExhausted
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Error budget исчерпан: SLO 99.5 % за 30 дней нарушен"
+              description: "Израсходовано >= 100 % бюджета. Blameless-постмортем обязателен, приоритет — надёжность (docs/sre/slo.md §7, docs/sre/runbook.md §11)."

@@ -1,13 +1,14 @@
-# Unit-тесты recording rules SLO (M8 T0.1).
+# Unit-тесты recording rules SLO (M8 T0.1, дополнено в T4.1).
 #
 # Запуск:
 #   docker run --rm --entrypoint promtool \
-#     -v "${PWD}/observability:/observability:ro" prom/prometheus:latest \
+#     -v "${PWD}/observability:/observability:ro" prom/prometheus:v3.16.0 \
 #     test rules /observability/prometheus/tests/slo_rules_test.yml
 #
 # Смысл тестов — зафиксировать семантику SLI, которую обещает docs/sre/slo.md:
 # 4xx не жгут бюджет, служебные маршруты не считаются, пустой трафик не даёт
-# NaN, burn rate считается от бюджета 0.5 %.
+# NaN, burn rate считается от бюджета 0.5 %, а остаток бюджета за 30 дней
+# переводится в минуты и в режим политики §7 (T4.1).
 # Значения сравниваются после `round`, потому что promtool сравнивает float
 # побитово, а нас интересует смысл (0.99), а не младший бит double.
 rule_files:
@@ -135,4 +136,140 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: "{}"
+            value: 1
+
+  # --- T4.1: расчёт error budget за 30 дней и режим политики §7 ---
+  #
+  # Окно rate — 30 дней, но данных достаточно 10 минут: `rate` считает по
+  # имеющимся точкам окна. Полные 30 дней в unit-тесте были бы 43 200 точек
+  # на серию и ничего не добавили бы к смыслу.
+  # Формула: consumed = (1 − availability) / 0.005,
+  #          minutes   = (1 − consumed) · 216.
+
+  - name: бюджет целый (0.2 % ошибок) — normal, 129.6 мин остатка
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+998x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+2x20"
+    promql_expr_test:
+      - expr: round(clikit:slo_error_budget:consumed_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.4
+      - expr: round(clikit:slo_error_budget:remaining_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.6
+      - expr: round(clikit:slo_error_budget:remaining_minutes_30d, 0.1)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 129.6
+      - expr: clikit:slo_error_budget:policy_state_30d
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="clikit:slo_error_budget:policy_state_30d", state="normal"}'
+            value: 1
+
+  - name: израсходовано 60 % бюджета (0.3 % ошибок) — режим careful
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios/{id}",status="200"}'
+        values: "0+997x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios/{id}",status="503"}'
+        values: "0+3x20"
+    promql_expr_test:
+      - expr: round(clikit:slo_error_budget:consumed_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.6
+      - expr: round(clikit:slo_error_budget:remaining_minutes_30d, 0.1)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 86.4
+      - expr: clikit:slo_error_budget:policy_state_30d
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="clikit:slo_error_budget:policy_state_30d", state="careful"}'
+            value: 1
+
+  - name: израсходовано 80 % бюджета (0.4 % ошибок) — режим freeze
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="201"}'
+        values: "0+996x20"
+      - series: 'clikit_http_requests_total{method="POST",route="/v1/scenarios",status="503"}'
+        values: "0+4x20"
+    promql_expr_test:
+      - expr: round(clikit:slo_error_budget:consumed_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.8
+      - expr: round(clikit:slo_error_budget:remaining_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.2
+      - expr: round(clikit:slo_error_budget:remaining_minutes_30d, 0.1)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 43.2
+      - expr: clikit:slo_error_budget:policy_state_30d
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="clikit:slo_error_budget:policy_state_30d", state="freeze"}'
+            value: 1
+
+  - name: бюджет исчерпан (1 % ошибок) — exhausted, остаток отрицательный
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+99x20"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+1x20"
+    promql_expr_test:
+      - expr: round(clikit:slo_error_budget:consumed_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 2
+      - expr: round(clikit:slo_error_budget:remaining_minutes_30d, 0.1)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: -216
+      - expr: clikit:slo_error_budget:policy_state_30d
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="clikit:slo_error_budget:policy_state_30d", state="exhausted"}'
+            value: 1
+
+  - name: пустой трафик — бюджет целый, режим normal
+    interval: 1m
+    input_series:
+      - series: 'clikit_build_info{version="1.0.0",git_sha="test"}'
+        values: "1x20"
+    promql_expr_test:
+      - expr: round(clikit:slo_error_budget:consumed_ratio_30d, 0.01)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: round(clikit:slo_error_budget:remaining_minutes_30d, 0.1)
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 216
+      - expr: clikit:slo_error_budget:policy_state_30d
+        eval_time: 10m
+        exp_samples:
+          - labels: '{__name__="clikit:slo_error_budget:policy_state_30d", state="normal"}'
             value: 1

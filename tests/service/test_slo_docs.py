@@ -1,4 +1,4 @@
-"""Статические проверки SLO-документа и recording rules (M8 T0.1).
+"""Статические проверки SLO-документа и recording rules (M8 T0.1, T4.1).
 
 Цифры SLO и PromQL-запросы — контракт (ADR №40), поэтому они проверяются
 тестом: документ, recording rules и unit-тесты `promtool` не должны
@@ -35,6 +35,10 @@ EXPECTED_RECORDS = {
     "clikit:slo_burn_rate:ratio_1h",
     "clikit:slo_burn_rate:ratio_6h",
     "clikit:slo_error_budget:consumed_ratio_30d",
+    # T4.1: остаток бюджета и режим политики §7.
+    "clikit:slo_error_budget:remaining_ratio_30d",
+    "clikit:slo_error_budget:remaining_minutes_30d",
+    "clikit:slo_error_budget:policy_state_30d",
 }
 
 # Метрики, которые сервис отдаёт сам (T1.2). Всё остальное в правилах —

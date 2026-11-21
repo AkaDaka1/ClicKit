@@ -100,28 +100,61 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "Бюджет ошибки осталось",
-      "description": "1 − clikit:slo_error_budget:consumed_ratio_30d. При 0 бюджет исчерпан (политика 50/75/100 % в docs/sre/slo.md).",
+      "title": "Остаток бюджета, мин",
+      "description": "Запись clikit:slo_error_budget:remaining_minutes_30d (T4.1): 216 мин — целый бюджет (30 дней · 0.5 %), 0 — исчерпан, меньше нуля — SLO нарушен. Политика 50/75/100 % — docs/sre/slo.md §7; тот же расчёт в терминале: python scripts/slo_report.py.",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "refId": "A", "expr": "1 - clikit:slo_error_budget:consumed_ratio_30d" }],
+      "targets": [{ "refId": "A", "expr": "clikit:slo_error_budget:remaining_minutes_30d" }],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
-          "decimals": 2,
+          "unit": "m",
+          "decimals": 1,
           "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-              { "color": "orange", "value": 0.25 },
-              { "color": "green", "value": 0.5 }
+              { "color": "orange", "value": 54 },
+              { "color": "green", "value": 108 }
             ]
           }
         },
         "overrides": []
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Режим политики бюджета",
+      "description": "Запись clikit:slo_error_budget:policy_state_30d (T4.1): метка state — normal (<50 %), careful (50–75 %), freeze (75–100 %), exhausted (≥100 %); политика docs/sre/slo.md §7. Тот же расчёт в терминале: python scripts/slo_report.py.",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "clikit:slo_error_budget:policy_state_30d" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "normal": { "text": "normal", "color": "green" },
+                "careful": { "text": "careful", "color": "yellow" },
+                "freeze": { "text": "freeze", "color": "orange" },
+                "exhausted": { "text": "exhausted", "color": "red" }
+              }
+            }
+          ],
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" }
     },
     {
       "id": 5,
