@@ -336,6 +336,10 @@ docker compose -f docker-compose.observability.yml up -d --build
 
 See [`docs/observability.md`](docs/observability.md) for the checkpoint and
 troubleshooting, and [`docs/sre/slo.md`](docs/sre/slo.md) for the SLO contract.
+Each alert has an on-call procedure in
+[`docs/sre/runbook.md`](docs/sre/runbook.md); incident reviews follow the
+blameless [template](docs/sre/postmortem-template.md) — see the real
+[2026-10-29 release-pipeline postmortem](docs/sre/postmortems/2026-10-29-release-pipeline.md).
 
 ## 🗂️ Repository map
 
@@ -697,7 +701,10 @@ docker compose -f docker-compose.observability.yml up -d --build
 ```
 
 Чекпоинт и диагностика — [`docs/observability.md`](docs/observability.md),
-контракт SLO — [`docs/sre/slo.md`](docs/sre/slo.md).
+контракт SLO — [`docs/sre/slo.md`](docs/sre/slo.md). По каждому алерту есть
+процедура в [`docs/sre/runbook.md`](docs/sre/runbook.md); разбор инцидентов —
+по blameless-[шаблону](docs/sre/postmortem-template.md), пример — реальный
+[постмортем 2026-10-29](docs/sre/postmortems/2026-10-29-release-pipeline.md).
 
 ## 🗂️ Карта репозитория
 

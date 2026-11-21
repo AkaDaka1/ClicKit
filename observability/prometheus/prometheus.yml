@@ -13,7 +13,7 @@
 #   * 4xx клиента не жгут error budget — это заложено в recording rules.
 #
 # Alertmanager подключён уже в T2.1 (базовый маршрут на локальный приёмник
-# `alert-sink`), сами алерты приходят в T3.1.
+# `alert-sink`); правила алертов добавлены в T3.1 (`alerts.yml`).
 
 global:
   scrape_interval: 15s
@@ -22,8 +22,9 @@ global:
     cluster: clikit-local
 
 rule_files:
-  # Recording rules SLO (T0.1). Файлы алертов (T3.1) добавятся сюда же.
+  # Recording rules SLO (T0.1) и правила алертов (T3.1) — оба из Git.
   - /etc/prometheus/recording_rules.yml
+  - /etc/prometheus/alerts.yml
 
 alerting:
   alertmanagers:

@@ -20,7 +20,7 @@
 | M5 | [M5-polish-packaging.md](M5-polish-packaging.md) | Темы, настройки, журналы, упаковка | ✅ |
 | M6 | [M6-docker.md](M6-docker.md) | Docker-среда тестов, образ сборки, GHCR, dev-релизы | ✅ |
 | M7 | [M7-cloud-service.md](M7-cloud-service.md) | ClicKit Cloud: HTTP-сервис сценариев, БД, Docker | ✅ |
-| M8 | [M8-observability.md](M8-observability.md) | Метрики, логи, трейсы, дашборды, алерты, SLO | 🚧 в работе (T0.1–T2.2 ✅) |
+| M8 | [M8-observability.md](M8-observability.md) | Метрики, логи, трейсы, дашборды, алерты, SLO | 🚧 в работе (T0.1–T3.2 ✅) |
 | M9 | [M9-infrastructure.md](M9-infrastructure.md) | Terraform, облако, k3s, Helm, HTTPS | 📋 запланировано |
 | M10 | [M10-delivery.md](M10-delivery.md) | CD в staging/prod, откат, DORA-метрики | 📋 запланировано |
 | M11 | [M11-security-resilience.md](M11-security-resilience.md) | Сканирование, SBOM, нагрузка, бэкапы, chaos | 📋 запланировано |
@@ -30,7 +30,9 @@
 - **M0–M7** — сделано и влито в `master`; **M8** — в работе (T0.1 SLI/SLO,
   T1.1 JSON-логи, T1.2 метрики, T1.3 трейсы, T2.1 compose-стек — чекпоинт
   8/8 targets UP пройден, T2.2 дашборд как код — 13 панелей, скриншот в
-  README), **M9–M11** — планы, а не реализация. Статус в таблице
+  README, T3.1 алерты — 7 правил, `stop api` → firing → resolved, T3.2 runbook
+  — 8 сценариев и реальный постмортем инцидента публикации 1.0.0),
+  **M9–M11** — планы, а не реализация. Статус в таблице
   отражает только пройденные чекпоинты.
 - Вехи идут последовательно: следующая начинается после критерия готовности
   предыдущей, кроме задач, явно помеченных как параллельные.
