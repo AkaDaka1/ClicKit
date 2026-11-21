@@ -133,7 +133,7 @@ production-образ (non-root, healthcheck), локальный compose, кл�
 - SLO 99.5%, error budget, burn-rate алерты, runbook, реальный постмортем.
 - План: [`plans/M8-observability.md`](plans/M8-observability.md).
 
-**Статус: 🚧 в работе (2026-11-21).** Зависит от M7 (завершён).
+**Статус: ✅ выполнен (2026-11-21).** Зависит от M7 (завершён).
 **T0.1 ✅** — SLI/SLO и PromQL, **T1.1 ✅** — JSON-логи, **T1.2 ✅** —
 метрики, **T1.3 ✅** — OTel-трейсы в Tempo, **T2.1 ✅** — compose-стек
 наблюдаемости (`docker-compose.observability.yml`, `docs/observability.md`):
@@ -145,7 +145,11 @@ production-образ (non-root, healthcheck), локальный compose, кл�
 `docs/sre/postmortems/`), **T4.1 ✅** — error budget как код: остаток бюджета
 в минутах, режим политики (`normal`/`careful`/`freeze`/`exhausted`), алерты
 `ErrorBudgetFreeze`/`ErrorBudgetExhausted`, `scripts/slo_report.py`
-(14 панелей дашборда). Осталась T5.1 (демо «сломай и почини»).
+(14 панелей дашборда), **T5.1 ✅** — демо «сломай и почини»
+([`docs/observability-demo.md`](docs/observability-demo.md), 5 минут с чистой
+машины) и его исполняемая версия `scripts/observability_demo.py` (коды выхода
+0/1/2, `--json`); живой прогон — `ДЕМО ПРОЙДЕНО за 1 мин 48 с`, 8/8 проверок,
+`firing` → `resolved` и режим бюджета `normal`.
 
 ## M9 — Инфраструктура как код
 **Цель:** воспроизводимое облако и кластер: `terraform apply` с нуля,

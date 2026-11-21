@@ -317,13 +317,38 @@ docker compose -f docker-compose.observability.yml down -v
 | Пусто в `/alerts` после алерта | Проверьте `/api/v1/alerts` Prometheus: если алерта нет, не сработало правило (`promtool check rules`). Если есть, но приёмник пуст — `logs alertmanager` и `logs alert-sink`. |
 | `ClikitApiDown` не проходит в resolved | Prometheus должен снова скрейпить `up=1`; проверьте `/api/v1/targets` и `group_interval` в Alertmanager (critical — 30 с). |
 
-## 8. Связанные документы
+## 8. Демо «сломай и почини»
+
+Чекпоинт T3.1/T5.1 целиком — не только `stop api` → `firing` → `resolved`, но и
+разбор по runbook, восстановление и отчёт по бюджету: пошаговый сценарий на
+5 минут — [`docs/observability-demo.md`](observability-demo.md), автоматический
+прогон — `python scripts/observability_demo.py run` (`check` — готовность стека,
+`--json` — машинночитаемый итог). Ожидаемый таймлайн сокращённо:
+
+```text
+[      0 с] стек готов: 8/8 targets UP
+[     29 с] Prometheus: ClikitApiDown pending
+[1 мин 29 с] Prometheus: ClikitApiDown firing (for: 1m + скрейп + оценка правил)
+[1 мин 29 с] приёмник: [firing] ClikitApiDown
+[1 мин 34 с] чиним: docker compose start api
+[1 мин 59 с] приёмник: [resolved] ClikitApiDown
+[1 мин 59 с] error budget: режим normal, остаток 216.0 мин
+```
+
+Демо честно показывает слепое пятно SLI: падение API не видно в error budget
+(SLI считает только дошедшие запросы, `docs/sre/slo.md` §3), поэтому именно
+`ClikitApiDown` по `up == 0` ловит полное падение.
+
+## 9. Связанные документы
 
 - [`docs/api.md`](api.md) — контракт API, `GET /metrics`, конфигурация env.
 - [`docs/cloud.md`](cloud.md) — запуск и эксплуатация сервиса без стека.
 - [`docs/sre/slo.md`](sre/slo.md) — SLI/SLO, error budget, retention 40 дней.
 - [`docs/sre/runbook.md`](sre/runbook.md) — что делать по каждому алерту
   (T3.2): 8 сценариев с командами и критериями восстановления.
+- [`docs/observability-demo.md`](observability-demo.md) — демо «сломай и
+  почини» (T5.1): ручной сценарий на 5 минут и автоматический прогон
+  `scripts/observability_demo.py`.
 - [`docs/sre/postmortem-template.md`](sre/postmortem-template.md) — шаблон
   blameless-разбора; реальный пример —
   [`docs/sre/postmortems/2026-10-29-release-pipeline.md`](sre/postmortems/2026-10-29-release-pipeline.md).

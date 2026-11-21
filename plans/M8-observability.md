@@ -1,6 +1,6 @@
 # M8 — Наблюдаемость и SLO
 
-> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16, T3.1 ✅ — 2026-11-16, T3.2 ✅ — 2026-11-21, T4.1 ✅ — 2026-11-21).
+> План создан 2026-11-01. Статус: ✅ выполнен (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16, T3.1 ✅ — 2026-11-16, T3.2 ✅ — 2026-11-21, T4.1 ✅ — 2026-11-21, T5.1 ✅ — 2026-11-21).
 > Зависимость: M7 (работающий сервис и БД). Без сервиса метрикам нечего
 > измерять; M8 не добавляет новые продуктовые функции.
 
@@ -15,8 +15,8 @@
 
 ## 2. Критерий готовности
 
-- [ ] В логах JSON с `request_id` и `trace_id`; секреты и API-ключи не пишутся.
-- [ ] `GET /metrics` отдаёт `clikit_http_requests_total`,
+- [x] В логах JSON с `request_id` и `trace_id`; секреты и API-ключи не пишутся.
+- [x] `GET /metrics` отдаёт `clikit_http_requests_total`,
       `clikit_http_request_duration_seconds` (гистограмма),
       `clikit_http_requests_in_flight`, `clikit_db_pool_connections`,
       `clikit_build_info`.
@@ -33,7 +33,7 @@
 - [x] `docs/sre/slo.md`: SLI, SLO 99.5%, error budget, окно 30 дней,
       политика исчерпания бюджета; `docs/sre/runbook.md` — минимум 5 сценариев.
 - [x] Реальный постмортем по инциденту релиза 2026-10-29 и шаблон постмортема.
-- [ ] `promtool check rules` и `promtool test rules` зелёные; JSON-логи
+- [x] `promtool check rules` и `promtool test rules` зелёные; JSON-логи
       проверяются тестом схемы.
 
 ## 3. Согласованные параметры
@@ -104,8 +104,10 @@ observability/
 └── tempo/tempo.yml
 docker-compose.observability.yml
 docs/observability.md    # запуск и проверка стека (T2.1)
+docs/observability-demo.md  # T5.1: демо «сломай и почини» на 5 минут
 scripts/alert_sink.py    # локальный приёмник вебхуков Alertmanager
 scripts/slo_report.py    # T4.1: расчёт error budget и режим политики в терминале
+scripts/observability_demo.py  # T5.1: исполняемое демо (check/run, коды 0/1/2)
 ```
 
 ### 4.3. Документы
@@ -118,6 +120,9 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
 - `docs/sre/postmortem-template.md` — blameless-шаблон.
 - `docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор
   трёх упавших прогонов `Release` и фикса путей `NOTICE.txt`/артефактов.
+- `docs/observability-demo.md` — T5.1: демо «сломай и почини» (5 минут,
+  ручной сценарий + автоматический прогон), включая раздел «Чего демо не
+  показывает» (слепое пятно SLI при полном падении — ADR №70).
 
 ## 5. Решения (ADR; итог — в `AI_CONTEXT.md` §3.3)
 
@@ -181,6 +186,21 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
   не подавляются `ClikitApiDown` (простой API сам жжёт бюджет), а «нет
   данных» — код 3, а не 0: отсутствие измерения не равно выполнению SLO.
 
+- **ADR №70 — демо проверяется состоянием, а не картинкой, и честно про
+  слепое пятно SLI** (2026-11-21, T5.1): «сломай и почини» — это
+  `scripts/observability_demo.py`, который опрашивает `/api/v1/alerts`,
+  `/api/v2/alerts` и `/alerts` приёмника до фактического `firing`/`resolved`,
+  а не спит фиксированные 90 секунд: правка `for` в правилах или частоты
+  скрейпа не делает демо «зелёным по расписанию». Код выхода 0/1/2 пригоден
+  для будущего гейта M10/M11; аварийное восстановление API выполняется в
+  `finally`, потому что оставлять сервис выключенным нельзя (runbook §1.2).
+  Документ `docs/observability-demo.md`
+  содержит раздел «Чего демо не показывает»: падение API **не видно в SLI**
+  (`slo.md` §3), бюджет при простое не жжётся, 5xx и латентность не
+  генерируются — вместо видимости полного покрытия демо показывает границы
+  контура. Сценарий и автоматика ссылаются на runbook §3, а не пересказывают
+  пороги: единственный источник цифр — `slo.md`.
+
 ## 6. Граф задач
 
 | ID | Задача | Зависимости | Чекпоинт (done = …) | Статус |
@@ -194,7 +214,7 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
 | T3.1 | Алерты и Alertmanager + приёмник | T2.2 | `stop api` → firing → resolved; `promtool test rules` | ✅ |
 | T3.2 | Runbook и постмортем | T3.1 | 5 сценариев + реальный постмортем | ✅ |
 | T4.1 | SLO/error budget и burn rate | T3.2 | Политика, алерты, расчёт на 30 дней | ✅ |
-| T5.1 | Демо «сломай и почини» + README | T4.1 | 5-минутный сценарий воспроизводим с чистой машины | ⬜ |
+| T5.1 | Демо «сломай и почини» + README | T4.1 | 5-минутный сценарий воспроизводим с чистой машины | ✅ |
 
 ### Волны
 
@@ -217,17 +237,18 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
 7. `feat: алерты и Alertmanager` (T3.1)
 8. `docs: runbook и постмортем` (T3.2)
 9. `feat: error budget и политика SLO` (T4.1)
-10. `docs: демо наблюдаемости` (T5.1)
+10. `docs: демо наблюдаемости` (T5.1) — `docs/observability-demo.md`,
+    `scripts/observability_demo.py`, тесты и ссылки из README/runbook.
 
 ## 8. Чек-лист приёмки
 
-- [ ] Инцидент «сервис упал» разбирается по логам, метрикам и трейсу без
+- [x] Инцидент «сервис упал» разбирается по логам, метрикам и трейсу без
       чтения исходников.
-- [ ] Алерт срабатывает до того, как пользователь массово видит ошибки.
-- [ ] В SLO-документе есть цифры, окно, бюджет и правило действий.
-- [ ] Дашборд и правила восстанавливаются из Git, а не «руками в UI».
-- [ ] Постмортем blameless: факты, таймлайн, причины, действия, владельцы.
-- [ ] M7-функциональность не сломана; тесты сервиса зелёные.
+- [x] Алерт срабатывает до того, как пользователь массово видит ошибки.
+- [x] В SLO-документе есть цифры, окно, бюджет и правило действий.
+- [x] Дашборд и правила восстанавливаются из Git, а не «руками в UI».
+- [x] Постмортем blameless: факты, таймлайн, причины, действия, владельцы.
+- [x] M7-функциональность не сломана; тесты сервиса зелёные.
 
 ## 9. Риски и меры
 
@@ -253,6 +274,7 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
 | 2026-11-16 | T3.1 | Алерты и Alertmanager: `observability/prometheus/alerts.yml` — 7 правил в 3 группах (`ClikitApiDown` 1 мин, `FastErrorBudgetBurn` 14.4/1ч, `SlowErrorBudgetBurn` 6/6ч, `High5xxRate` > 1 %/5 мин, `HighScenarioLatency` p95 > 300 мс/10 мин, `DbPoolExhausted` in_use ≥ 5, `HostMemoryLow` < 10 %); новая recording rule `clikit:sli_latency:p95_rate5m` (12 записей всего, ADR №66), чтобы алерт не дублировал `histogram_quantile`. Alertmanager: маршрутизация по severity (critical — repeat 1 ч, warning — 4 ч, оба в `local-sink` с `send_resolved: true`) и inhibition: `ClikitApiDown` подавляет 5 из 6 алертов-следствий. `prometheus.yml` грузит оба файла правил; CI-job `observability-rules` гоняет `promtool check rules` (12 + 7 rules) и оба `test rules` на `prom/prometheus:v3.16.0`. promtool-сценарии `tests/alerts_test.yml` (6: падение API с firing→resolved, 5xx, p95, burn rate, пул, память) и 12 статических тестов `tests/service/test_alerts.py`; обновлены `test_slo_docs.py`, `test_observability_stack.py`, `docs/sre/slo.md` §11 и `docs/observability.md` §5.4/§7. Живой чекпоинт: reload Prometheus/Alertmanager → 12 recording + 7 alerting rules загружены; `docker compose stop api` → `ClikitApiDown` pending (30–75 с) → **firing** (~90 с), виден в `/api/v1/alerts`, Alertmanager и в `GET /alerts` приёмника (`severity=critical`); `start api` → промет `up=1`, алерт исчез из Prometheus (~30 с), приёмник получил **resolved**; inhibition проверен статическими тестами. Полный прогон **614 passed**, `ruff check`/`format --check` чисто | `57323a1` |
 | 2026-11-21 | T3.2 | Runbook и постмортем: `docs/sre/runbook.md` — 8 сценариев (ClikitApiDown, 5xx/быстрый burn, latency, пул БД, память хоста, медленный burn, диск, падение пайплайна релиза) с «первыми 3 минутами», копируемыми командами, критерием восстановления и правилами «сначала улики, потом рестарт»; пороги не дублируются — ссылки на `slo.md` и `alerts.yml`. `docs/sre/postmortem-template.md` — blameless-шаблон (метаданные, таймлайн UTC, влияние, причины + 5 why, действия с владельцем/сроком/типом, уроки, чек-лист). `docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор по фактам GitHub Actions: прогоны 40934279478 и 40936253756 (`нет файла: dist\NOTICE.txt` — `build_exe.py --zip` клал NOTICE внутрь onedir, локально маскировалось остатком от `--onefile`), 40937694525 (`no matches found for assets/ClicKit-win64.zip` — `upload-artifact` сохранил префикс `dist/`), успешный 40944319704; коммиты `02d873c`, `c54db02`; открытые действия A4/A5/A7 помечены `⬜`. Попутно `docs/observability.md` §8, `docs/cloud.md` §10, README (EN/RU) и `slo.md` связаны с runbook. Тесты: 9 новых `tests/service/test_runbook.py` (покрытие всех 7 алертов, ≥5 сценариев, живые ссылки, факты прогонов, владельцы действий, отсутствие секретов); `ruff` чисто | `4c7de57` |
 | 2026-11-21 | T4.1 | SLO/error budget и burn rate: `observability/prometheus/recording_rules.yml` — `remaining_ratio_30d` (`1 − consumed`), `remaining_minutes_30d` (`(1 − consumed) · 216`, где 216 = 30 дней · 0.5 %) и `policy_state_30d` — режим политики §7 меткой `state` (`normal` < 50 %, `careful` 50–75 %, `freeze` 75–100 %, `exhausted` ≥ 100 %), значение `1` (`count by (state)`), чтобы режим нельзя было спутать с процентом бюджета. `alerts.yml` — группа `clikit-error-budget`: `ErrorBudgetFreeze` (≥ 0.75, warning, `for` 10 мин) и `ErrorBudgetExhausted` (≥ 1, critical, `for` 10 мин); оба читают `consumed_ratio_30d` и **не подавляются** `ClikitApiDown` (простой API сам жжёт бюджет). `scripts/slo_report.py` — отчёт в терминале (`--json`, `--prometheus-url`/`$CLICKIT_PROMETHEUS_URL`): доступность, % бюджета, остаток («3 ч 36 мин»), режим и burn rate; коды выхода 0/1/2/3 — задел для гейта деплоя M10 («нет данных» ≠ «всё хорошо»). promtool: 6 новых сценариев в `slo_rules_test.yml` (0.2/0.3/0.4/1 % ошибок → 129.6/86.4/43.2/−216 мин и `normal`/`careful`/`freeze`/`exhausted`, пустой трафик → 216 мин, `normal`) и 3 в `alerts_test.yml` (60 % — тишина, 80 % — только `ErrorBudgetFreeze`, 100 % — `ErrorBudgetExhausted`). Дашборд: панель остатка переведена на запись в минутах, добавлена панель «Режим политики бюджета» (14 панелей). Документация: `docs/sre/slo.md` §6.1/§7/§8/§9/§11, `docs/sre/runbook.md` §11 «Политика бюджета: заморозка и нарушение SLO», `docs/observability.md` §5.4/§5.5, README (EN/RU), ADR №68. Живой чекпоинт на поднятом стеке: reload Prometheus → 15 записей + 9 алертов загружены, `remaining_minutes_30d = 216`, `policy_state_30d{state="normal"} = 1`, `slo_report.py` печатает «3 ч 36 мин», `normal`, код 0; дашборд отдаёт 14 панелей с новыми записями. Тесты: 38 новых `tests/service/test_slo_report.py`, обновлены `test_slo_docs.py`/`test_alerts.py`/`test_grafana_dashboard.py`/`test_runbook.py`; service — 388 passed, полный прогон **662 passed** (покрытие сервиса 95.04 %); `ruff check`/`format --check` чисто; `promtool check rules` (15 + 9) и оба `test rules` — `SUCCESS`. При оформлении PR проверка срабатывания `ErrorBudgetFreeze`/`ErrorBudgetExhausted` перенесена с 11m на 13m: 11m — ровно граница `for: 10m`, и promtool флаковал из-за порядка вычисления групп правил. | `d8d609d` |
+| 2026-11-21 | T5.1 | Демо «сломай и почини»: `docs/observability-demo.md` — пошаговый сценарий на 5 минут (признаки жизни: лог/метрика/трейс; `stop api` → `pending` → `firing` в Prometheus/Alertmanager/приёмнике → разбор по `runbook.md` §3 без чтения исходников → `start api` → `resolved` → `slo_report.py`), таблица «что доказывает демо», §5 «чего демо не показывает» и §6 диагностика; честно зафиксировано слепое пятно SLI (падение API не видно в error budget — `slo.md` §3, демо показывает это на экране). `scripts/observability_demo.py` — исполняемая версия: подкоманды `check` (готовность: `compose config` + 8/8 targets + `/healthz`) и `run` (полный контур, опрос `/api/v1/alerts` → `/api/v2/alerts` → `/alerts` до фактического `firing`/`resolved`, без «спать 90 секунд»), таймлайн с отметками времени, `--json`, коды выхода 0/1/2 и аварийное восстановление API в `finally` (сервис нельзя оставлять выключенным). Живой прогон: `ДЕМО ПРОЙДЕНО за 1 мин 48 с`, 8/8 проверок OK, «8/8 targets UP», `firing` через 1 мин 17 с (`for: 1m` + скрейп + оценка), `resolved` через 22 с после возврата API, error budget `normal`/216 мин; провальный прогон `--timeout 4` → код 1 и `start api` в таймлайне. Обновлены `docs/observability.md` (новый §8 «Демо»), `docs/sre/runbook.md` §13/§14, README (EN/RU), ADR №70. Тесты: 29 новых `tests/service/test_observability_demo.py` (связь алерта/целей/таймаута с `alerts.yml`/`prometheus.yml`, разбор ответов трёх сервисов, ожидание с временными ошибками, коды выхода, аварийное восстановление, отсутствие секретов); service — 416 passed, `ruff check`/`format --check` чисто | `d0c291e` |
 
 ## 11. Вне вехи
 
@@ -260,6 +282,3 @@ scripts/slo_report.py    # T4.1: расчёт error budget и режим пол�
 - Долгосрочное хранилище метрик (Thanos/VictoriaMetrics), HA Prometheus.
 - APM-профилирование, continuous profiling, eBPF.
 - PagerDuty/Telegram-интеграции с реальным on-call (M11 — учебные учения).
-
-
-
