@@ -209,7 +209,7 @@ curl.exe -s "http://127.0.0.1:9090/api/v1/query?query=clikit_http_requests_total
 `docs/sre/slo.md` §11.
 
 ```powershell
-# 1. Правила загружены Prometheus (12 записей + 7 алертов)
+# 1. Правила загружены Prometheus (15 записей + 9 алертов)
 curl.exe -s http://127.0.0.1:9090/api/v1/rules |
   ConvertFrom-Json | ForEach-Object { $_.data.groups } |
   Select-Object name, @{n='rules';e={$_.rules.Count}}
@@ -245,9 +245,35 @@ docker run --rm --entrypoint promtool -v "${PWD}/observability:/observability:ro
 
 Пороги: `High5xxRate` — 5xx > 1 % за 5 мин; `HighScenarioLatency` — p95 >
 300 мс за 10 мин; `ClikitApiDown` — target down 1 мин; `FastErrorBudgetBurn` /
-`SlowErrorBudgetBurn` — burn rate 14.4 (1 ч) / 6 (6 ч); `DbPoolExhausted` —
+`SlowErrorBudgetBurn` — burn rate 14.4 (1 ч) / 6 (6 ч); `ErrorBudgetFreeze` /
+`ErrorBudgetExhausted` — расход бюджета за 30 дней ≥ 75 % / ≥ 100 %
+(политика, T4.1); `DbPoolExhausted` —
 `in_use >= 5`; `HostMemoryLow` — свободно < 10 % памяти Docker-хоста.
-`ClikitApiDown` подавляет следствия (5xx, латентность, пул).
+`ClikitApiDown` подавляет следствия (5xx, латентность, пул); алерты политики
+бюджета не подавляются — простой API их и приближает.
+
+### 5.5. Отчёт по error budget (T4.1)
+
+Расчёт бюджета за 30 дней виден в терминале, без Grafana:
+
+```powershell
+python scripts/slo_report.py
+# ClicKit Cloud — error budget (SLO 99.5 %, окно 30 дней)
+#   доступность:        100.000 %
+#   израсходовано:      0.0 % бюджета
+#   осталось:           216.0 мин (3 ч 36 мин из 216 мин)
+#   режим политики:     normal — обычный поток изменений
+#   burn rate 1 ч:        0.00x
+#   burn rate 6 ч:        0.00x
+# Политика: docs/sre/slo.md §7. Код выхода: 0.
+
+python scripts/slo_report.py --json   # машинночитаемо (для гейтов деплоя)
+```
+
+Коды выхода — политика §7: `0` — normal/careful, `1` — freeze (заморозка),
+`2` — exhausted (SLO нарушен), `3` — нет данных. `--prometheus-url` или
+`$CLICKIT_PROMETHEUS_URL` переопределяют адрес Prometheus (по умолчанию
+`http://127.0.0.1:9090`).
 
 ## 6. Остановка, данные и ограничения
 

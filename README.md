@@ -336,6 +336,13 @@ docker compose -f docker-compose.observability.yml up -d --build
 
 See [`docs/observability.md`](docs/observability.md) for the checkpoint and
 troubleshooting, and [`docs/sre/slo.md`](docs/sre/slo.md) for the SLO contract.
+The error budget for the last 30 days can be checked without Grafana:
+
+```bash
+python scripts/slo_report.py          # availability, % consumed, minutes left, policy mode
+python scripts/slo_report.py --json   # exit code: 0 normal/careful, 1 freeze, 2 exhausted, 3 no data
+```
+
 Each alert has an on-call procedure in
 [`docs/sre/runbook.md`](docs/sre/runbook.md); incident reviews follow the
 blameless [template](docs/sre/postmortem-template.md) — see the real
@@ -701,7 +708,15 @@ docker compose -f docker-compose.observability.yml up -d --build
 ```
 
 Чекпоинт и диагностика — [`docs/observability.md`](docs/observability.md),
-контракт SLO — [`docs/sre/slo.md`](docs/sre/slo.md). По каждому алерту есть
+контракт SLO — [`docs/sre/slo.md`](docs/sre/slo.md). Error budget за 30 дней
+проверяется и без Grafana:
+
+```bash
+python scripts/slo_report.py          # доступность, % бюджета, остаток в минутах, режим политики
+python scripts/slo_report.py --json   # код выхода: 0 normal/careful, 1 freeze, 2 exhausted, 3 нет данных
+```
+
+По каждому алерту есть
 процедура в [`docs/sre/runbook.md`](docs/sre/runbook.md); разбор инцидентов —
 по blameless-[шаблону](docs/sre/postmortem-template.md), пример — реальный
 [постмортем 2026-10-29](docs/sre/postmortems/2026-10-29-release-pipeline.md).

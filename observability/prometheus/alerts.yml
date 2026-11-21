@@ -58,6 +58,31 @@ groups:
           summary: "Доля 5xx больше 1 % за 5 минут"
           description: "Доля 5xx на пользовательских маршрутах /v1/... превысила 1 %. Найти 500 в JSON-логах по request_id, сверить с панелью Grafana."
 
+  - name: clikit-error-budget
+    interval: 1m
+    rules:
+      # Политика §7: при 75 % бюджета наступает заморозка — только
+      # исправления надёжности. Это не инцидент, а запрет на риск.
+      - alert: ErrorBudgetFreeze
+        expr: clikit:slo_error_budget:consumed_ratio_30d >= 0.75
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Израсходовано >= 75 % error budget за 30 дней"
+          description: "Режим заморозки: релизы и рискованные изменения отложены до восстановления бюджета (docs/sre/slo.md §7, docs/sre/runbook.md §11). Проверить остаток: python scripts/slo_report.py."
+
+      # Бюджет исчерпан — SLO нарушен. Постмортем обязателен по политике §7,
+      # поэтому critical, хотя сервис может отвечать прямо сейчас.
+      - alert: ErrorBudgetExhausted
+        expr: clikit:slo_error_budget:consumed_ratio_30d >= 1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error budget исчерпан: SLO 99.5 % за 30 дней нарушен"
+          description: "Израсходовано >= 100 % бюджета. Blameless-постмортем обязателен, приоритет — надёжность (docs/sre/slo.md §7, docs/sre/runbook.md §11)."
+
   - name: clikit-latency
     interval: 15s
     rules:

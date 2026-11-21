@@ -58,6 +58,8 @@
 - Проверка релиза: `python scripts/verify_release.py --tag v<версия> --smoke`
 - Форматирование: `ruff format .`
 - Скриншоты для README: `python scripts/make_screenshots.py` (offscreen)
+- Error budget (M8): `python scripts/slo_report.py` — остаток, режим политики,
+  код выхода 0/1/2/3 (нужен поднятый Prometheus стека наблюдаемости)
 - CI/CD: GitHub Actions (`windows-latest`) — `.github/workflows/ci.yml` (PR и
   `master`) и `.github/workflows/release.yml` (тег `v<APP_VERSION>`); схема в
   `AI_CONTEXT.md` §3.4

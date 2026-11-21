@@ -37,6 +37,9 @@ EXPECTED_ALERTS = {
     "HighScenarioLatency",
     "DbPoolExhausted",
     "HostMemoryLow",
+    # T4.1: границы политики §7 (заморозка и нарушение SLO).
+    "ErrorBudgetFreeze",
+    "ErrorBudgetExhausted",
 }
 #: severity, которые понимает маршрутизация Alertmanager.
 SEVERITIES = {"critical", "warning"}
@@ -97,10 +100,24 @@ def test_alert_thresholds_match_slo() -> None:
     assert "6" in expressions["SlowErrorBudgetBurn"]
     assert "0.01" in expressions["High5xxRate"]
     assert "0.3" in expressions["HighScenarioLatency"]
+    # T4.1: границы политики §7 — заморозка на 75 %, нарушение SLO на 100 %.
+    assert "0.75" in expressions["ErrorBudgetFreeze"]
+    assert "consumed_ratio_30d >= 1" in expressions["ErrorBudgetExhausted"]
     # Те же цифры обязаны быть в документе SLO (T0.1 держит их контрактом).
     slo = SLO_DOC.read_text(encoding="utf-8")
-    for fragment in ("**14.4**", "**6**", "**300 мс**", "1 %"):
+    for fragment in ("**14.4**", "**6**", "**300 мс**", "1 %", "50–75 %", "75–100 %"):
         assert fragment in slo, f"в docs/sre/slo.md нет {fragment!r}"
+
+
+def test_error_budget_alerts_read_the_budget_rule() -> None:
+    """Алерты политики читают запись расхода бюджета, а не считают её сами."""
+    records = _records()
+    expressions = {rule["alert"]: rule["expr"] for rule in _alert_rules()}
+    for name in ("ErrorBudgetFreeze", "ErrorBudgetExhausted"):
+        used = set(_RECORD.findall(expressions[name]))
+        assert used == {"clikit:slo_error_budget:consumed_ratio_30d"}
+        assert used <= records
+        assert "0.005" not in expressions[name], "формула скопирована в алерт"
 
 
 def test_alert_rules_read_only_recording_rules_and_known_metrics() -> None:
@@ -160,6 +177,10 @@ def test_alertmanager_inhibits_derived_alerts() -> None:
         "DbPoolExhausted",
     ):
         assert derived in targets, f"в подавлении нет {derived}"
+    # Политика §7 (T4.1) подавлению не подлежит: простой API жжёт бюджет,
+    # поэтому заморозка и нарушение SLO должны быть видны даже при down.
+    for policy in ("ErrorBudgetFreeze", "ErrorBudgetExhausted"):
+        assert policy not in targets, f"{policy} не должен подавляться"
 
 
 def test_runbook_links_from_alerts_test_are_documented() -> None:

@@ -685,8 +685,10 @@ M9–M11; их интерфейсы и критерии готовности з�
     65. **Дашборд — код в Git, а не состояние Grafana UI**
         (2026-11-16, M8 T2.2): `observability/grafana/dashboards/clikit-cloud.json`
         (UID `clikit-cloud`) провизионируется read-only (`allowUiUpdates: false`,
-        `editable: false`) и содержит 13 панелей: RPS, 5xx, доступность и остаток
-        error budget за 30 дней, burn rate 1/6 ч, in-flight, RPS по маршрутам,
+        `editable: false`) и содержит 14 панелей (в T4.1 добавлена «Режим
+        политики бюджета», панель остатка переведена на запись в минутах):
+        RPS, 5xx, доступность и остаток error budget за 30 дней, режим политики,
+        burn rate 1/6 ч, in-flight, RPS по маршрутам,
         p50/p95/p99, пул БД, CPU/RAM Docker-хоста, `up`, логи Loki. Панели SLO
         читают recording rules T0.1, а не копируют формулы: порог живёт в
         `docs/sre/slo.md` и правилах, поэтому правка не разъедется с дашбордом.
@@ -714,8 +716,8 @@ M9–M11; их интерфейсы и критерии готовности з�
         `send_resolved: true`) и подавляет через inhibition алерты-следствия
         (5xx, латентность, пул), пока активен `ClikitApiDown`: шумят только
         причины. Правила — код: CI-job `observability-rules` гоняет
-        `promtool check rules` (12 записей + 7 алертов) и два `test rules`
-        (`slo_rules_test.yml`, `alerts_test.yml` — 6 сценариев) на
+        `promtool check rules` (15 записей + 9 алертов, T4.1) и два `test rules`
+        (`slo_rules_test.yml`, `alerts_test.yml`) на
         `prom/prometheus:v3.16.0`, той же версии, что стек. Статический тест
         `tests/service/test_alerts.py` не даёт порогам разъехаться с SLO,
         требует `for`/`severity` у каждого алерта и проверяет inhibition.
@@ -737,6 +739,23 @@ M9–M11; их интерфейсы и критерии готовности з�
         на машинные факты (ID прогонов Actions, SHA коммитов, строки ошибок):
         реальный `2026-10-29-release-pipeline` восстановлен по трём красным
         прогонам Release и одному CI, а не по памяти (продолжение ADR №41).
+
+    68. **Error budget — вычисляемая величина, а не таблица в документе**
+        (2026-11-21, M8 T4.1): политика §7 (`normal`/`careful`/`freeze`/
+        `exhausted`) реализована как данные: `remaining_ratio_30d`,
+        `remaining_minutes_30d` (216 мин = 30 дней · 0.5 %) и
+        `policy_state_30d` (метка `state`, значение `1` — индикатор, а не
+        процент) живут в recording rules, алерты `ErrorBudgetFreeze` (≥ 75 %,
+        warning) и `ErrorBudgetExhausted` (≥ 100 %, critical) читают
+        `consumed_ratio_30d`, а `scripts/slo_report.py` печатает тот же расчёт
+        в терминале и отдаёт код выхода 0/1/2/3 для будущего гейта деплоя
+        M10. Копировать формулу в дашборд, алерт, скрипт и runbook запрещено:
+        пороги §7 совпадают буквально, и `tests/service/test_alerts.py`,
+        `test_slo_docs.py`, `test_slo_report.py` ловят расхождение. Алерты
+        политики **не подавляются** `ClikitApiDown`: простой API как раз жжёт
+        бюджет, и месячный сигнал не должен исчезать из-за минутного.
+        «Нет данных» (недоступный Prometheus, пустые записи) — код 3, а не 0:
+        отсутствие измерения нельзя трактовать как выполнение SLO.
 
 ---
 
@@ -881,7 +900,21 @@ T0.1 — при существующем счётчике с нулевым `rat
 `> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
 **603 passed**, `ruff` чист; ADR №65.)*
 
-*Последнее обновление: 2026-11-21 (**M8 T3.2** — runbook и постмортем:
+*Последнее обновление: 2026-11-21 (**M8 T4.1** — SLO/error budget и burn rate:
+`observability/prometheus/recording_rules.yml` — `remaining_ratio_30d`,
+`remaining_minutes_30d` (216 мин = 30 дней · 0.5 %) и `policy_state_30d`
+(режим `normal`/`careful`/`freeze`/`exhausted` меткой `state`, значение 1);
+`alerts.yml` — `ErrorBudgetFreeze` (≥ 75 %, warning) и `ErrorBudgetExhausted`
+(≥ 100 %, critical), не подавляются падением API; `scripts/slo_report.py` —
+отчёт по бюджету в терминале, `--json` и коды выхода 0/1/2/3 как задел для
+гейта M10; promtool-сценарии на 0.2/0.3/0.4/1 % ошибок (режимы и остаток
+129.6/86.4/43.2/−216 мин) и пустой трафик (216 мин, `normal`); дашборд —
+14 панелей (режим политики, остаток в минутах); `docs/sre/slo.md` §6.1/§7/§9/§11,
+`docs/sre/runbook.md` §12, `docs/observability.md` §5.4/§5.5, README (EN/RU);
+38 тестов `tests/service/test_slo_report.py`, полный прогон **662 passed**,
+покрытие сервиса 95.04 %; ADR №68.)*
+
+*Ранее, 2026-11-21 (**M8 T3.2** — runbook и постмортем:
 `docs/sre/runbook.md` — 8 сценариев (все 7 алертов, диск, падение пайплайна
 релиза) с «первыми 3 минутами», копируемыми командами и критерием
 восстановления; пороги не дублируются, а ссылаются на `slo.md`.

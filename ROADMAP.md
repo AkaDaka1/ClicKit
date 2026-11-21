@@ -142,8 +142,10 @@ production-образ (non-root, healthcheck), локальный compose, кл�
 13 панелей, скриншот в README), **T3.1 ✅** — алерты и Alertmanager
 (`observability/prometheus/alerts.yml`, `stop api` → firing → resolved),
 **T3.2 ✅** — runbook и реальный постмортем (`docs/sre/runbook.md`,
-`docs/sre/postmortems/`). Остались T4.1 (SLO/error budget и burn rate) и
-T5.1 (демо «сломай и почини»).
+`docs/sre/postmortems/`), **T4.1 ✅** — error budget как код: остаток бюджета
+в минутах, режим политики (`normal`/`careful`/`freeze`/`exhausted`), алерты
+`ErrorBudgetFreeze`/`ErrorBudgetExhausted`, `scripts/slo_report.py`
+(14 панелей дашборда). Осталась T5.1 (демо «сломай и почини»).
 
 ## M9 — Инфраструктура как код
 **Цель:** воспроизводимое облако и кластер: `terraform apply` с нуля,

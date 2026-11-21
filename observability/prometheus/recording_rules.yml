@@ -1,4 +1,4 @@
-# Recording rules SLO ClicKit Cloud (M8 T0.1, уточнено в T2.2).
+# Recording rules SLO ClicKit Cloud (M8 T0.1, уточнено в T2.2, T4.1).
 #
 # Источник истины по цифрам — docs/sre/slo.md. Здесь только вычисления,
 # чтобы дашборды и алерты (T3.1/T4.1) читали одни и те же SLI, а не
@@ -122,3 +122,52 @@ groups:
       # 1 — бюджет исчерпан, больше 1 — SLO нарушен.
       - record: clikit:slo_error_budget:consumed_ratio_30d
         expr: (1 - clikit:sli_availability:ratio_rate30d) / 0.005
+
+      # Остаток бюджета (T4.1): 1 — бюджет целый, 0 — исчерпан.
+      # Дублирует 1 − consumed_ratio_30d, но считается на стороне Prometheus:
+      # панель дашборда, CLI `scripts/slo_report.py` и политика читают одно
+      # имя, а не каждый свою арифметику.
+      - record: clikit:slo_error_budget:remaining_ratio_30d
+        expr: 1 - clikit:slo_error_budget:consumed_ratio_30d
+
+      # Остаток бюджета в минутах простоя: 216 — целый бюджет
+      # (30 дней · 0.5 % = 216 мин = 3 ч 36 мин, docs/sre/slo.md §5).
+      # 216 мин — это `43200 * 0.005`, а не «примерно три часа»: цифра
+      # живёт в одном месте вместе с бюджетом.
+      - record: clikit:slo_error_budget:remaining_minutes_30d
+        expr: (1 - clikit:slo_error_budget:consumed_ratio_30d) * 216
+
+      # Режим политики исчерпания бюджета (docs/sre/slo.md §7) в виде метки
+      # `state`: normal (< 50 %), careful (50–75 %), freeze (75–100 %),
+      # exhausted (≥ 100 %). Пороги — те же 0.5/0.75/1, что в документе;
+      # непрерывные условия (`< x < y`) не пересекаются, поэтому серия
+      # со своим `state` всегда ровно одна. `count by (state)` убирает
+      # `__name__` и отдаёт 1 для активного режима: значение режима не
+      # дробь, и его нельзя случайно сравнить с процентом бюджета.
+      - record: clikit:slo_error_budget:policy_state_30d
+        expr: |
+          count by (state) (
+            label_replace(
+              clikit:slo_error_budget:consumed_ratio_30d < 0.5,
+              "state", "normal", "__name__", ".*"
+            )
+            or
+            label_replace(
+              clikit:slo_error_budget:consumed_ratio_30d >= 0.5
+              and
+              clikit:slo_error_budget:consumed_ratio_30d < 0.75,
+              "state", "careful", "__name__", ".*"
+            )
+            or
+            label_replace(
+              clikit:slo_error_budget:consumed_ratio_30d >= 0.75
+              and
+              clikit:slo_error_budget:consumed_ratio_30d < 1,
+              "state", "freeze", "__name__", ".*"
+            )
+            or
+            label_replace(
+              clikit:slo_error_budget:consumed_ratio_30d >= 1,
+              "state", "exhausted", "__name__", ".*"
+            )
+          )
