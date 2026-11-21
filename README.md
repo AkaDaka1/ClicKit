@@ -95,8 +95,8 @@ Four invariants keep the layers honest:
 
 ## 🚧 Project status
 
-**ClicKit 1.0.0** — the first public release. Milestones **M0–M7** are complete
-and merged into `master`; **M8–M11** (observability, IaC, delivery,
+**ClicKit 1.0.0** — the first public release. Milestones **M0–M8** are complete
+and merged into `master`; **M9–M11** (IaC, delivery,
 security/resilience) are planned and tracked in
 [`plans/README.md`](plans/README.md). The app follows the Windows theme by default
 (system / dark / light can be picked in Settings), all three global hotkeys
@@ -147,7 +147,7 @@ want to automate a few clicks.
 | **M5** | Polish: themes, settings, logs, tests, `.exe` packaging | ✅ Done |
 | **M6** | DevOps: Docker test/build images, GHCR, dev releases | ✅ Done |
 | **M7** | ClicKit Cloud: scenario API, PostgreSQL, Docker | ✅ Done |
-| **M8** | Observability: metrics, logs, traces, dashboards, SLO | 🚧 In progress |
+| **M8** | Observability: metrics, logs, traces, dashboards, SLO | ✅ Done |
 | **M9** | Infrastructure as code: Terraform, k3s, Helm, HTTPS | 📋 Planned |
 | **M10** | Continuous delivery: staging/prod, rollback, DORA | 📋 Planned |
 | **M11** | Security & resilience: scanning, load, backups, chaos | 📋 Planned |
@@ -343,6 +343,12 @@ python scripts/slo_report.py          # availability, % consumed, minutes left, 
 python scripts/slo_report.py --json   # exit code: 0 normal/careful, 1 freeze, 2 exhausted, 3 no data
 ```
 
+A 5-minute break-and-fix exercise — stop the API, watch `ClikitApiDown` fire, follow
+the runbook, restore the service and see it resolve — is written up in
+[`docs/observability-demo.md`](docs/observability-demo.md) and can be run
+end-to-end by `python scripts/observability_demo.py run` (exit code 0/1/2, with
+`--json` for machines).
+
 Each alert has an on-call procedure in
 [`docs/sre/runbook.md`](docs/sre/runbook.md); incident reviews follow the
 blameless [template](docs/sre/postmortem-template.md) — see the real
@@ -422,8 +428,8 @@ components keep their own licenses: PySide6 — LGPL v3, Blockly — Apache-2.0.
 
 ## 🚧 Статус проекта
 
-**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M7** завершены и влиты
-в `master`; **M8–M11** (наблюдаемость, IaC, доставка, безопасность и
+**ClicKit 1.0.0** — первый публичный релиз. Вехи **M0–M8** завершены и влиты
+в `master`; **M9–M11** (IaC, доставка, безопасность и
 устойчивость) запланированы и ведутся в
 [`plans/README.md`](plans/README.md). По умолчанию приложение следует теме Windows (в настройках можно
 выбрать «Системная», «Тёмная» или «Светлая»), все три глобальных хоткея
@@ -517,7 +523,7 @@ flowchart LR
 | **M5** | Полировка: темы, настройки, журналы, тесты, упаковка в `.exe` | ✅ Готово |
 | **M6** | DevOps: Docker-образы тестов и сборки, GHCR, dev-релизы | ✅ Готово |
 | **M7** | ClicKit Cloud: API сценариев, PostgreSQL, Docker | ✅ Готово |
-| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | 🚧 В работе |
+| **M8** | Наблюдаемость: метрики, логи, трейсы, дашборды, SLO | ✅ Готово |
 | **M9** | Инфраструктура как код: Terraform, k3s, Helm, HTTPS | 📋 Запланировано |
 | **M10** | Непрерывная доставка: staging/prod, откат, DORA | 📋 Запланировано |
 | **M11** | Безопасность и устойчивость: сканирование, нагрузка, бэкапы, chaos | 📋 Запланировано |
@@ -715,6 +721,12 @@ docker compose -f docker-compose.observability.yml up -d --build
 python scripts/slo_report.py          # доступность, % бюджета, остаток в минутах, режим политики
 python scripts/slo_report.py --json   # код выхода: 0 normal/careful, 1 freeze, 2 exhausted, 3 нет данных
 ```
+
+Демо «сломай и почини» на 5 минут — остановить API, дождаться `ClikitApiDown`,
+пройти по runbook, вернуть сервис и увидеть `resolved` — описано в
+[`docs/observability-demo.md`](docs/observability-demo.md) и проходится целиком
+командой `python scripts/observability_demo.py run` (код выхода 0/1/2,
+`--json` — для машин).
 
 По каждому алерту есть
 процедура в [`docs/sre/runbook.md`](docs/sre/runbook.md); разбор инцидентов —

@@ -455,6 +455,9 @@ Runbook — такой же код, как правила алертов: он �
 
 - **T5.1:** демо «сломай и почини» — `stop api` → `ClikitApiDown` firing →
   действия §3 → resolved; сценарий воспроизводится с чистой машины.
+  Пошагово — [`../observability-demo.md`](../observability-demo.md); целиком
+  одной командой — `python scripts/observability_demo.py run` (код выхода
+  0/1/2 и `--json`), `check` проверяет готовность стека.
 - **M11:** chaos-эксперименты (БД, диск, сертификат) проверяют сценарии
   §6–§9 и учебный инцидент.
 - **Статические тесты:** `tests/service/test_runbook.py` следят, что у
@@ -466,6 +469,8 @@ Runbook — такой же код, как правила алертов: он �
 - [`slo.md`](slo.md) — SLI/SLO, error budget, burn rate и политика.
 - [`postmortem-template.md`](postmortem-template.md) — blameless-шаблон.
 - [`../observability.md`](../observability.md) — запуск стека и диагностика.
+- [`../observability-demo.md`](../observability-demo.md) — демо «сломай и
+  почини» (T5.1): те же шаги §3, но с проверкой алерта и `resolved` вживую.
 - [`../cloud.md`](../cloud.md) — эксплуатация сервиса, журналы, бэкапы.
 - `observability/prometheus/alerts.yml` — правила, на которые опирается
   таблица §2.

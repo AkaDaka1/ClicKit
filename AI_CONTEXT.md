@@ -158,10 +158,13 @@ ClicKit/
 ├── scripts/               # консольные скрипты (демо, сценарий, вендоринг,
 │                          # генерация иконки, сборка .exe, проверка релиза,
 │                          # cloud_publish — клиент ClicKit Cloud, M7 T4.2;
-│                          # alert_sink.py — приёмник вебхуков Alertmanager, M8 T2.1)
+│                          # alert_sink.py — приёмник вебхуков Alertmanager, M8 T2.1;
+│                          # slo_report.py — error budget M8 T4.1;
+│                          # observability_demo.py — демо «сломай и почини», M8 T5.1)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
 │                          # observability.md (локальный стек, M8 T2.1),
+│                          # observability-demo.md (демо T5.1),
 │                          # sre/ (slo.md — T0.1; runbook.md, postmortem-template.md
 │                          # и postmortems/ — M8 T3.2), img/ (скриншоты для
 │                          # README; scripts/make_screenshots.py)
@@ -757,6 +760,21 @@ M9–M11; их интерфейсы и критерии готовности з�
         «Нет данных» (недоступный Prometheus, пустые записи) — код 3, а не 0:
         отсутствие измерения нельзя трактовать как выполнение SLO.
 
+    69. **Демо проверяется состоянием, а не картинкой, и честно про слепое
+        пятно SLI** (2026-11-21, M8 T5.1): приёмка вехи — не скриншоты, а
+        `scripts/observability_demo.py`, который опрашивает `/api/v1/alerts`,
+        `/api/v2/alerts` и `/alerts` приёмника до фактического `firing`/
+        `resolved`, поэтому правка `for` в правилах не делает демо «зелёным по
+        расписанию»; коды выхода 0/1/2 (`1` — шаг не уложился, `2` — стек не
+        готов) — задел для гейта/учений M10/M11, а API восстанавливается в
+        `finally`, потому что оставлять сервис выключенным нельзя (runbook
+        §1.2). `docs/observability-demo.md` содержит раздел «Чего демо не
+        показывает»: падение API **не видно в SLI** (`slo.md` §3 — считаются
+        только дошедшие запросы), бюджет при простое не жжётся, 5xx и
+        латентность не генерируются. Пороги в демо не дублируются: шаги ведут
+        в `runbook.md` §3, цифры — в `slo.md`; порог бюджета читается тем же
+        `slo_report.collect_report`, что и в T4.1.
+
 ---
 
 ### 3.4. CI/CD
@@ -900,7 +918,21 @@ T0.1 — при существующем счётчике с нулевым `rat
 `> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
 **603 passed**, `ruff` чист; ADR №65.)*
 
-*Последнее обновление: 2026-11-21 (**M8 T4.1** — SLO/error budget и burn rate:
+*Последнее обновление: 2026-11-21 (**M8 T5.1** — демо «сломай и почини»:
+`docs/observability-demo.md` — сценарий на 5 минут (признаки жизни: лог,
+метрика, трейс; `stop api` → `pending` → `firing` в Prometheus/Alertmanager/
+приёмнике → разбор по `runbook.md` §3 → `start api` → `resolved` →
+`slo_report.py`), §5 «Чего демо не показывает» и §6 диагностика;
+`scripts/observability_demo.py` — исполняемая версия (`check` — готовность
+стека, `run` — полный контур с ожиданием по факту алерта, `--json`, коды
+выхода 0/1/2, аварийное восстановление API); живой прогон — **8/8 проверок,
+`ДЕМО ПРОЙДЕНО за 1 мин 48 с`** (`firing` через 1 мин 17 с, `resolved` через
+22 с, режим бюджета `normal`); ссылки из README (EN/RU), `docs/observability.md`
+§8, `docs/sre/runbook.md` §13/§14; 29 тестов
+`tests/service/test_observability_demo.py`, service — **416 passed**, `ruff`
+чист; ADR №69, веха M8 закрыта.)*
+
+*Ранее, 2026-11-21 (**M8 T4.1** — SLO/error budget и burn rate:
 `observability/prometheus/recording_rules.yml` — `remaining_ratio_30d`,
 `remaining_minutes_30d` (216 мин = 30 дней · 0.5 %) и `policy_state_30d`
 (режим `normal`/`careful`/`freeze`/`exhausted` меткой `state`, значение 1);
