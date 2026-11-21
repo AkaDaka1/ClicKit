@@ -31,6 +31,7 @@ EXPECTED_RECORDS = {
     "clikit:sli_availability:ratio_rate30d",
     "clikit:sli_latency:ratio_rate5m",
     "clikit:sli_latency:ratio_rate30d",
+    "clikit:sli_latency:p95_rate5m",
     "clikit:slo_burn_rate:ratio_1h",
     "clikit:slo_burn_rate:ratio_6h",
     "clikit:slo_error_budget:consumed_ratio_30d",

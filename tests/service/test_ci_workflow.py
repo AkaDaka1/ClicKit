@@ -45,6 +45,18 @@ def _job_block(name: str) -> str:
     return match.group(1)
 
 
+def test_observability_rules_job_checks_both_rule_files() -> None:
+    """Promtool гоняет recording rules и алерты на version-pinned образе (T3.1)."""
+    block = _job_block("observability-rules")
+
+    assert "runs-on: ubuntu-latest" in block
+    assert "prom/prometheus:v3.16.0" in block
+    assert "check rules /observability/prometheus/recording_rules.yml" in block
+    assert "/observability/prometheus/alerts.yml" in block
+    assert "test rules /observability/prometheus/tests/slo_rules_test.yml" in block
+    assert "test rules /observability/prometheus/tests/alerts_test.yml" in block
+
+
 def test_service_tests_job_exists_on_linux() -> None:
     """Отдельный job сервиса идёт на Linux и не смешивается с Windows-матрицей."""
     block = _job_block("service-tests")

@@ -161,7 +161,9 @@ ClicKit/
 │                          # alert_sink.py — приёмник вебхуков Alertmanager, M8 T2.1)
 ├── plans/                 # планы вех (публичные; индекс — plans/README.md)
 ├── docs/                  # api.md (контракт ClicKit Cloud), cloud.md (M7 T6.1),
-│                          # sre/ (slo.md — M8 T0.1), img/ (скриншоты для
+│                          # observability.md (локальный стек, M8 T2.1),
+│                          # sre/ (slo.md — T0.1; runbook.md, postmortem-template.md
+│                          # и postmortems/ — M8 T3.2), img/ (скриншоты для
 │                          # README; scripts/make_screenshots.py)
 ├── service/               # ClicKit Cloud (M7): alembic.ini, app/, migrations/
 │   ├── app/               # main, config, db, models, schemas, version, errors,
@@ -178,10 +180,11 @@ ClicKit/
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
 ├── observability/         # стек наблюдаемости (M8): prometheus/ (prometheus.yml,
-│                          # recording_rules.yml, tests/), alertmanager/,
+│                          # recording_rules.yml, alerts.yml — T3.1; tests/ —
+│                          # slo_rules_test.yml, alerts_test.yml), alertmanager/,
 │                          # grafana/provisioning (datasources/dashboards),
 │                          # dashboards/ — T2.2: clikit-cloud.json (дашборд),
-│                          # loki/, promtail/, tempo/ (T2.1); правила алертов — T3.1
+│                          # loki/, promtail/, tempo/ (T2.1)
 └── tests/
 ```
 
@@ -694,6 +697,47 @@ M9–M11; их интерфейсы и критерии готовности з�
         входит в README: «дашборд как код» подтверждается не только файлом,
         но и работающими панелями.
 
+    66. **Алерты читают recording rules; promtool — ворота CI**
+        (2026-11-16, M8 T3.1): `observability/prometheus/alerts.yml` —
+        7 правил (`ClikitApiDown`, `FastErrorBudgetBurn`, `SlowErrorBudgetBurn`,
+        `High5xxRate`, `HighScenarioLatency`, `DbPoolExhausted`, `HostMemoryLow`)
+        с обязательными `severity` (`critical`/`warning`) и окном `for`.
+        Формулы SLI не дублируются: алерты ссылаются на записи T0.1
+        (`clikit:http_errors:ratio_rate5m`, `clikit:slo_burn_rate:ratio_*`),
+        поэтому порог меняется в одном месте — `docs/sre/slo.md`. Единственная
+        новая запись — `clikit:sli_latency:p95_rate5m`: та же формула, что в
+        ad-hoc-запросе §8, вынесена в правило, чтобы `HighScenarioLatency` не
+        копировал `histogram_quantile`. `up == 0` — отдельный алерт: SLI видит
+        только дошедшие до приложения запросы и падение сервиса не ловит
+        (продолжение ADR №60). Alertmanager маршрутизирует по `severity`
+        (critical — repeat 1 ч, warning — 4 ч, оба в `local-sink`,
+        `send_resolved: true`) и подавляет через inhibition алерты-следствия
+        (5xx, латентность, пул), пока активен `ClikitApiDown`: шумят только
+        причины. Правила — код: CI-job `observability-rules` гоняет
+        `promtool check rules` (12 записей + 7 алертов) и два `test rules`
+        (`slo_rules_test.yml`, `alerts_test.yml` — 6 сценариев) на
+        `prom/prometheus:v3.16.0`, той же версии, что стек. Статический тест
+        `tests/service/test_alerts.py` не даёт порогам разъехаться с SLO,
+        требует `for`/`severity` у каждого алерта и проверяет inhibition.
+        Живой чекпоинт: `stop api` → `ClikitApiDown` firing (~90 с) в Prometheus,
+        Alertmanager и приёмнике; `start api` → resolved, `send_resolved` в деле.
+    67. **Runbook привязан к алертам, постмортем — к фактам CI**
+        (2026-11-21, M8 T3.2): `docs/sre/runbook.md` — процедура на момент
+        инцидента, а не пересказ SLO: у каждого из 7 алертов есть сценарий с
+        «первыми 3 минутами», копируемыми командами и критерием
+        восстановления, плюс сценарии «диск» и «пайплайн релиза упал».
+        Пороги не дублируются — единственный источник `docs/sre/slo.md` и
+        `alerts.yml`; статический тест `tests/service/test_runbook.py` ломает
+        сборку, если алерт переименован без правки инструкции, сценариев
+        меньше пяти, ссылка битая или в документе появился секрет.
+        Постмортем — blameless-шаблон (`postmortem-template.md`) с
+        таймлайном UTC и обязательными «действие → владелец → срок → тип»;
+        невыполненные действия остаются `⬜ открыто`, а не выдаются за
+        сделанные. Разборы живут в Git (`docs/sre/postmortems/`) и опираются
+        на машинные факты (ID прогонов Actions, SHA коммитов, строки ошибок):
+        реальный `2026-10-29-release-pipeline` восстановлен по трём красным
+        прогонам Release и одному CI, а не по памяти (продолжение ADR №41).
+
 ---
 
 ### 3.4. CI/CD
@@ -703,6 +747,7 @@ PR / push в master ──► ci.yml ──► lint ─────────�
                                         ├─► tests (3.11, 3.12, 3.13; Windows)
                                         ├─► tests-docker (Linux-контейнер)
                                         ├─► service-tests (PostgreSQL 16, Linux)
+                                        ├─► observability-rules (promtool: recording + alerts)
                                         └─► package (--zip + smoke, только master)
 
 push в master/dev ──► docker.yml ──► build-test (Linux)  ──► GHCR: <sha> + latest/dev
@@ -729,11 +774,13 @@ runner недоступен), Linux-образ — через `docker/build-push
 Правила и локальные аналоги:
 
 - Пуш в `master` — только через PR с зелёным CI (настройки репозитория:
-  branch protection, обязательные проверки `lint`, `tests` и `service-tests`,
-  удаление ветки после merge).
+  branch protection, обязательные проверки `lint`, `tests`, `tests-docker`,
+  `service-tests` и `observability-rules`, удаление ветки после merge).
 - Локальная проверка того же, что в CI: `ruff check .`, `ruff format --check .`,
   `python -m pytest`, `docker compose run --rm test` (Linux-контейнер, ADR №33),
   `python -m pytest tests/service --cov` (сервис, порог покрытия — ADR №58).
+  Правила наблюдаемости — `promtool check rules` / `test rules` из
+  `docs/sre/slo.md` §9 (job `observability-rules`, ADR №66).
   Тесты сервиса с реальным PostgreSQL: задать `CLICKIT_TEST_DB_URL`
   (в CI — сервисный контейнер `postgres:16`), без неё — файловая SQLite.
 - Локальная проверка релиза перед тегом:
@@ -823,7 +870,7 @@ runner недоступен), Linux-образ — через `docker/build-push
 
 ---
 
-*Последнее обновление: 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
+*Ранее, 2026-11-16 (**M8 T2.2** — дашборд Grafana как код:
 `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`,
 13 панелей: RPS, 5xx, доступность/бюджет 30 дней, burn rate 1/6 ч, in-flight,
 RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki;
@@ -832,8 +879,31 @@ read-only provisioning, `editable: false`), скриншот `docs/img/screensho
 `tests/service/test_grafana_dashboard.py`; попутно исправлены recording rules
 T0.1 — при существующем счётчике с нулевым `rate` SLI давал `NaN`, добавлены
 `> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
-**603 passed**, `ruff` чист; ADR №65. Следующая задача — T3.1, алерты и
-Alertmanager.)*
+**603 passed**, `ruff` чист; ADR №65.)*
+
+*Последнее обновление: 2026-11-21 (**M8 T3.2** — runbook и постмортем:
+`docs/sre/runbook.md` — 8 сценариев (все 7 алертов, диск, падение пайплайна
+релиза) с «первыми 3 минутами», копируемыми командами и критерием
+восстановления; пороги не дублируются, а ссылаются на `slo.md`.
+`docs/sre/postmortem-template.md` — blameless-шаблон с таймлайном UTC и
+обязательными «действие → владелец → срок → тип».
+`docs/sre/postmortems/2026-10-29-release-pipeline.md` — реальный разбор трёх
+красных прогонов Release по фактам GitHub Actions (NOTICE не в корне `dist/`
+после `--zip` — локально маскировалось остатком от `--onefile`;
+`upload-artifact` сохранил префикс `dist/`, публикация искала плоские
+`assets/`), открытые действия A4/A5/A7 помечены `⬜`; 9 тестов
+`tests/service/test_runbook.py`. Связаны `docs/observability.md` §8,
+`docs/cloud.md` §10, README (EN/RU), `slo.md`; ADR №67.)*
+
+*Ранее, 2026-11-16 (**M8 T3.1** — алерты и Alertmanager:
+`observability/prometheus/alerts.yml` — 7 правил с `severity` и `for`;
+recording rule `clikit:sli_latency:p95_rate5m` (12 записей), Alertmanager —
+маршрутизация по критичности и inhibition `ClikitApiDown` → следствия,
+CI-job `observability-rules` с `promtool check/test rules`, 6 promtool-сценариев
+`tests/alerts_test.yml` и 12 статических тестов `tests/service/test_alerts.py`;
+живой чекпоинт `stop api` → firing (~90 с, видно в Prometheus/Alertmanager/
+приёмнике) → `start api` → resolved. Полный прогон **614 passed**,
+`ruff` чист; ADR №66. Следующая задача — T3.2, runbook и постмортем.)*
 
 *Ранее, 2026-11-16 (**M8 T2.1** — compose-стек наблюдаемости:
 `docker-compose.observability.yml` поднимает одной командой API/PostgreSQL

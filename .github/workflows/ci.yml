@@ -104,6 +104,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  observability-rules:
+    # Правила Prometheus — код, поэтому они проверяются в CI (ADR №66):
+    # синтаксис, имена и семантика recording rules + правил алертов (пороги,
+    # окна `for`, resolved). Образ promtool зафиксирован по версии образа
+    # Prometheus стека, чтобы проверка шла той же мажорной версией.
+    name: Правила Prometheus (promtool)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Скачать promtool
+        run: docker pull prom/prometheus:v3.16.0
+      - name: Проверить синтаксис правил
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "${{ github.workspace }}/observability:/observability:ro" \
+            prom/prometheus:v3.16.0 \
+            check rules /observability/prometheus/recording_rules.yml \
+                        /observability/prometheus/alerts.yml
+      - name: Проверить семантику SLI
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "${{ github.workspace }}/observability:/observability:ro" \
+            prom/prometheus:v3.16.0 \
+            test rules /observability/prometheus/tests/slo_rules_test.yml
+      - name: Проверить семантику алертов
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "${{ github.workspace }}/observability:/observability:ro" \
+            prom/prometheus:v3.16.0 \
+            test rules /observability/prometheus/tests/alerts_test.yml
+
   service-tests:
     # Тесты сервиса ClicKit Cloud (M7 T5.1): отдельный Linux-job, потому что
     # desktop-матрица выше не ставит FastAPI/PostgreSQL и не должна ставить.

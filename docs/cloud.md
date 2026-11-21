@@ -488,6 +488,10 @@ curl.exe -s http://localhost:8000/openapi.json | Out-Null   # 200
   исчерпания бюджета (M8).
 - [`docs/observability.md`](observability.md) — локальный стек
   наблюдаемости: Prometheus, Grafana, Loki, Promtail, Tempo, Alertmanager.
+- [`docs/sre/runbook.md`](sre/runbook.md) — что делать при срабатывании
+  алертов и падении пайплайна релиза.
+- [`docs/sre/postmortems/2026-10-29-release-pipeline.md`](sre/postmortems/2026-10-29-release-pipeline.md)
+  — разбор трёх упавших прогонов публикации 1.0.0.
 - [`plans/M7-cloud-service.md`](../plans/M7-cloud-service.md) — план вехи,
   граф задач и журнал.
 - [`README.md`](../README.md) — обзор продукта и быстрый старт.

@@ -23,6 +23,7 @@ ENV_EXAMPLE = ROOT / ".env.example"
 DOC = ROOT / "docs" / "observability.md"
 PROMETHEUS = ROOT / "observability" / "prometheus" / "prometheus.yml"
 RULES = ROOT / "observability" / "prometheus" / "recording_rules.yml"
+ALERTS = ROOT / "observability" / "prometheus" / "alerts.yml"
 ALERTMANAGER = ROOT / "observability" / "alertmanager" / "alertmanager.yml"
 DATASOURCES = (
     ROOT
@@ -166,13 +167,15 @@ def test_prometheus_scrapes_api_and_every_component() -> None:
 
 
 def test_prometheus_loads_recording_rules_and_alerts_to_alertmanager() -> None:
-    """Правила SLO смонтированы, Alertmanager подключён как приёмник алертов."""
+    """Правила SLO и алерты смонтированы, Alertmanager — приёмник алертов."""
     config = _yaml(PROMETHEUS)
     assert "/etc/prometheus/recording_rules.yml" in config["rule_files"]
+    assert "/etc/prometheus/alerts.yml" in config["rule_files"]
     targets = config["alerting"]["alertmanagers"][0]["static_configs"][0]["targets"]
     assert targets == ["alertmanager:9093"]
-    # Файл правил существует и содержит записи (T0.1) — иначе Prometheus упадёт.
+    # Оба файла правил существуют — иначе Prometheus упадёт на старте.
     assert RULES.exists()
+    assert ALERTS.exists()
 
 
 def test_alertmanager_routes_to_local_sink() -> None:

@@ -106,6 +106,14 @@ SLI_lat(window) = Σ успешных ответов ≤ 300 мс / Σ всех 
 | `clikit:sli_latency:ratio_rate5m` | 5 мин |
 | `clikit:sli_latency:ratio_rate30d` | 30 дней |
 
+Для алерта `HighScenarioLatency` (T3.1) дополнительно считается сама p95 —
+это та же формула, что в ad-hoc-запросе §8, но вынесенная в запись, чтобы
+алерт не дублировал её:
+
+| Запись | Окно |
+|---|---|
+| `clikit:sli_latency:p95_rate5m` | 5 мин |
+
 ### 4.3. Трафик и ошибки (вспомогательные SLI)
 
 | Запись | Смысл |
@@ -220,8 +228,7 @@ clikit:http_requests:rate5m
 clikit:http_errors:ratio_rate5m
 
 # p95 задержки успешных запросов к сценариям
-histogram_quantile(0.95,
-  sum by (le) (rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3.."}[5m])))
+clikit:sli_latency:p95_rate5m
 
 # Сколько бюджета осталось (1 — всё, 0 — исчерпан)
 1 - clikit:slo_error_budget:consumed_ratio_30d
@@ -232,15 +239,21 @@ histogram_quantile(0.95,
 Правила — код, поэтому они проверяются до попадания в Grafana:
 
 ```bash
-# Синтаксис и имена правил
+# Синтаксис и имена правил (recording rules + алерты)
 docker run --rm --entrypoint promtool \
-  -v "${PWD}/observability:/observability:ro" prom/prometheus:latest \
-  check rules /observability/prometheus/recording_rules.yml
+  -v "${PWD}/observability:/observability:ro" prom/prometheus:v3.16.0 \
+  check rules /observability/prometheus/recording_rules.yml \
+              /observability/prometheus/alerts.yml
 
 # Семантика SLI на синтетических сериях
 docker run --rm --entrypoint promtool \
-  -v "${PWD}/observability:/observability:ro" prom/prometheus:latest \
+  -v "${PWD}/observability:/observability:ro" prom/prometheus:v3.16.0 \
   test rules /observability/prometheus/tests/slo_rules_test.yml
+
+# Семантика алертов: окна `for`, пороги, resolved (T3.1)
+docker run --rm --entrypoint promtool \
+  -v "${PWD}/observability:/observability:ro" prom/prometheus:v3.16.0 \
+  test rules /observability/prometheus/tests/alerts_test.yml
 ```
 
 Результат 2026-11-13 (T0.1): `check rules` — `SUCCESS: 11 rules found`;
@@ -248,10 +261,16 @@ docker run --rm --entrypoint promtool \
 медленных, 4xx не жгут бюджет, служебные маршруты исключены).
 В 2026-11-16 (T2.2) добавлен пятый сценарий «счётчики есть, трафика нет»:
 `test rules` — `SUCCESS`.
+В 2026-11-16 (T3.1) добавлена запись `clikit:sli_latency:p95_rate5m`
+(`12 rules found` в recording rules) и правила алертов:
+`check rules` — `SUCCESS: 12 rules found` + `SUCCESS: 7 rules found`,
+`test rules` по обоим файлам — `SUCCESS`.
 
 Статические тесты фиксируют цифры §4–§7, набор записей, используемые метрики
-и ссылки: `python -m pytest tests/service/test_slo_docs.py`.
-`promtool` в CI подключается в T3.1 вместе с алертами.
+и ссылки: `python -m pytest tests/service/test_slo_docs.py`. Алерты
+(пороги, `for`, маршрутизация, подавление) — `tests/service/test_alerts.py`.
+`promtool` для обоих файлов правил запускается в CI-job `service-tests`
+(ADR №66).
 
 ## 10. Пересмотр
 
@@ -261,7 +280,29 @@ docker run --rm --entrypoint promtool \
 - Новые эндпоинты `/v1/...` автоматически попадают в SLI доступности: это
   осознанное решение, а не побочный эффект `route=~"/v1/.*"`.
 
-## 11. Связанные документы
+## 11. Алерты (T3.1)
+
+Правила — `observability/prometheus/alerts.yml`; маршрутизация и подавление —
+`observability/alertmanager/alertmanager.yml`. Алерты читают записи этого
+документа, поэтому порог SLO живёт в одном месте.
+
+| Алерт | severity | Условие | `for` | Что значит |
+|---|---|---|---|---|
+| `ClikitApiDown` | critical | `up{job="clikit-api"} == 0` | 1 мин | сервис не отвечает Prometheus (SLI такое не видит) |
+| `FastErrorBudgetBurn` | critical | burn rate 1 ч > **14.4** | 2 мин | ~2 % бюджета за час |
+| `SlowErrorBudgetBurn` | warning | burn rate 6 ч > **6** | 5 мин | ~5 % бюджета за 6 часов |
+| `High5xxRate` | warning | `clikit:http_errors:ratio_rate5m` > 1 % | 5 мин | ошибки сервиса до критического расхода |
+| `HighScenarioLatency` | warning | `clikit:sli_latency:p95_rate5m` > **300 мс** | 10 мин | p95 выше порога задержки SLO |
+| `DbPoolExhausted` | warning | `clikit_db_pool_connections{state="in_use"} >= 5` | 5 мин | исчерпан штатный пул SQLAlchemy |
+| `HostMemoryLow` | warning | свободно < 10 % памяти хоста | 5 мин | риск OOM на Docker-хосте |
+
+`severity` — повод для реакции: `critical` — разбираться немедленно,
+`warning` — в тот же день. `ClikitApiDown` подавляет остальные алерты
+(через Alertmanager inhibition): когда сервис лежит, ошибки и латентность —
+следствие, а не отдельные причины. Что делать по каждому — `docs/sre/runbook.md`
+(T3.2).
+
+## 12. Связанные документы
 
 - [`plans/M8-observability.md`](../../plans/M8-observability.md) — план вехи,
   граф задач T0.1–T5.1 и журнал.
