@@ -15,7 +15,7 @@
 | Метрики | `GET /metrics` (ADR №62) | Prometheus, скрейп каждые 15 с |
 | Трейсы | OTLP/HTTP `:4318` (ADR №63) | Tempo |
 
-Стек добавляет к этому дашборды (T2.2), алерты (T3.1), runbook и SLO-контур
+Стек добавляет к этому дашборды (T2.2), алерты (T3.1) и SLO-контур
 (T3.2/T4.1). Без него метрики и трейсы сервиса некуда смотреть: `/metrics`
 отдаёт текст, а не графики.
 
@@ -201,28 +201,53 @@ curl.exe -s "http://127.0.0.1:9090/api/v1/query?query=clikit_http_requests_total
 
 Текст SQL в спаны не пишется — это данные сценария.
 
-### 5.4. Алерты (заготовка T2.1)
+### 5.4. Алерты (T3.1)
 
-Правил алертов пока нет (T3.1), поэтому Alertmanager молчит, но маршрут уже
-проверяется вручную — можно отправить тестовый вебхук в приёмник. `curl.exe`
-в PowerShell 5.1 отправляет тело в ANSI, поэтому кириллица и JSON ломаются;
-надёжнее `Invoke-RestMethod`, который пишет UTF-8:
+Правила — `observability/prometheus/alerts.yml`, маршрутизация и подавление —
+`observability/alertmanager/alertmanager.yml`. Все алерты читают recording rules
+из T0.1, поэтому формулы не дублируются, а пороги описаны в
+`docs/sre/slo.md` §11.
 
 ```powershell
-$body = @{
-  alerts = @(@{
-    status      = "firing"
-    labels      = @{ alertname = "Test"; severity = "info" }
-    annotations = @{ summary = "проверка приёмника" }
-  })
-} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/webhook `
-  -ContentType "application/json" -Body $body
-Invoke-RestMethod http://127.0.0.1:8080/alerts
+# 1. Правила загружены Prometheus (12 записей + 7 алертов)
+curl.exe -s http://127.0.0.1:9090/api/v1/rules |
+  ConvertFrom-Json | ForEach-Object { $_.data.groups } |
+  Select-Object name, @{n='rules';e={$_.rules.Count}}
+
+# 2. Активные алерты (в норме — пусто)
+Invoke-RestMethod "http://127.0.0.1:9090/api/v1/alerts" |
+  Select-Object -ExpandProperty data | Select-Object -ExpandProperty alerts
+
+# 3. Alertmanager видит алерты
+Invoke-RestMethod "http://127.0.0.1:9093/api/v2/alerts"
 ```
 
-`/alerts` вернёт последние записи, stdout контейнера `alert-sink` — строки
-`[firing] Test (severity=info): проверка приёмника`.
+Чекпоинт «сломай и почини»: остановите API и подождите ~1.5 минуты —
+`ClikitApiDown` перейдёт в `firing` (видно в `/api/v1/alerts`, в UI
+Alertmanager и в `GET /alerts` приёмника), верните API — тот же алерт
+перейдёт в `resolved` (`send_resolved: true`).
+
+```powershell
+docker compose -f docker-compose.observability.yml stop api   # → firing (~1 мин)
+docker compose -f docker-compose.observability.yml start api  # → resolved
+Invoke-RestMethod http://127.0.0.1:8080/alerts | ConvertTo-Json -Depth 5
+```
+
+Проверка самих правил без контейнера стека:
+
+```powershell
+docker run --rm --entrypoint promtool -v "${PWD}/observability:/observability:ro" `
+  prom/prometheus:v3.16.0 check rules /observability/prometheus/recording_rules.yml `
+                                        /observability/prometheus/alerts.yml
+docker run --rm --entrypoint promtool -v "${PWD}/observability:/observability:ro" `
+  prom/prometheus:v3.16.0 test rules /observability/prometheus/tests/alerts_test.yml
+```
+
+Пороги: `High5xxRate` — 5xx > 1 % за 5 мин; `HighScenarioLatency` — p95 >
+300 мс за 10 мин; `ClikitApiDown` — target down 1 мин; `FastErrorBudgetBurn` /
+`SlowErrorBudgetBurn` — burn rate 14.4 (1 ч) / 6 (6 ч); `DbPoolExhausted` —
+`in_use >= 5`; `HostMemoryLow` — свободно < 10 % памяти Docker-хоста.
+`ClikitApiDown` подавляет следствия (5xx, латентность, пул).
 
 ## 6. Остановка, данные и ограничения
 
@@ -263,7 +288,8 @@ docker compose -f docker-compose.observability.yml down -v
 | `network ... not found` при `include` | Compose < 2.20: обновите Docker Desktop/Compose. |
 | `port is already allocated` | Порт занят: поменяйте `CLICKIT_*_PORT` в `.env`. |
 | `CLICKIT_..._PORT` не подействовал | `.env` читается из каталога запуска: выполняйте команду из корня репозитория. |
-| Пусто в `/alerts` после алерта | Алерты пока не настроены (T3.1); ручной вебхук — §5.4. |
+| Пусто в `/alerts` после алерта | Проверьте `/api/v1/alerts` Prometheus: если алерта нет, не сработало правило (`promtool check rules`). Если есть, но приёмник пуст — `logs alertmanager` и `logs alert-sink`. |
+| `ClikitApiDown` не проходит в resolved | Prometheus должен снова скрейпить `up=1`; проверьте `/api/v1/targets` и `group_interval` в Alertmanager (critical — 30 с). |
 
 ## 8. Связанные документы
 

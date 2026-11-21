@@ -1,6 +1,6 @@
 # M8 — Наблюдаемость и SLO
 
-> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16).
+> План создан 2026-11-01. Статус: 🚧 в работе (T0.1 ✅, T1.1 ✅, T1.2 ✅ — 2026-11-13, T1.3 ✅ — 2026-11-16, T2.1 ✅, T2.2 ✅ — 2026-11-16, T3.1 ✅ — 2026-11-16).
 > Зависимость: M7 (работающий сервис и БД). Без сервиса метрикам нечего
 > измерять; M8 не добавляет новые продуктовые функции.
 
@@ -26,9 +26,9 @@
       Prometheus, Grafana, Loki, Promtail, Tempo, Alertmanager.
 - [x] Дашборд Grafana хранится JSON-файлом в репозитории: RPS, error rate,
       p50/p95/p99, in-flight, БД, CPU/RAM; скриншот — в README.
-- [ ] Алерты: 5xx > 1% за 5 мин, p95 > 300 мс за 10 мин, target down 1 мин,
+- [x] Алерты: 5xx > 1% за 5 мин, p95 > 300 мс за 10 мин, target down 1 мин,
       быстрый/медленный burn rate error budget, пул БД, память.
-- [ ] `stop api` → алерт переходит в firing и виден в Alertmanager/приёмнике;
+- [x] `stop api` → алерт переходит в firing и виден в Alertmanager/приёмнике;
       возврат сервиса → resolved.
 - [ ] `docs/sre/slo.md`: SLI, SLO 99.5%, error budget, окно 30 дней,
       политика исчерпания бюджета; `docs/sre/runbook.md` — минимум 5 сценариев.
@@ -90,9 +90,10 @@
 observability/
 ├── prometheus/
 │   ├── prometheus.yml
-│   ├── alerts.yml       # T3.1
+│   ├── alerts.yml       # T3.1: 7 алертов (availability/latency/resources)
+│   ├── tests/           # T0.1/T3.1: slo_rules_test.yml, alerts_test.yml
 │   └── recording_rules.yml
-├── alertmanager/alertmanager.yml
+├── alertmanager/alertmanager.yml  # T3.1: маршрутизация по severity + inhibition
 ├── grafana/
 │   ├── provisioning/datasources/datasources.yml
 │   ├── provisioning/dashboards/dashboards.yml
@@ -140,6 +141,19 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
   низкой кардинальности (`route` — шаблон FastAPI); статический тест
   `tests/service/test_grafana_dashboard.py` не даёт в JSON ни id сценариев,
   ни секретов, ни неизвестных метрик.
+- **ADR №66 — алерты читают recording rules; promtool в CI** (2026-11-16,
+  T3.1): `observability/prometheus/alerts.yml` не дублирует формулы SLI, а
+  ссылается на записи T0.1 (`clikit:slo_burn_rate:*`,
+  `clikit:http_errors:ratio_rate5m`), поэтому порог SLO живёт в одном месте
+  (`docs/sre/slo.md`). Единственная новая запись — `clikit:sli_latency:p95_rate5m`
+  (та же формула, что в ad-hoc-запросе §8, вынесена в правило, чтобы алерт
+  `HighScenarioLatency` не копировал `histogram_quantile`). У каждого алерта
+  обязательны `severity` (`critical`/`warning`) и окно `for`; `ClikitApiDown`
+  подавляет следствия (5xx, латентность, пул) через Alertmanager inhibition.
+  Правила — код: их синтаксис и семантику (`promtool check/test rules`) гоняет
+  новый CI-job `observability-rules` на образе `prom/prometheus:v3.16.0` —
+  той же версии, что стек; статический тест `tests/service/test_alerts.py`
+  ловит расхождение порогов с документом SLO.
 
 ## 6. Граф задач
 
@@ -151,7 +165,7 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
 | T1.3 | OTel-трейсы и Tempo | T1.2 | Спан HTTP + БД, `trace_id` в логе | ✅ |
 | T2.1 | Compose-стек наблюдаемости | T1.3 | Все targets UP, UI открываются | ✅ |
 | T2.2 | Дашборд Grafana как код | T2.1 | JSON в Git, панели показывают трафик, скриншот | ✅ |
-| T3.1 | Алерты и Alertmanager + приёмник | T2.2 | `stop api` → firing → resolved; `promtool test rules` | ⬜ |
+| T3.1 | Алерты и Alertmanager + приёмник | T2.2 | `stop api` → firing → resolved; `promtool test rules` | ✅ |
 | T3.2 | Runbook и постмортем | T3.1 | 5 сценариев + реальный постмортем | ⬜ |
 | T4.1 | SLO/error budget и burn rate | T3.2 | Политика, алерты, расчёт на 30 дней | ⬜ |
 | T5.1 | Демо «сломай и почини» + README | T4.1 | 5-минутный сценарий воспроизводим с чистой машины | ⬜ |
@@ -210,6 +224,7 @@ scripts/alert_sink.py    # локальный приёмник вебхуков 
 | 2026-11-16 | T1.3 | OTel-трейсы и Tempo: `service/app/observability/tracing.py` — `Tracing` (создаёт `TracerProvider` на приложение через `install_tracer_provider`, HTTP-спан `FastAPIInstrumentor`, спан БД — самописный `SqlTracingListener` на `before/after_cursor_execute`, потому что официальная instrumentation-sqlalchemy требует `sqlalchemy<2.1`; текст SQL не пишется), `TraceContextMiddleware` — `trace_id` в журнал (внутри HTTP-спана), `active_trace_id`, `otlp_traces_url`; настройки `CLICKIT_OTEL_*` в `config.py` (enabled/endpoint/sample_rate/service_name) + `_env_bool`/`_env_float`; `main.py` — флаг `enable_tracing` (при явных `Settings` трейсинг выключен, иначе тесты висели на OTLP-таймауте), старт/остановка в `lifespan` через `run_in_threadpool`. Попутно исправлен порядок middleware: в списке `middleware=[...]` первым идёт внешний слой (зеркально `add_middleware`) — из-за перевёрнутого порядка 413 обходил request_id и метрики. ADR №63; `docs/api.md` §9, `docs/cloud.md` §8.1.2; `requirements-service.txt`; 23 теста `tests/service/test_tracing.py`; service — 294 passed (~18 с), полный прогон 568 passed; сквозная проверка вживую: HTTP-спан + `sqlite INSERT` в одном трейсе, `trace_id` в логе совпадает с трейсом, `clikit.request_id` равен `X-Request-ID` | см. `git log --grep T1.3` |
 | 2026-11-16 | T2.1 | Compose-стек наблюдаемости: `docker-compose.observability.yml` (project `clikit-observability`, `include: docker-compose.cloud.yml` — общая Docker-сеть, pinned-образы, порты только `127.0.0.1`, volumes и лимиты CPU/RAM) поднимает `prometheus` (v3.16.0, scrape 15s, retention 40d, `--web.enable-lifecycle`, recording rules из T0.1, Alertmanager как приёмник), `grafana` (13.2.6, provisioning Prometheus/Loki/Tempo как код, анонимный Viewer), `loki` (3.6.11, retention `720h`, structured metadata), `promtail` (3.6.11, Docker API, фильтры `com.docker.compose.project=clikit-observability` + `com.docker.compose.service=api`; `request_id`/`trace_id` — не метки), `tempo` (3.1.1, OTLP/HTTP `:4318`), `alertmanager` (0.35.0 → локальный приёмник `alert-sink`) и `node-exporter` (`docker-host`). Конфиги: `observability/{prometheus,alertmanager,grafana,loki,promtail,tempo}/…`. `scripts/alert_sink.py` (stdlib HTTP-сервер: `POST /webhook`, `GET /alerts`, `GET /healthz`; журнал только `status`/`alertname`/`severity`/`summary` — остальные поля не утекают, ADR №41/№64; `_drain_body` для корректного 413 без RST на Windows). Документация: `docs/observability.md` (запуск, §4 чекпоинт targets/UI, §5 логи/метрики/трейсы/алерты, §7 диагностика), `docs/cloud.md` §8.1.3, `.env.example` — `CLICKIT_*_PORT`. Тесты: 8 в `tests/service/test_alert_sink.py` (включая 413/JSON/историю) + 18 в `tests/service/test_observability_stack.py` (include, pinned-образы, retention, OTLP/HTTP Tempo, localhost-порты, scrape-таргеты, правила→Alertmanager, 3 datasource, read-only провайдер дашбордов, политика меток Loki/Promtail, отсутствие секретов в YAML). Пройден живой чекпоинт `down`→`up -d --build`/`up -d --wait`: контейнеры healthy, **8/8 targets UP** (prometheus, clikit-api, alertmanager, loki, promtail, tempo, grafana, node-exporter), UI/API 200, Grafana отдаёт datasource prometheus/loki/tempo, HTTP-спан+SQL в одном трейсе Tempo (`da31ae9f…`), JSON-логи `{service="api"}` в Loki, ручной вебхук → `{"received":1}`; данные переживают `down`/`up` (сценарий `500486a7…`, логи, трейс). Полный прогон **595 passed**, service — 321 (94.22 %), `ruff check`/`format --check` чисто; `promtool check config` — SUCCESS (1 rule file, 11 rules). T2.1 ✅; T2.2 (дашборд) и T3.1 (алерты + приёмник) остаются ⬜ | `a441541` |
 | 2026-11-16 | T2.2 | Дашборд Grafana как код: `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`, 13 панелей: RPS, 5xx, доступность/бюджет за 30 дней, burn rate 1ч/6ч, in-flight, RPS по маршрутам, p50/p95/p99, пул БД, CPU/RAM хоста, up, логи Loki; переменная маршрута, `editable: false`), provisioning read-only из Git. Скриншот `docs/img/screenshot-dashboard.png` добавлен в README (EN/RU), раздел «Наблюдаемость» и чекпоинт в `docs/observability.md` §4.1. Попутно исправлены recording rules T0.1: при существующих счётчиках с нулевым `rate` знаменатель SLI давал `NaN` — добавлено `> 0` и внешний `or vector(...)`; новый promtool-сценарий падает на старых правилах и проходит на новых (проверено оба). `promtool check rules` — 11 rules, `test rules` — SUCCESS (5 сценариев). Живой чекпоинт: дашборд в `/api/dashboards/uid/clikit-cloud` (13 панелей), 8/8 targets UP, панели показывают трафик, SLI = 1, burn rate = 0 (после перезапуска Prometheus с чистым TSDB). Тесты: 9 новых `tests/service/test_grafana_dashboard.py`; полный прогон **603 passed**, `ruff check`/`format --check` чисто | `3101ec2` |
+| 2026-11-16 | T3.1 | Алерты и Alertmanager: `observability/prometheus/alerts.yml` — 7 правил в 3 группах (`ClikitApiDown` 1 мин, `FastErrorBudgetBurn` 14.4/1ч, `SlowErrorBudgetBurn` 6/6ч, `High5xxRate` > 1 %/5 мин, `HighScenarioLatency` p95 > 300 мс/10 мин, `DbPoolExhausted` in_use ≥ 5, `HostMemoryLow` < 10 %); новая recording rule `clikit:sli_latency:p95_rate5m` (12 записей всего, ADR №66), чтобы алерт не дублировал `histogram_quantile`. Alertmanager: маршрутизация по severity (critical — repeat 1 ч, warning — 4 ч, оба в `local-sink` с `send_resolved: true`) и inhibition: `ClikitApiDown` подавляет 5 из 6 алертов-следствий. `prometheus.yml` грузит оба файла правил; CI-job `observability-rules` гоняет `promtool check rules` (12 + 7 rules) и оба `test rules` на `prom/prometheus:v3.16.0`. promtool-сценарии `tests/alerts_test.yml` (6: падение API с firing→resolved, 5xx, p95, burn rate, пул, память) и 12 статических тестов `tests/service/test_alerts.py`; обновлены `test_slo_docs.py`, `test_observability_stack.py`, `docs/sre/slo.md` §11 и `docs/observability.md` §5.4/§7. Живой чекпоинт: reload Prometheus/Alertmanager → 12 recording + 7 alerting rules загружены; `docker compose stop api` → `ClikitApiDown` pending (30–75 с) → **firing** (~90 с), виден в `/api/v1/alerts`, Alertmanager и в `GET /alerts` приёмника (`severity=critical`); `start api` → промет `up=1`, алерт исчез из Prometheus (~30 с), приёмник получил **resolved**; inhibition проверен статическими тестами. Полный прогон **614 passed**, `ruff check`/`format --check` чисто | — |
 
 ## 11. Вне вехи
 

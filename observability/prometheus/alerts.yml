@@ -1,0 +1,95 @@
+# Правила алертов ClicKit Cloud (M8 T3.1).
+#
+# Источник истины по порогам и политике — docs/sre/slo.md и
+# observability/prometheus/recording_rules.yml. Здесь только условия
+# срабатывания, окно `for` и аннотации. Формулы SLI не копируются: алерты
+# читают recording rules, поэтому правка порога SLO меняет и алерты.
+#
+# Названия алертов стабильны: на них опираются runbook (T3.2), демо
+# «сломай и почини» (T5.1) и маршрутизация Alertmanager. severity:
+#   critical — немедленная реакция (page);
+#   warning  — разбор в тот же день / в рабочее время (ticket).
+#
+# Кардинальность: метки только job/instance/state — без id сценариев,
+# request_id и текстов ошибок (ADR №62).
+
+groups:
+  - name: clikit-availability
+    interval: 15s
+    rules:
+      # Падение всего сервиса SLI не видит (docs/sre/slo.md §3): запросы
+      # просто не доходят до приложения. Поэтому отдельный алерт по up.
+      - alert: ClikitApiDown
+        expr: up{job="clikit-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ClicKit API недоступен для Prometheus"
+          description: "Target clikit-api в состоянии down больше 1 минуты. Проверить: docker compose ps api; docker compose logs --tail=100 api; curl /healthz."
+
+      # Быстрый расход бюджета: за 1 час потрачено ~2 % бюджета (SLO §6).
+      - alert: FastErrorBudgetBurn
+        expr: clikit:slo_burn_rate:ratio_1h > 14.4
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Быстрый расход error budget (1ч > 14.4x)"
+          description: "Бюджет SLO 99.5 % тратится в 14.4 раза быстрее нормы. Приостановить рискованные релизы и разобрать 5xx (docs/sre/slo.md §6-§7)."
+
+      # Медленный расход: за 6 часов ~5 % бюджета; тикет в тот же день.
+      - alert: SlowErrorBudgetBurn
+        expr: clikit:slo_burn_rate:ratio_6h > 6
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Медленный расход error budget (6ч > 6x)"
+          description: "Бюджет SLO 99.5 % тратится в 6 раз быстрее нормы. Разобрать причину в ближайшее время: тренд 5xx и латентности в Grafana."
+
+      # Ранний сигнал об ошибках, срабатывает быстрее 1-часового burn rate.
+      - alert: High5xxRate
+        expr: clikit:http_errors:ratio_rate5m > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Доля 5xx больше 1 % за 5 минут"
+          description: "Доля 5xx на пользовательских маршрутах /v1/... превысила 1 %. Найти 500 в JSON-логах по request_id, сверить с панелью Grafana."
+
+  - name: clikit-latency
+    interval: 15s
+    rules:
+      - alert: HighScenarioLatency
+        expr: clikit:sli_latency:p95_rate5m > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 запросов к сценариям больше 300 мс"
+          description: "p95 успешных запросов к /v1/scenarios выше порога SLO 300 мс уже 10 минут. Проверить БД, пул соединений и медленные трейсы в Tempo."
+
+  - name: clikit-resources
+    interval: 15s
+    rules:
+      # Пул SQLAlchemy по умолчанию: pool_size=5, max_overflow=10.
+      # in_use >= 5 означает, что штатный пул исчерпан и дальше идут
+      # соединения из overflow — запас до жёсткого лимита ещё есть.
+      - alert: DbPoolExhausted
+        expr: clikit_db_pool_connections{state="in_use"} >= 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Пул соединений БД почти исчерпан"
+          description: "in_use >= 5 (штатный pool_size). Проверить долгие запросы в PostgreSQL и утечки сессий (незакрытые session_scope)."
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "На Docker-хосте меньше 10 % свободной памяти"
+          description: "node-exporter сообщает о нехватке памяти. Проверить потребление контейнеров: docker stats; возможно, память съедает сам стек наблюдаемости."

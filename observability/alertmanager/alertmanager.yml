@@ -1,19 +1,36 @@
-# Alertmanager ClicKit Cloud (M8 T2.1).
-#
-# В T2.1 Alertmanager только стартует и принимает алерты в локальный
-# приёмник `scripts/alert_sink.py`; правила алертов, severity и маршрутизация
-# по критичности добавляются в T3.1 (`prometheus/alerts.yml`).
+# Alertmanager ClicKit Cloud (M8 T2.1, маршрутизация и подавление — T3.1).
 #
 # Секретов здесь нет: приёмник локальный (Docker-сеть), внешние интеграции
 # (почта, Telegram, PagerDuty) — вне вехи M8 (plans/M8-observability.md §11).
+#
+# Маршрутизация по критичности: оба маршрута ведут в один и тот же локальный
+# приёмник, но с разными паузами. Зачем два маршрута, если получатель один:
+# critical дублирует уведомление раз в час (repeat_interval), warning — раз в
+# четыре; в M11, когда появится реальный канал, критичность уже разделена и
+# маршруты не придётся перестраивать. `severity` задаётся в
+# observability/prometheus/alerts.yml.
+#
+# Подавление (T3.1): если API лежит (ClikitApiDown), то алерты про 5xx,
+# латентность и пул соединений — следствие, а не отдельная причина. Шум
+# оставляем только про причину.
 
 route:
-  # Единственный получатель: локальный вебхук-приёмник из compose.
   receiver: local-sink
   group_by: [alertname, severity]
   group_wait: 10s
   group_interval: 1m
   repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: local-sink
+      group_wait: 0s
+      group_interval: 30s
+      repeat_interval: 1h
+    - matchers: ['severity="warning"']
+      receiver: local-sink
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
 
 receivers:
   - name: local-sink
@@ -23,5 +40,11 @@ receivers:
         # resolved-уведомления нужны для демо T3.1/T5.1 «сломай и почини».
         send_resolved: true
 
-# Подавление шума включается вместе с правилами алертов в T3.1.
-inhibit_rules: []
+inhibit_rules:
+  # Падение API объясняет ошибки и латентность: подавляем их, пока активен
+  # ClikitApiDown. `equal` не задан намеренно: SLI-алерты считаются по
+  # агрегированным recording rules и метки job у них нет, поэтому сверять
+  # нечего — подавление действует на весь стек (он один).
+  - source_matchers: ['alertname="ClikitApiDown"']
+    target_matchers:
+      - 'alertname=~"High5xxRate|FastErrorBudgetBurn|SlowErrorBudgetBurn|HighScenarioLatency|DbPoolExhausted"'

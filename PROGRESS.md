@@ -65,6 +65,7 @@
 | 2026-11-16 | **T1.3 (M8) выполнена — трейсы OpenTelemetry и Tempo:** `service/app/observability/tracing.py` — `Tracing` создаёт `TracerProvider` на приложение (`install_tracer_provider` сбрасывает одноразовость `set_tracer_provider`, как реестр метрик в T1.2), HTTP-спан — `FastAPIInstrumentor` (имя — шаблон маршрута), спан БД — собственный `SqlTracingListener` на событиях SQLAlchemy `before/after_cursor_execute` (официальная `opentelemetry-instrumentation-sqlalchemy` требует `sqlalchemy < 2.1`); текст SQL в атрибуты **не пишется** (данные сценария). `TraceContextMiddleware` внутри HTTP-спана кладёт `trace_id` в журнальный `ContextVar`, атрибут `clikit.request_id` связывает спан с `X-Request-ID`; экспорт — батчевый OTLP/HTTP в Tempo, SDK включается только в `Tracing.start` из `lifespan` (старт/остановка — в пуле потоков), настройки `CLICKIT_OTEL_*` (enabled/endpoint/sample_rate/service_name) с валидацией; в `create_app` — флаг `enable_tracing`: при явных `Settings` трейсинг по умолчанию выключен, иначе каждый тест ждал бы таймаут экспорта в отсутствующий коллектор (прогон сервиса «висел» ~6 с/тест). Попутно исправлен порядок middleware: список `middleware=[...]` в `FastAPI` — **первым идёт внешний** слой (зеркально `add_middleware`), из-за перевёрнутого порядка 413 лимита тела обходил `RequestContextMiddleware` и метрики. Документация: `docs/api.md` §9 (`CLICKIT_OTEL_*`), `docs/cloud.md` §8.1.2 (трейсы → Tempo); ADR №63; `opentelemetry-sdk`/`-exporter-otlp-proto-http`/`-instrumentation-fastapi` в `requirements-service.txt`. Проверено вживую (in-memory экспортёр): у `POST /v1/scenarios` HTTP-спан + `sqlite INSERT` в одном трейсе, `trace_id` в JSON-журнале совпадает с трейсом, `clikit.request_id` на спане равен `X-Request-ID`. Тесты: 23 новых (`tests/service/test_tracing.py`); service — **294 passed** (~18 с вместо зависания), полный прогон **568 passed**, `ruff check`/`format --check` чисто | ✅ Готово |
 | 2026-11-16 | **T2.1 (M8) выполнена — compose-стек наблюдаемости:** `docker-compose.observability.yml` (`name: clikit-observability`, `include: docker-compose.cloud.yml` — API и PostgreSQL в общей Docker-сети; pinned-образы; порты только `127.0.0.1`; volumes, лимиты CPU/RAM) одной командой поднимает Prometheus+Grafana+Loki+Promtail+Tempo+Alertmanager+alert-sink+node-exporter. Prometheus (`prom/prometheus:v3.16.0`) — scrape 15 s, retention 40 d, `--web.enable-lifecycle`, recording rules T0.1, Alertmanager (`prom/alertmanager:v0.35.0`) как приёмник; Grafana (`13.2.6`) — datasources Prometheus/Loki/Tempo provisioned as code, анонимный Viewer, провайдер дашбордов read-only (JSON появится в T2.2); Loki (`3.6.11`) — `720h`, structured metadata; Promtail (`3.6.11`) — Docker API, фильтры `com.docker.compose.project=clikit-observability` + `com.docker.compose.service=api`, `request_id`/`trace_id` — structured metadata, не метки (иначе взрыв кардинальности); Tempo (`3.1.1`) — OTLP/HTTP `:4318`, retention 14 d дефолтом (top-level `compactor` удалён в 3.x); healthcheck у Loki/Tempo/Promtail убран (distroless/нет `wget`) — готовность через `/ready` и targets. `scripts/alert_sink.py` — stdlib HTTP-сервер: `POST /webhook` (формат Alertmanager v4), `GET /alerts` (история), `GET /healthz`; в stdout только `status`/`alertname`/`severity`/`summary` (ADR №41/№64), `_drain_body` даёт корректный 413 без `WinError 10053`. Документация: `docs/observability.md` (запуск, чекпоинт, логи/метрики/трейсы/алерты, диагностика; `Invoke-RestMethod` для кириллицы — `curl.exe` в PowerShell 5.1 рвёт JSON), `docs/cloud.md` §8.1.3, `.env.example` (7 `CLICKIT_*_PORT`). Тесты: 8 (`tests/service/test_alert_sink.py`) + 18 статических (`tests/service/test_observability_stack.py`). Живой чекпоинт: `down` → `up -d --wait` — все контейнеры healthy, **8/8 targets UP**, UI/API 200, Grafana datasource prometheus/loki/tempo, `/api/v2/status` Alertmanager 200, ручной вебхук → `{"received":1}`; published scenario `500486a7…`, Loki-логи API, Tempo-трейс `da31ae9f…`; данные переживают `down`/`up`. `ruff check`/`format --check` чисто, полный прогон **595 passed** (service 321, 94.22 %), `promtool check config` — SUCCESS (11 rules). T2.2/T3.1 остаются отдельными задачами | `a441541` |
 | 2026-11-16 | **T2.2 (M8) выполнена — дашборд Grafana как код:** `observability/grafana/dashboards/clikit-cloud.json` (UID `clikit-cloud`, 13 панелей: RPS, 5xx за 5 мин, доступность и остаток error budget за 30 дней, burn rate 1/6 ч, in-flight, RPS по маршрутам, p50/p95/p99 задержки, пул БД, CPU/RAM Docker-хоста, состояние targets, логи Loki; `editable: false`, переменная маршрута), провизионируется read-only из Git. Скриншот `docs/img/screenshot-dashboard.png` добавлен в README (EN/RU) вместе с разделом «Наблюдаемость»; чекпоинт и диагностика — `docs/observability.md` §4.1; ADR №65. Попутно исправлены recording rules T0.1: на существующих, но неактивных счётчиках `or vector(1)` в знаменателе не срабатывал и SLI давал `NaN` — знаменатель проходит через `> 0`, пятый promtool-сценарий ловит регрессию (проверено: на старых правилах падает, на новых SUCCESS; `check rules` — 11 правил). Живой чекпоинт: дашборд открывается в Grafana, 13 панелей в API, 8/8 targets UP, панели показывают трафик, SLI = 1, burn rate = 0. Тесты: 9 новых (`tests/service/test_grafana_dashboard.py`), полный прогон **603 passed**, `ruff check`/`format --check` чисто | ✅ Готово |
+| 2026-11-16 | **T3.1 (M8) выполнена — алерты и Alertmanager:** `observability/prometheus/alerts.yml` — 7 алертов (API down, быстрый/медленный burn rate, 5xx, p95 latency, пул БД, память хоста) с обязательными `severity` и `for`; новая запись `clikit:sli_latency:p95_rate5m` в recording rules (12 правил, ADR №66). Alertmanager получил маршрутизацию по `severity` (critical — повтор 1 ч, warning — 4 ч, `send_resolved: true`) и inhibition: `ClikitApiDown` подавляет алерты-следствия. Добавлены CI-job `observability-rules` (`promtool check/test rules` на `prom/prometheus:v3.16.0`), promtool-сценарии `tests/alerts_test.yml` (6 сценариев) и 12 статических тестов `tests/service/test_alerts.py`; обновлены `test_slo_docs.py`, `test_observability_stack.py`, `docs/sre/slo.md` §11, `docs/observability.md` §5.4/§7. Живой чекпоинт пройден: `stop api` → `ClikitApiDown` firing за ~90 с (виден в Prometheus, Alertmanager и приёмнике), `start api` → resolved (приёмник получил `resolved`). Полный прогон **614 passed**, `ruff` чисто | ✅ Готово |
 
 
 - **Этап:** **M6 завершён** (Docker + тестовые релизы), удалённые чекпоинты
@@ -75,7 +76,9 @@
   документация), **M8 в работе** (T0.1 ✅ — SLI/SLO, error budget и PromQL,
   T1.1 ✅ — JSON-логи, T1.2 ✅ — метрики, T1.3 ✅ — OTel-трейсы,
   T2.1 ✅ — compose-стек наблюдаемости: 8/8 targets UP, UI открываются,
-  T2.2 ✅ — дашборд Grafana как код (13 панелей, скриншот в README)),
+  T2.2 ✅ — дашборд Grafana как код (13 панелей, скриншот в README),
+  T3.1 ✅ — алерты и Alertmanager: 7 правил, `stop api` → firing → resolved,
+  promtool в CI),
   M9–M11 запланированы.
   Релиз **1.0.0** опубликован
   2026-10-29 (GitHub Release: `ClicKit-win64.zip`, NOTICE, SHA256SUMS).
@@ -193,7 +196,10 @@
   `observability/`; Prometheus/Grafana/Loki/Promtail/Tempo/Alertmanager и
   локальный приёмник алертов; 8/8 targets UP, UI открываются, данные
   переживают `down`/`up`; `docs/observability.md`, 26 тестов, 595 passed.
-  Следующая задача — **T2.2** (дашборд Grafana как код).
+  **T2.2 ✅** (2026-11-16): дашборд Grafana как код (13 панелей, скриншот в
+  README, 9 тестов). **T3.1 ✅** (2026-11-16): 7 алертов, recording rule p95,
+  Alertmanager-маршрутизация и inhibition, promtool в CI; `stop api` → firing
+  → resolved. Следующая задача — **T3.2** (runbook и постмортем).
   M7 завершён: контракт `docs/api.md`, скелет сервиса, БД и Alembic, CRUD
   сценариев, crash-отчёты, API-ключи и `X-Request-ID`, production-образ,
   локальный compose, клиент/CLI, тесты и CI, документация `docs/cloud.md`.
@@ -229,8 +235,11 @@
    `docs/cloud.md` §8.1.1); **T1.3 ✅** — OTel-трейсы в Tempo
    (`service/app/observability/tracing.py`); **T2.1 ✅** — compose-стек
    (`docker-compose.observability.yml`, `docs/observability.md`): 8/8 targets
-   UP, UI открываются, логи/метрики/трейсы сквозные. Следующая задача —
-   **T2.2** (дашборд Grafana как код), затем T3.1 (алерты), runbook.
+   UP, UI открываются, логи/метрики/трейсы сквозные; **T2.2 ✅** — дашборд
+   Grafana как код (13 панелей); **T3.1 ✅** — 7 алертов и Alertmanager
+   (`observability/prometheus/alerts.yml`, `tests/alerts_test.yml`, CI-job
+   `observability-rules`), `stop api` → firing → resolved. Следующая задача —
+   **T3.2** (runbook и постмортем).
 6. **M9–M10 — инфраструктура и доставка** (`plans/M9-infrastructure.md`,
    `plans/M10-delivery.md`): после M7 и M6 T3.2; Terraform → k3s/Helm/TLS →
    CD staging/prod с откатом и DORA.

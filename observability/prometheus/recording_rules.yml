@@ -95,6 +95,18 @@ groups:
           )
           or vector(1)
 
+      # p95 задержки успешных запросов к сценариям — для алерта
+      # `HighScenarioLatency` (T3.1) и разбора инцидентов. Формула та же, что
+      # в ad-hoc-запросе docs/sre/slo.md §8; алерт читает запись, а не копию.
+      - record: clikit:sli_latency:p95_rate5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(clikit_http_request_duration_seconds_bucket{route=~"/v1/scenarios(/.*)?", status=~"2..|3.."}[5m])
+            )
+          )
+
   - name: clikit-slo
     interval: 1m
     rules:

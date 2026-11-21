@@ -1,0 +1,158 @@
+# Unit-тесты правил алертов ClicKit Cloud (M8 T3.1).
+#
+# Запуск:
+#   docker run --rm --entrypoint promtool \
+#     -v "${PWD}/observability:/observability:ro" prom/prometheus:v3.16.0 \
+#     test rules /observability/prometheus/tests/alerts_test.yml
+#
+# Что проверяем:
+#   * up == 0 держится 1 минуту → ClikitApiDown (firing), после возврата — resolved;
+#   * 5xx > 1 % за 5 минут → High5xxRate;
+#   * p95 > 300 мс → HighScenarioLatency;
+#   * burn rate 14.4/1ч и 6/6ч → соответствующие алерты;
+#   * пул БД in_use >= 5 → DbPoolExhausted;
+#   * память хоста < 10 % → HostMemoryLow.
+# Окна `for` проверяются на момент сразу до и после порога, чтобы убедиться:
+# алерт не срабатывает раньше времени (иначе Alertmanager засыплет шумом).
+
+rule_files:
+  - ../recording_rules.yml
+  - ../alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: API упал — ClikitApiDown через 1 минуту и resolved после возврата
+    interval: 15s
+    input_series:
+      - series: 'up{job="clikit-api",instance="api:8000"}'
+        # 0 в течение 2 минут (8 точек), затем снова 1 (4 точки).
+        values: "0x8 1x4"
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: ClikitApiDown
+        exp_alerts: []
+      - eval_time: 90s
+        alertname: ClikitApiDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: clikit-api
+              instance: api:8000
+            exp_annotations:
+              summary: "ClicKit API недоступен для Prometheus"
+              description: "Target clikit-api в состоянии down больше 1 минуты. Проверить: docker compose ps api; docker compose logs --tail=100 api; curl /healthz."
+      - eval_time: 135s
+        alertname: ClikitApiDown
+        exp_alerts: []
+
+  - name: 5xx больше 1% — High5xxRate после 5 минут
+    interval: 15s
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+99x40"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+2x40"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: High5xxRate
+        exp_alerts: []
+      - eval_time: 5m30s
+        alertname: High5xxRate
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Доля 5xx больше 1 % за 5 минут"
+              description: "Доля 5xx на пользовательских маршрутах /v1/... превысила 1 %. Найти 500 в JSON-логах по request_id, сверить с панелью Grafana."
+
+  - name: 5xx в норме — High5xxRate не срабатывает
+    interval: 15s
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+100x40"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+1x40"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: High5xxRate
+        exp_alerts: []
+
+  - name: быстрый burn rate — FastErrorBudgetBurn
+    interval: 1m
+    input_series:
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="200"}'
+        values: "0+80x80"
+      - series: 'clikit_http_requests_total{method="GET",route="/v1/scenarios",status="503"}'
+        values: "0+20x80"
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: FastErrorBudgetBurn
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Быстрый расход error budget (1ч > 14.4x)"
+              description: "Бюджет SLO 99.5 % тратится в 14.4 раза быстрее нормы. Приостановить рискованные релизы и разобрать 5xx (docs/sre/slo.md §6-§7)."
+      - eval_time: 70m
+        alertname: SlowErrorBudgetBurn
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Медленный расход error budget (6ч > 6x)"
+              description: "Бюджет SLO 99.5 % тратится в 6 раз быстрее нормы. Разобрать причину в ближайшее время: тренд 5xx и латентности в Grafana."
+
+  - name: p95 больше 300 мс — HighScenarioLatency после 10 минут
+    interval: 15s
+    input_series:
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios",status="200",le="0.3"}'
+        values: "0+0x80"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios",status="200",le="0.5"}'
+        values: "0+100x80"
+      - series: 'clikit_http_request_duration_seconds_bucket{method="GET",route="/v1/scenarios",status="200",le="+Inf"}'
+        values: "0+100x80"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: HighScenarioLatency
+        exp_alerts: []
+      - eval_time: 10m30s
+        alertname: HighScenarioLatency
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "p95 запросов к сценариям больше 300 мс"
+              description: "p95 успешных запросов к /v1/scenarios выше порога SLO 300 мс уже 10 минут. Проверить БД, пул соединений и медленные трейсы в Tempo."
+
+  - name: пул БД исчерпан и память хоста заканчивается
+    interval: 15s
+    input_series:
+      - series: 'clikit_db_pool_connections{state="in_use"}'
+        values: "5x40"
+      - series: 'node_memory_MemAvailable_bytes{instance="docker-host"}'
+        values: "50x40"
+      - series: 'node_memory_MemTotal_bytes{instance="docker-host"}'
+        values: "1000x40"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: DbPoolExhausted
+        exp_alerts: []
+      - eval_time: 5m30s
+        alertname: DbPoolExhausted
+        exp_alerts:
+          - exp_labels:
+              state: in_use
+              severity: warning
+            exp_annotations:
+              summary: "Пул соединений БД почти исчерпан"
+              description: "in_use >= 5 (штатный pool_size). Проверить долгие запросы в PostgreSQL и утечки сессий (незакрытые session_scope)."
+      - eval_time: 5m30s
+        alertname: HostMemoryLow
+        exp_alerts:
+          - exp_labels:
+              instance: docker-host
+              severity: warning
+            exp_annotations:
+              summary: "На Docker-хосте меньше 10 % свободной памяти"
+              description: "node-exporter сообщает о нехватке памяти. Проверить потребление контейнеров: docker stats; возможно, память съедает сам стек наблюдаемости."

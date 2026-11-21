@@ -178,10 +178,11 @@ ClicKit/
 │   └── migrations/        # Alembic: env.py, versions/ (схема БД — docs/api.md §8)
 ├── cloud/                 # httpx-клиент сервиса (M7 T4.2): client.py
 ├── observability/         # стек наблюдаемости (M8): prometheus/ (prometheus.yml,
-│                          # recording_rules.yml, tests/), alertmanager/,
+│                          # recording_rules.yml, alerts.yml — T3.1; tests/ —
+│                          # slo_rules_test.yml, alerts_test.yml), alertmanager/,
 │                          # grafana/provisioning (datasources/dashboards),
 │                          # dashboards/ — T2.2: clikit-cloud.json (дашборд),
-│                          # loki/, promtail/, tempo/ (T2.1); правила алертов — T3.1
+│                          # loki/, promtail/, tempo/ (T2.1)
 └── tests/
 ```
 
@@ -694,6 +695,31 @@ M9–M11; их интерфейсы и критерии готовности з�
         входит в README: «дашборд как код» подтверждается не только файлом,
         но и работающими панелями.
 
+    66. **Алерты читают recording rules; promtool — ворота CI**
+        (2026-11-16, M8 T3.1): `observability/prometheus/alerts.yml` —
+        7 правил (`ClikitApiDown`, `FastErrorBudgetBurn`, `SlowErrorBudgetBurn`,
+        `High5xxRate`, `HighScenarioLatency`, `DbPoolExhausted`, `HostMemoryLow`)
+        с обязательными `severity` (`critical`/`warning`) и окном `for`.
+        Формулы SLI не дублируются: алерты ссылаются на записи T0.1
+        (`clikit:http_errors:ratio_rate5m`, `clikit:slo_burn_rate:ratio_*`),
+        поэтому порог меняется в одном месте — `docs/sre/slo.md`. Единственная
+        новая запись — `clikit:sli_latency:p95_rate5m`: та же формула, что в
+        ad-hoc-запросе §8, вынесена в правило, чтобы `HighScenarioLatency` не
+        копировал `histogram_quantile`. `up == 0` — отдельный алерт: SLI видит
+        только дошедшие до приложения запросы и падение сервиса не ловит
+        (продолжение ADR №60). Alertmanager маршрутизирует по `severity`
+        (critical — repeat 1 ч, warning — 4 ч, оба в `local-sink`,
+        `send_resolved: true`) и подавляет через inhibition алерты-следствия
+        (5xx, латентность, пул), пока активен `ClikitApiDown`: шумят только
+        причины. Правила — код: CI-job `observability-rules` гоняет
+        `promtool check rules` (12 записей + 7 алертов) и два `test rules`
+        (`slo_rules_test.yml`, `alerts_test.yml` — 6 сценариев) на
+        `prom/prometheus:v3.16.0`, той же версии, что стек. Статический тест
+        `tests/service/test_alerts.py` не даёт порогам разъехаться с SLO,
+        требует `for`/`severity` у каждого алерта и проверяет inhibition.
+        Живой чекпоинт: `stop api` → `ClikitApiDown` firing (~90 с) в Prometheus,
+        Alertmanager и приёмнике; `start api` → resolved, `send_resolved` в деле.
+
 ---
 
 ### 3.4. CI/CD
@@ -703,6 +729,7 @@ PR / push в master ──► ci.yml ──► lint ─────────�
                                         ├─► tests (3.11, 3.12, 3.13; Windows)
                                         ├─► tests-docker (Linux-контейнер)
                                         ├─► service-tests (PostgreSQL 16, Linux)
+                                        ├─► observability-rules (promtool: recording + alerts)
                                         └─► package (--zip + smoke, только master)
 
 push в master/dev ──► docker.yml ──► build-test (Linux)  ──► GHCR: <sha> + latest/dev
@@ -729,11 +756,13 @@ runner недоступен), Linux-образ — через `docker/build-push
 Правила и локальные аналоги:
 
 - Пуш в `master` — только через PR с зелёным CI (настройки репозитория:
-  branch protection, обязательные проверки `lint`, `tests` и `service-tests`,
-  удаление ветки после merge).
+  branch protection, обязательные проверки `lint`, `tests`, `tests-docker`,
+  `service-tests` и `observability-rules`, удаление ветки после merge).
 - Локальная проверка того же, что в CI: `ruff check .`, `ruff format --check .`,
   `python -m pytest`, `docker compose run --rm test` (Linux-контейнер, ADR №33),
   `python -m pytest tests/service --cov` (сервис, порог покрытия — ADR №58).
+  Правила наблюдаемости — `promtool check rules` / `test rules` из
+  `docs/sre/slo.md` §9 (job `observability-rules`, ADR №66).
   Тесты сервиса с реальным PostgreSQL: задать `CLICKIT_TEST_DB_URL`
   (в CI — сервисный контейнер `postgres:16`), без неё — файловая SQLite.
 - Локальная проверка релиза перед тегом:
@@ -832,8 +861,17 @@ read-only provisioning, `editable: false`), скриншот `docs/img/screensho
 `tests/service/test_grafana_dashboard.py`; попутно исправлены recording rules
 T0.1 — при существующем счётчике с нулевым `rate` SLI давал `NaN`, добавлены
 `> 0` и внешний `or vector(...)`, новый promtool-сценарий; полный прогон
-**603 passed**, `ruff` чист; ADR №65. Следующая задача — T3.1, алерты и
-Alertmanager.)*
+**603 passed**, `ruff` чист; ADR №65.)*
+
+*Последнее обновление: 2026-11-16 (**M8 T3.1** — алерты и Alertmanager:
+`observability/prometheus/alerts.yml` — 7 правил с `severity` и `for`;
+recording rule `clikit:sli_latency:p95_rate5m` (12 записей), Alertmanager —
+маршрутизация по критичности и inhibition `ClikitApiDown` → следствия,
+CI-job `observability-rules` с `promtool check/test rules`, 6 promtool-сценариев
+`tests/alerts_test.yml` и 12 статических тестов `tests/service/test_alerts.py`;
+живой чекпоинт `stop api` → firing (~90 с, видно в Prometheus/Alertmanager/
+приёмнике) → `start api` → resolved. Полный прогон **614 passed**,
+`ruff` чист; ADR №66. Следующая задача — T3.2, runbook и постмортем.)*
 
 *Ранее, 2026-11-16 (**M8 T2.1** — compose-стек наблюдаемости:
 `docker-compose.observability.yml` поднимает одной командой API/PostgreSQL
